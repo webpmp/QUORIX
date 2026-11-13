@@ -76,7 +76,7 @@ export const getTickerSymbol = (name: string): string => {
 };
 
 export default function TickerTape({ stocks, onSelectTicker }: TickerTapeProps) {
-  const [isMarketHours, setIsMarketHours] = useState<boolean>(true);
+  const [isNormalMarketOpen, setIsNormalMarketOpen] = useState<boolean>(() => getMarketTimeDetails().isCoreHours);
   const [, setTimerValue] = useState<number>(Date.now());
 
   // Force re-renders periodically to clear expired tick flash animations precisely
@@ -86,11 +86,11 @@ export default function TickerTape({ stocks, onSelectTicker }: TickerTapeProps) 
     }, 500);
 
     const mDetails = getMarketTimeDetails();
-    setIsMarketHours(mDetails.isPreMarket || mDetails.isCoreHours || mDetails.isAfterHours);
+    setIsNormalMarketOpen(mDetails.isCoreHours);
 
     const marketHoursInterval = setInterval(() => {
       const activeDetails = getMarketTimeDetails();
-      setIsMarketHours(activeDetails.isPreMarket || activeDetails.isCoreHours || activeDetails.isAfterHours);
+      setIsNormalMarketOpen(activeDetails.isCoreHours);
     }, 15000);
 
     return () => {
@@ -102,10 +102,13 @@ export default function TickerTape({ stocks, onSelectTicker }: TickerTapeProps) 
   return (
     <div className="bg-[#1a1a1a] border-b border-[#333] select-none text-xs font-mono py-1 px-3 whitespace-nowrap overflow-x-auto overflow-y-hidden flex items-center space-x-6 text-[#d4d4d4] shadow-inner">
       <div className="flex items-center space-x-2 shrink-0">
-        <span className="text-[9px] bg-[#ff9900] text-black px-1.5 py-0.5 font-extrabold uppercase rounded-sm">INDEX TAPE</span>
-        {!isMarketHours && (
-          <span className="text-[8px] bg-red-950/40 text-red-400 border border-red-900/40 px-1.5 py-0.5 font-bold uppercase rounded-sm">
-            CLOSE/LAST
+        {isNormalMarketOpen ? (
+          <span className="text-[9px] bg-[#ff9900] text-black px-1.5 py-0.5 font-extrabold uppercase rounded-sm">
+            INDEX TAPE
+          </span>
+        ) : (
+          <span className="text-[9px] bg-red-950/80 text-red-400 border border-red-800/60 px-1.5 py-0.5 font-extrabold uppercase rounded-sm">
+            MARKET CLOSED
           </span>
         )}
       </div>
