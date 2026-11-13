@@ -58,7 +58,7 @@ const TAPE_ITEMS = [
   { name: 'DOW JONES', symbol: 'DJI' },
   { name: 'NASDAQ', symbol: 'IXIC' },
   { name: 'GOLD (OZ)', symbol: 'GC' },
-  { name: 'BRENT CRUDE', symbol: 'CL' },
+  { name: 'WTI CRUDE', symbol: 'CL' },
   { name: 'US 10Y BOND', symbol: 'TNX' },
   { name: 'BITCOIN', symbol: 'BTC' }
 ];

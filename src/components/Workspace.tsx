@@ -9,7 +9,7 @@ import {
 import { FredFeedStatus } from '../App';
 import ChartWidget from './ChartWidget';
 import PolymarketScreen from './PolymarketScreen';
-import { Send, Sparkles, AlertCircle, RefreshCw, Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { Send, Sparkles, AlertCircle, RefreshCw, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 
 interface WorkspaceProps {
   activeScreen: string;
@@ -27,6 +27,7 @@ interface WorkspaceProps {
   onSelectTicker?: (ticker: string) => void;
   pendingAiQuery?: { id: number; text: string } | null;
   onClearPendingAiQuery?: () => void;
+  focusAskQuorixSignal?: number;
 }
 
 function getMarketTimeDetails(): { isPreMarket: boolean; isCoreHours: boolean; isAfterHours: boolean; isWeekend: boolean } {
@@ -220,15 +221,49 @@ export default function Workspace({
   onExecuteCommand: _onExecuteCommand,
   onSelectTicker,
   pendingAiQuery,
-  onClearPendingAiQuery
+  onClearPendingAiQuery,
+  focusAskQuorixSignal = 0
 }: WorkspaceProps) {
   // AI assistant conversational state (BWRITE)
   const [messages, setMessages] = useState<Array<{ sender: 'user' | 'terminal'; text: string; links?: any[] }>>([]);
   const [userInput, setUserInput] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [examplesExpanded, setExamplesExpanded] = useState(true);
+  const [releaseSearch, setReleaseSearch] = useState('');
+  const [pressReleasesOnly, setPressReleasesOnly] = useState(false);
+  const [bwriteFontIdx, setBwriteFontIdx] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('quorix_bwrite_font_size_idx');
+      if (saved !== null) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 5) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return 1;
+  });
   const lastProcessedQueryIdRef = useRef<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const bwriteInputRef = useRef<HTMLInputElement | null>(null);
+
+  const BWRITE_FONT_SCALES = [
+    { label: '10PX', body: 'text-[10px]', heading: 'text-[9px]', badge: 'text-[8px]', input: 'text-[11px]' },
+    { label: '12PX', body: 'text-xs', heading: 'text-[11px]', badge: 'text-[9px]', input: 'text-xs' },
+    { label: '14PX', body: 'text-sm', heading: 'text-xs', badge: 'text-[10px]', input: 'text-sm' },
+    { label: '16PX', body: 'text-base', heading: 'text-sm', badge: 'text-[11px]', input: 'text-base' },
+    { label: '18PX', body: 'text-lg', heading: 'text-base', badge: 'text-xs', input: 'text-lg' },
+    { label: '20PX', body: 'text-xl', heading: 'text-lg', badge: 'text-sm', input: 'text-xl' },
+  ] as const;
+  const activeBwriteFont = BWRITE_FONT_SCALES[bwriteFontIdx] || BWRITE_FONT_SCALES[1];
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('quorix_bwrite_font_size_idx', String(bwriteFontIdx));
+    } catch {
+      // ignore storage errors
+    }
+  }, [bwriteFontIdx]);
 
   // Screen-specific loading states for server-side AI contents
   const [desData, setDesData] = useState<string>('');
@@ -238,6 +273,7 @@ export default function Workspace({
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsArticles, setNewsArticles] = useState<any[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<number>(0);
+  const lastNewsTickerRef = useRef<string>('');
 
   // Settings Screen States
   const [alphaVantageKey, setAlphaVantageKey] = useState('');
@@ -370,10 +406,10 @@ export default function Workspace({
 
   const currentStock = stocks[selectedTicker] || stocks['AAPL'];
 
-  // Fetch or simulate server-side description on ticker search, and fetch initial news
+  // Fetch or simulate server-side description on ticker search, and fetch initial/ticker news
   useEffect(() => {
     if (lastRefreshed === 0) {
-      fetchAggregatedNews();
+      fetchAggregatedNews(selectedTicker);
     }
 
     if (activeScreen === 'DES') {
@@ -384,9 +420,11 @@ export default function Workspace({
       const details = getMarketTimeDetails();
       const isMarketActive = details.isPreMarket || details.isCoreHours || details.isAfterHours;
       const oneHourInMs = 60 * 60 * 1000;
-      
-      if (lastRefreshed > 0 && isMarketActive && Date.now() - lastRefreshed >= oneHourInMs) {
-        fetchAggregatedNews();
+
+      if (lastNewsTickerRef.current !== selectedTicker) {
+        fetchAggregatedNews(selectedTicker);
+      } else if (lastRefreshed > 0 && isMarketActive && Date.now() - lastRefreshed >= oneHourInMs) {
+        fetchAggregatedNews(selectedTicker);
       }
     }
   }, [selectedTicker, activeScreen, lastRefreshed]);
@@ -400,12 +438,12 @@ export default function Workspace({
         const oneHourInMs = 60 * 60 * 1000;
         
         if (isMarketActive && Date.now() - lastRefreshed >= oneHourInMs) {
-          fetchAggregatedNews();
+          fetchAggregatedNews(selectedTicker);
         }
       }
     }, 60000);
     return () => clearInterval(interval);
-  }, [activeScreen, lastRefreshed]);
+  }, [activeScreen, lastRefreshed, selectedTicker]);
 
   const fetchScreenData = async (
     screenKey: string,
@@ -437,10 +475,12 @@ export default function Workspace({
     }
   };
 
-  const fetchAggregatedNews = async () => {
+  const fetchAggregatedNews = async (targetTicker = selectedTicker) => {
     setNewsLoading(true);
     try {
-      const response = await fetch('/api/news/ticker');
+      const tickerQuery = targetTicker ? `?ticker=${encodeURIComponent(targetTicker)}` : '';
+      const response = await fetch(`/api/news/ticker${tickerQuery}`);
+      lastNewsTickerRef.current = targetTicker;
       const data = await response.json();
       if (data.success && Array.isArray(data.data)) {
         // Map missing fields and ensure ISO publishedAt timestamp exists
@@ -589,6 +629,15 @@ export default function Workspace({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isAiLoading, activeScreen]);
+
+  useEffect(() => {
+    if (activeScreen === 'BWRITE') {
+      const id = requestAnimationFrame(() => {
+        bwriteInputRef.current?.focus();
+      });
+      return () => cancelAnimationFrame(id);
+    }
+  }, [activeScreen, focusAskQuorixSignal]);
 
   // Submit AI prompt from follow-up input
   const handleAiSubmit = async (e: React.FormEvent) => {
@@ -846,7 +895,7 @@ export default function Workspace({
                 LAST REFRESHED: {lastRefreshed > 0 ? new Date(lastRefreshed).toLocaleTimeString() : 'NEVER'}
               </span>
               <button 
-                onClick={() => fetchAggregatedNews()} 
+                onClick={() => fetchAggregatedNews(selectedTicker)} 
                 disabled={newsLoading}
                 className="text-zinc-500 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
                 title="Refresh news"
@@ -867,7 +916,12 @@ export default function Workspace({
                 {newsArticles.map((item, idx) => {
                   const displayTime = formatDisplayTime(item.publishedAt || item.time);
                   const cleanedTitle = cleanHeadline(item.title);
-                  const relatedTickers = getRelatedTickers(item.title, item.content || '', stocks);
+                  const apiTickers: string[] = Array.isArray(item.relatedTickers)
+                    ? item.relatedTickers.filter((t: string) => /^[A-Z0-9-]{1,6}$/.test(t) && !t.includes('.'))
+                    : [];
+                  const relatedTickers = apiTickers.length > 0
+                    ? Array.from(new Set(apiTickers))
+                    : getRelatedTickers(item.title, item.content || '', stocks);
 
                   return (
                     <div key={item.id || idx} className="bg-black border border-[#151515] hover:border-[#333] p-4 rounded transition-all flex flex-col justify-between font-mono">
@@ -1141,39 +1195,129 @@ export default function Workspace({
                 </div>
 
                 {/* FRED Release Calendar */}
-                <div>
-                  <div className="text-[10px] text-[#ff9900] font-bold uppercase tracking-wider mb-2">
-                    FRED Economic Release Calendar
-                  </div>
-                  <div className="overflow-x-auto max-h-72 overflow-y-auto border border-[#222] rounded bg-black">
-                    <table className="w-full text-left text-xs text-zinc-300 font-mono">
-                      <thead className="sticky top-0 bg-[#0a0a0a]">
-                        <tr className="border-b border-[#333] text-zinc-500 text-[10px] uppercase font-bold">
-                          <th className="py-2 px-3">RELEASE DATE</th>
-                          <th className="py-2 px-3">RELEASE ID</th>
-                          <th className="py-2 px-3">ECONOMIC RELEASE</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {fredReleases.length === 0 ? (
-                          <tr>
-                            <td colSpan={3} className="py-6 text-center text-zinc-500">
-                              NO RELEASE CALENDAR DATES RETURNED.
-                            </td>
-                          </tr>
-                        ) : (
-                          fredReleases.map((rel, idx) => (
-                            <tr key={`${rel.releaseId}-${rel.date}-${idx}`} className="border-b border-[#222]/60 hover:bg-[#111] text-[11px]">
-                              <td className="py-2 px-3 text-[#00ff00] font-bold whitespace-nowrap">{rel.date}</td>
-                              <td className="py-2 px-3 text-zinc-500 whitespace-nowrap">#{rel.releaseId}</td>
-                              <td className="py-2 px-3 text-zinc-200">{rel.releaseName}</td>
+                {(() => {
+                  const normalizedQuery = releaseSearch.trim().toLowerCase();
+                  const filteredReleases = fredReleases.filter((rel) => {
+                    if (pressReleasesOnly && !rel.pressRelease) return false;
+                    if (!normalizedQuery) return true;
+                    return (
+                      rel.releaseName.toLowerCase().includes(normalizedQuery) ||
+                      rel.date.includes(normalizedQuery) ||
+                      String(rel.releaseId).includes(normalizedQuery)
+                    );
+                  });
+
+                  return (
+                    <div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <div className="text-[10px] text-[#ff9900] font-bold uppercase tracking-wider">
+                          FRED Economic Release Calendar (Last 30 Days • {filteredReleases.length})
+                        </div>
+                        <div className="flex items-center gap-2 font-mono">
+                          <div className="relative flex items-center">
+                            <Search size={11} className="text-zinc-500 absolute left-2 pointer-events-none" />
+                            <input
+                              type="text"
+                              value={releaseSearch}
+                              onChange={(e) => setReleaseSearch(e.target.value)}
+                              placeholder="FILTER RELEASES (CPI, FOMC, GDP...)"
+                              className="bg-black border border-[#333] focus:border-[#ff9900] rounded pl-6 pr-2 py-1 text-[10px] text-white placeholder-zinc-600 focus:outline-none w-52 sm:w-64 uppercase"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPressReleasesOnly((prev) => !prev)}
+                            className={`px-2 py-1 rounded border text-[10px] font-bold uppercase transition-colors cursor-pointer ${
+                              pressReleasesOnly
+                                ? 'border-[#ff9900] bg-[#ff9900]/15 text-[#ff9900]'
+                                : 'border-[#333] bg-black text-zinc-400 hover:border-zinc-500 hover:text-white'
+                            }`}
+                          >
+                            {pressReleasesOnly ? 'PRESS RELEASES' : 'ALL RELEASES'}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto max-h-96 overflow-y-auto border border-[#222] rounded bg-black">
+                        <table className="w-full text-left text-xs text-zinc-300 font-mono">
+                          <thead className="sticky top-0 bg-[#0a0a0a] z-10">
+                            <tr className="border-b border-[#333] text-zinc-500 text-[10px] uppercase font-bold">
+                              <th className="py-2 px-3">RELEASE DATE</th>
+                              <th className="py-2 px-3">RELEASE ID</th>
+                              <th className="py-2 px-3">ECONOMIC RELEASE</th>
+                              <th className="py-2 px-3 text-right">REPORTS</th>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                          </thead>
+                          <tbody>
+                            {filteredReleases.length === 0 ? (
+                              <tr>
+                                <td colSpan={4} className="py-6 text-center text-zinc-500">
+                                  {fredReleases.length === 0
+                                    ? 'NO RELEASE CALENDAR DATES RETURNED.'
+                                    : 'NO RELEASES MATCH CURRENT FILTER.'}
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredReleases.map((rel, idx) => {
+                                const fredUrl = rel.fredUrl || `https://fred.stlouisfed.org/release?rid=${rel.releaseId}`;
+                                const primaryUrl = rel.sourceUrl || fredUrl;
+
+                                return (
+                                  <tr key={`${rel.releaseId}-${rel.date}-${idx}`} className="border-b border-[#222]/60 hover:bg-[#111] text-[11px]">
+                                    <td className="py-2 px-3 text-[#00ff00] font-bold whitespace-nowrap">{rel.date}</td>
+                                    <td className="py-2 px-3 text-zinc-500 whitespace-nowrap">#{rel.releaseId}</td>
+                                    <td className="py-2 px-3 text-zinc-200">
+                                      <a
+                                        href={primaryUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hover:text-[#ff9900] hover:underline inline-flex items-center gap-1.5 transition-colors"
+                                        title={rel.sourceUrl ? `Open official report: ${rel.sourceUrl}` : `Open FRED release #${rel.releaseId}`}
+                                      >
+                                        <span>{rel.releaseName}</span>
+                                        <ExternalLink size={10} className="text-zinc-500 shrink-0" />
+                                      </a>
+                                      {rel.pressRelease && (
+                                        <span className="ml-2 text-[9px] text-[#ff9900] border border-[#ff9900]/40 bg-[#ff9900]/10 px-1 py-0.2 rounded uppercase">
+                                          PRESS
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-3 text-right whitespace-nowrap">
+                                      <div className="inline-flex items-center gap-2">
+                                        {rel.sourceUrl && (
+                                          <a
+                                            href={rel.sourceUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[10px] font-bold text-[#ff9900] hover:text-white border border-[#ff9900]/40 hover:border-[#ff9900] bg-[#ff9900]/10 px-1.5 py-0.5 rounded inline-flex items-center gap-1 transition-colors"
+                                            title="Open official agency press release / report"
+                                          >
+                                            <span>SOURCE</span>
+                                            <ExternalLink size={9} />
+                                          </a>
+                                        )}
+                                        <a
+                                          href={fredUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-[10px] font-bold text-[#3498db] hover:text-white border border-[#3498db]/40 hover:border-[#3498db] bg-[#3498db]/10 px-1.5 py-0.5 rounded inline-flex items-center gap-1 transition-colors"
+                                          title={`Open FRED Release #${rel.releaseId} data & series`}
+                                        >
+                                          <span>FRED</span>
+                                          <ExternalLink size={9} />
+                                        </a>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -1190,19 +1334,46 @@ export default function Workspace({
               <Sparkles size={14} className="text-[#3498db]" />
               QUORIX INTELLIGENCE
             </span>
-            <span className="text-[10px] text-zinc-500 font-mono">BWRITE ACTIVE STREAM</span>
+            <div className="flex items-center gap-1.5 font-mono">
+              <span className="text-[10px] text-zinc-500 uppercase tracking-wider hidden sm:inline mr-0.5">
+                TEXT SIZE
+              </span>
+              <button
+                type="button"
+                onClick={() => setBwriteFontIdx((prev) => Math.max(0, prev - 1))}
+                disabled={bwriteFontIdx === 0}
+                title="Decrease chat text size"
+                aria-label="Decrease chat text size"
+                className="px-2 py-0.5 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] font-bold transition-colors cursor-pointer"
+              >
+                A-
+              </button>
+              <span className="text-[10px] text-[#ff9900] font-bold min-w-[34px] text-center">
+                {activeBwriteFont.label}
+              </span>
+              <button
+                type="button"
+                onClick={() => setBwriteFontIdx((prev) => Math.min(BWRITE_FONT_SCALES.length - 1, prev + 1))}
+                disabled={bwriteFontIdx === BWRITE_FONT_SCALES.length - 1}
+                title="Increase chat text size"
+                aria-label="Increase chat text size"
+                className="px-2 py-0.5 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] font-bold transition-colors cursor-pointer"
+              >
+                A+
+              </button>
+            </div>
           </div>
 
           {/* Messages window area */}
           <div className="flex-1 p-3 overflow-y-auto space-y-4 bg-black/95">
-            <div className="w-full rounded border border-[#333] bg-black text-zinc-300 text-xs font-mono shadow-sm text-left overflow-hidden">
+            <div className={`w-full rounded border border-[#333] bg-black text-zinc-300 ${activeBwriteFont.body} font-mono shadow-sm text-left overflow-hidden`}>
               <button
                 type="button"
                 onClick={() => setExamplesExpanded((prev) => !prev)}
                 className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-[#0c0c0c] transition-colors cursor-pointer select-none"
                 aria-expanded={examplesExpanded}
               >
-                <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <span className={`${activeBwriteFont.badge} text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5`}>
                   {examplesExpanded ? (
                     <ChevronDown size={13} className="text-[#ff9900]" />
                   ) : (
@@ -1210,7 +1381,7 @@ export default function Workspace({
                   )}
                   QI — BWRITE COMMAND EXAMPLES
                 </span>
-                <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">
+                <span className={`${activeBwriteFont.badge} text-zinc-500 font-bold uppercase tracking-wider`}>
                   {examplesExpanded ? 'COLLAPSE' : 'EXPAND'}
                 </span>
               </button>
@@ -1220,7 +1391,7 @@ export default function Workspace({
                   {/* Left Column */}
                   <div className="space-y-4">
                     <div>
-                      <div className="text-[#ff9900] font-bold text-[11px] uppercase tracking-wider border-b border-[#222] pb-1 mb-2">
+                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#222] pb-1 mb-2`}>
                         Company &amp; Stock Deep-Dives
                       </div>
                       <div className="space-y-1">
@@ -1243,7 +1414,7 @@ export default function Workspace({
                     </div>
 
                     <div>
-                      <div className="text-[#ff9900] font-bold text-[11px] uppercase tracking-wider border-b border-[#222] pb-1 mb-2">
+                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#222] pb-1 mb-2`}>
                         Stock Comparisons
                       </div>
                       <div className="space-y-1">
@@ -1267,7 +1438,7 @@ export default function Workspace({
                   {/* Right Column */}
                   <div className="space-y-4">
                     <div>
-                      <div className="text-[#ff9900] font-bold text-[11px] uppercase tracking-wider border-b border-[#222] pb-1 mb-2">
+                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#222] pb-1 mb-2`}>
                         Live News &amp; Web-Grounded Queries
                       </div>
                       <div className="space-y-1">
@@ -1289,7 +1460,7 @@ export default function Workspace({
                     </div>
 
                     <div>
-                      <div className="text-[#ff9900] font-bold text-[11px] uppercase tracking-wider border-b border-[#222] pb-1 mb-2">
+                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#222] pb-1 mb-2`}>
                         Macro, Rates &amp; Commodities
                       </div>
                       <div className="space-y-1">
@@ -1343,9 +1514,9 @@ export default function Workspace({
                   return (
                     <div
                       key={idx}
-                      className="w-full rounded border border-[#333] bg-black text-zinc-300 p-3 text-xs font-mono shadow-sm text-left"
+                      className={`w-full rounded border border-[#333] bg-black text-zinc-300 p-3 ${activeBwriteFont.body} font-mono shadow-sm text-left`}
                     >
-                      <span className="text-[9px] block text-zinc-500 font-bold mb-1 uppercase tracking-wider">
+                      <span className={`${activeBwriteFont.badge} block text-zinc-500 font-bold mb-1 uppercase tracking-wider`}>
                         QI
                       </span>
                       <div className="whitespace-pre-wrap leading-relaxed select-text font-mono">
@@ -1353,7 +1524,7 @@ export default function Workspace({
                       </div>
                       {entry.message.links && entry.message.links.length > 0 && (
                         <div className="mt-3 border-t border-[#111] pt-2">
-                          <span className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase tracking-widest">GROUNDING SOURCED LINKS:</span>
+                          <span className={`${activeBwriteFont.badge} text-zinc-500 font-bold block mb-1 uppercase tracking-widest`}>GROUNDING SOURCED LINKS:</span>
                           <div className="flex flex-wrap gap-1.5">
                             {entry.message.links.map((link: any, lIdx: number) => (
                               <a
@@ -1361,7 +1532,7 @@ export default function Workspace({
                                 href={link.url}
                                 target="_blank"
                                 rel="noreferrer referrer"
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-[#333] bg-black text-[#3498db] hover:border-[#3498db] text-[9px]"
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-[#333] bg-black text-[#3498db] hover:border-[#3498db] ${activeBwriteFont.badge}`}
                               >
                                 <Search size={8} />
                                 <span>{link.title || 'Source'}</span>
@@ -1377,11 +1548,11 @@ export default function Workspace({
                 return (
                   <div
                     key={idx}
-                    className="w-full rounded border border-[#333] overflow-hidden text-xs font-mono shadow-sm text-left"
+                    className={`w-full rounded border border-[#333] overflow-hidden ${activeBwriteFont.body} font-mono shadow-sm text-left`}
                   >
                     {/* Client Question (Top) */}
                     <div className="bg-[#222] text-[#ff9900] p-3 border-b border-[#ff9900]/30">
-                      <span className="text-[9px] block text-zinc-400 font-bold mb-1 uppercase tracking-wider">
+                      <span className={`${activeBwriteFont.badge} block text-zinc-400 font-bold mb-1 uppercase tracking-wider`}>
                         USER
                       </span>
                       <div className="whitespace-pre-wrap leading-relaxed select-text font-mono">
@@ -1391,13 +1562,13 @@ export default function Workspace({
 
                     {/* AI Response (Bottom) */}
                     <div className="bg-black text-zinc-300 p-3">
-                      <span className="text-[9px] block text-zinc-500 font-bold mb-1 uppercase tracking-wider">
+                      <span className={`${activeBwriteFont.badge} block text-zinc-500 font-bold mb-1 uppercase tracking-wider`}>
                         QI
                       </span>
                       {entry.isPending ? (
                         <div className="text-zinc-500 flex items-center space-x-2 py-1">
                           <RefreshCw className="animate-spin text-[#3498db]" size={12} />
-                          <span>AI TERMINAL ANALYSING SEC & BOND ARBITRAGE FILINGS...</span>
+                          <span>AI TERMINAL ANALYSING SEC &amp; BOND ARBITRAGE FILINGS...</span>
                         </div>
                       ) : entry.answer ? (
                         <>
@@ -1406,7 +1577,7 @@ export default function Workspace({
                           </div>
                           {entry.answer.links && entry.answer.links.length > 0 && (
                             <div className="mt-3 border-t border-[#111] pt-2">
-                              <span className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase tracking-widest">GROUNDING SOURCED LINKS:</span>
+                              <span className={`${activeBwriteFont.badge} text-zinc-500 font-bold block mb-1 uppercase tracking-widest`}>GROUNDING SOURCED LINKS:</span>
                               <div className="flex flex-wrap gap-1.5">
                                 {entry.answer.links.map((link: any, lIdx: number) => (
                                   <a
@@ -1414,7 +1585,7 @@ export default function Workspace({
                                     href={link.url}
                                     target="_blank"
                                     rel="noreferrer referrer"
-                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-[#333] bg-black text-[#3498db] hover:border-[#3498db] text-[9px]"
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-[#333] bg-black text-[#3498db] hover:border-[#3498db] ${activeBwriteFont.badge}`}
                                   >
                                     <Search size={8} />
                                     <span>{link.title || 'Source'}</span>
@@ -1436,11 +1607,12 @@ export default function Workspace({
           {/* Dialog prompt submit form */}
           <form onSubmit={handleAiSubmit} className="p-2 border-t border-[#333] bg-[#0c0c0c] flex items-center gap-2">
             <input
+              ref={bwriteInputRef}
               type="text"
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
               placeholder="Ask QUORIX AI (e.g., Explain inflation logic, summarize oil trends, compare NVDA and AAPL metrics...)"
-              className="flex-1 bg-black border border-[#333] focus:border-[#3498db] rounded p-2 text-xs font-mono text-[#00ff00] outline-none placeholder-zinc-700"
+              className={`flex-1 bg-black border border-[#333] focus:border-[#3498db] rounded p-2 ${activeBwriteFont.input} font-mono text-[#00ff00] outline-none placeholder-zinc-700`}
               disabled={isAiLoading}
             />
             <button

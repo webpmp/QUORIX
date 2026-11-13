@@ -46,6 +46,7 @@ export default function App() {
   // Custom global command input state
   const [currentCommand, setCurrentCommand] = useState<string>('');
   const [pendingAiQuery, setPendingAiQuery] = useState<{ id: number; text: string } | null>(null);
+  const [focusAskQuorixSignal, setFocusAskQuorixSignal] = useState<number>(0);
 
   const fetchLiveQuote = useCallback(async (ticker: string, isBatch = false, force = false) => {
     try {
@@ -271,6 +272,9 @@ export default function App() {
 
   const handleSelectScreen = (screenCode: string) => {
     setActiveScreen(screenCode);
+    if (screenCode === 'BWRITE') {
+      setFocusAskQuorixSignal((n) => n + 1);
+    }
   };
 
   const handleSelectTicker = (ticker: string) => {
@@ -334,6 +338,7 @@ export default function App() {
           }}
           pendingAiQuery={pendingAiQuery}
           onClearPendingAiQuery={() => setPendingAiQuery(null)}
+          focusAskQuorixSignal={focusAskQuorixSignal}
         />
       </div>
 

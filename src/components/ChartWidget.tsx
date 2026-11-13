@@ -54,13 +54,15 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
   const [showVolumeStudy, setShowVolumeStudy] = useState<boolean>(true);
   const [showRsiStudy, setShowRsiStudy] = useState<boolean>(true);
   const [interval, setInterval] = useState<IntervalType>('1h');
-  const [fetchedHistory, setFetchedHistory] = useState<HistoryBar[]>([]);
+  const [fetchedHistory, setFetchedHistory] = useState<{ symbol: string; interval: IntervalType; bars: HistoryBar[] } | null>(null);
   const [historyLoading, setHistoryLoading] = useState<boolean>(false);
   const chartPanelRef = useRef<HTMLDivElement | null>(null);
   const [chartWidth, setChartWidth] = useState<number>(600);
 
   useEffect(() => {
     if (!stock?.symbol) return;
+    const sym = stock.symbol;
+    const activeInt = interval;
     let cancelled = false;
     setHoverIndex(null);
 
@@ -68,19 +70,19 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
       setHistoryLoading(true);
       try {
         const res = await fetch(
-          `/api/market/history?symbol=${encodeURIComponent(stock.symbol)}&interval=${encodeURIComponent(interval)}`
+          `/api/market/history?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(activeInt)}`
         );
         const data = await res.json();
         if (!cancelled) {
           if (data.success && Array.isArray(data.history)) {
-            setFetchedHistory(data.history);
+            setFetchedHistory({ symbol: sym, interval: activeInt, bars: data.history });
           } else {
-            setFetchedHistory([]);
+            setFetchedHistory({ symbol: sym, interval: activeInt, bars: [] });
           }
         }
       } catch {
         if (!cancelled) {
-          setFetchedHistory([]);
+          setFetchedHistory({ symbol: sym, interval: activeInt, bars: [] });
         }
       } finally {
         if (!cancelled) {
@@ -95,12 +97,14 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
     };
   }, [stock?.symbol, interval]);
 
-  const activeBars =
-    fetchedHistory.length > 0
-      ? fetchedHistory
-      : interval === '1h' && stock?.history && stock.history.length > 0
-      ? stock.history
+  const matchingFetched =
+    fetchedHistory &&
+    fetchedHistory.symbol === stock?.symbol &&
+    fetchedHistory.interval === interval
+      ? fetchedHistory.bars
       : [];
+
+  const activeBars = matchingFetched;
 
   useEffect(() => {
     const el = chartPanelRef.current;
@@ -152,13 +156,38 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
     );
   }
 
-  const history = [...activeBars].reverse(); // oldest first for chronological chart
+  // Ensure chronological order: earliest bar on far left (index 0), latest/current bar on far right
+  const hasTimestamps = activeBars.every((b) => typeof b.timestamp === 'number');
+  const history = hasTimestamps
+    ? [...activeBars].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
+    : [...activeBars].reverse();
   const rsiList = calculateRSI(history, 6);
+
+  const firstTs = history[0]?.timestamp;
+  const lastTs = history[history.length - 1]?.timestamp;
+  const spansMultipleDays =
+    typeof firstTs === 'number' &&
+    typeof lastTs === 'number' &&
+    new Date(firstTs * 1000).toLocaleDateString() !== new Date(lastTs * 1000).toLocaleDateString();
+
+  const formatBarLabel = (bar: HistoryBar, includeDateForIntraday = spansMultipleDays): string => {
+    if (typeof bar.timestamp !== 'number') return bar.date;
+    const d = new Date(bar.timestamp * 1000);
+    if (['5m', '15m', '30m', '1h', '1D', '1W'].includes(interval)) {
+      const hm = d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
+      if (includeDateForIntraday || interval === '1W') {
+        const md = d.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
+        return `${md} ${hm}`;
+      }
+      return hm;
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
 
   // Layout & Coordinate constants (1:1 pixel-matched to container width)
   const width = Math.max(320, chartWidth);
   const paddingLeft = 58;
-  const paddingRight = 24;
+  const paddingRight = 32;
   const adjWidth = Math.max(100, width - paddingLeft - paddingRight);
 
   // 1. Price Chart Dimensions
@@ -171,9 +200,10 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
   const candleWidth = Math.max(4, Math.min(14, Math.floor(barStep * 0.55)));
   const volBarWidth = Math.max(3, Math.min(12, Math.floor(barStep * 0.5)));
 
-  const maxLabels = Math.max(4, Math.floor(adjWidth / 76));
+  const minLabelGapPx = (spansMultipleDays || interval === '1W') && interval !== '1M' ? 98 : 76;
+  const maxLabels = Math.max(3, Math.floor(adjWidth / minLabelGapPx));
   const labelStep = Math.max(1, Math.ceil(history.length / maxLabels));
-  const lastRegularTick = Math.floor((history.length - 1) / labelStep) * labelStep;
+  const lastIdx = history.length - 1;
 
   const formatAxisPrice = (val: number) =>
     val >= 1000 ? val.toFixed(1) : val >= 10 ? val.toFixed(2) : val.toFixed(3);
@@ -263,15 +293,16 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
 
   const activeIndex = hoverIndex !== null ? hoverIndex : history.length - 1;
   const hoveredData = history[activeIndex];
+  const formattedHoveredDate = formatBarLabel(hoveredData, true);
   const displayData = hoverIndex !== null ? {
-    date: hoveredData.date,
+    date: formattedHoveredDate,
     open: hoveredData.open,
     high: hoveredData.high,
     low: hoveredData.low,
     close: hoveredData.close,
     volume: hoveredData.volume
   } : {
-    date: hoveredData.date,
+    date: formattedHoveredDate,
     open: typeof stock.open === 'number' && stock.open > 0 ? stock.open : hoveredData.open,
     high: typeof stock.high === 'number' && stock.high > 0 ? stock.high : hoveredData.high,
     low: typeof stock.low === 'number' && stock.low > 0 ? stock.low : hoveredData.low,
@@ -325,12 +356,12 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
                 }`}
                 title={
-                  int === '5m' ? '5-Minute' :
-                  int === '15m' ? '15-Minute' :
-                  int === '30m' ? '30-Minute' :
-                  int === '1h' ? '1-Hour' :
-                  int === '1D' ? 'Daily' :
-                  int === '1W' ? 'Weekly' : 'Monthly'
+                  int === '5m' ? 'Last 5 Minutes (Today)' :
+                  int === '15m' ? 'Last 15 Minutes (Today)' :
+                  int === '30m' ? 'Last 30 Minutes (Today)' :
+                  int === '1h' ? 'Last 60 Minutes (Today)' :
+                  int === '1D' ? 'Current Day (Today)' :
+                  int === '1W' ? 'Last 7 Days' : 'Last 30/31 Days'
                 }
               >
                 {int.toUpperCase()}
@@ -563,9 +594,8 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
             {/* Vertical Time Axis ticks */}
             {history.map((h, i) => {
               const showTick =
-                i % labelStep === 0 ||
-                (i === history.length - 1 &&
-                  history.length - 1 - lastRegularTick >= Math.max(2, Math.ceil(labelStep * 0.6)));
+                i === lastIdx ||
+                (i % labelStep === 0 && getX(lastIdx) - getX(i) >= minLabelGapPx * 0.78);
               if (showTick) {
                 return (
                   <g key={`text-${i}`}>
@@ -585,7 +615,7 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
                       fontFamily="monospace"
                       fontWeight="bold"
                     >
-                      {h.date}
+                      {formatBarLabel(h)}
                     </text>
                   </g>
                 );
@@ -870,7 +900,16 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
           ) : (
             <Activity size={10} className="text-[#00ff00]" />
           )}
-          <span>INTERVAL: {interval.toUpperCase()} ({history.length} LIVE BARS)</span>
+          <span>
+            RANGE: {
+              interval === '5m' ? '5M (LAST 5 MIN)' :
+              interval === '15m' ? '15M (LAST 15 MIN)' :
+              interval === '30m' ? '30M (LAST 30 MIN)' :
+              interval === '1h' ? '1H (LAST 60 MIN)' :
+              interval === '1D' ? '1D (TODAY)' :
+              interval === '1W' ? '1W (LAST 7 DAYS)' : '1M (LAST 30/31 DAYS)'
+            } ({history.length} LIVE BARS)
+          </span>
         </span>
         <span className="text-zinc-500">
           STUDIES ACTIVE: {showVolumeStudy ? "VOL " : ""}{showRsiStudy ? "RSI " : ""}{showIndicator ? "3MA " : ""}

@@ -14,6 +14,7 @@ export interface StockData {
   beta: number;
   history: Array<{
     date: string;
+    timestamp?: number;
     open: number;
     high: number;
     low: number;
@@ -63,6 +64,9 @@ export interface FredReleaseDate {
   releaseId: number;
   releaseName: string;
   date: string;
+  fredUrl?: string;
+  sourceUrl?: string | null;
+  pressRelease?: boolean;
 }
 
 export interface CurrencyPair {

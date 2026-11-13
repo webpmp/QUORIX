@@ -16,11 +16,21 @@ const customKeys = {
   FRED_API_KEY: process.env.FRED_API_KEY || "",
 };
 
-// In-memory cooldowns to avoid spamming APIs after they report rate limits or errors
+// In-memory cooldowns and 5-minute caches to prevent rate limits (429) on ticker switches / polling
+const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
 const apiCooldowns = {
   nyt: 0,
   newsapi: 0,
   newsdata: 0,
+};
+const newsProviderCache: {
+  nyt: { timestamp: number; items: any[] };
+  newsapi: { timestamp: number; items: any[] };
+  newsdata: { timestamp: number; items: any[] };
+} = {
+  nyt: { timestamp: 0, items: [] },
+  newsapi: { timestamp: 0, items: [] },
+  newsdata: { timestamp: 0, items: [] },
 };
 
 // In-memory cache for FRED API responses (5 minute TTL)
@@ -56,21 +66,117 @@ async function fetchFredObservations(
     }));
 }
 
-async function fetchFredReleaseDates(apiKey: string, limit = 25) {
-  const url = `https://api.stlouisfed.org/fred/releases/dates?api_key=${encodeURIComponent(
+const FRED_RELEASES_CATALOG_TTL_MS = 60 * 60 * 1000;
+let fredReleasesCatalogCache: {
+  timestamp: number;
+  byId: Map<number, { link: string | null; pressRelease: boolean }>;
+} | null = null;
+
+function sanitizeReportUrl(rawUrl: unknown): string | null {
+  if (typeof rawUrl !== "string") return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return null;
+}
+
+async function fetchFredReleasesCatalog(apiKey: string) {
+  const now = Date.now();
+  if (fredReleasesCatalogCache && now - fredReleasesCatalogCache.timestamp < FRED_RELEASES_CATALOG_TTL_MS) {
+    return fredReleasesCatalogCache.byId;
+  }
+
+  const byId = new Map<number, { link: string | null; pressRelease: boolean }>();
+  const url = `https://api.stlouisfed.org/fred/releases?api_key=${encodeURIComponent(
     apiKey
-  )}&file_type=json&include_release_dates_with_no_data=false&sort_order=desc&limit=${limit}`;
+  )}&file_type=json&limit=1000`;
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error(`FRED releases/dates returned status ${res.status}`);
+    throw new Error(`FRED releases catalog returned status ${res.status}`);
   }
   const data = await res.json();
-  const dates = Array.isArray(data?.release_dates) ? data.release_dates : [];
-  return dates.map((r: any) => ({
-    releaseId: r.release_id,
-    releaseName: r.release_name,
-    date: r.date,
-  }));
+  const releases = Array.isArray(data?.releases) ? data.releases : [];
+  for (const rel of releases) {
+    if (typeof rel?.id === "number") {
+      byId.set(rel.id, {
+        link: sanitizeReportUrl(rel.link),
+        pressRelease: Boolean(rel.press_release),
+      });
+    }
+  }
+
+  fredReleasesCatalogCache = { timestamp: now, byId };
+  return byId;
+}
+
+async function fetchFredReleaseDates(apiKey: string, lookbackDays = 31) {
+  const endDate = new Date();
+  const startDate = new Date(endDate.getTime() - lookbackDays * 86400 * 1000);
+  const startStr = startDate.toISOString().slice(0, 10);
+  const endStr = endDate.toISOString().slice(0, 10);
+
+  const [catalog, pages] = await Promise.all([
+    fetchFredReleasesCatalog(apiKey).catch((err) => {
+      console.warn("FRED releases catalog fetch failed:", err.message);
+      return new Map<number, { link: string | null; pressRelease: boolean }>();
+    }),
+    (async () => {
+      const collected: any[] = [];
+      const pageLimit = 1000;
+      const maxPages = 3;
+
+      for (let page = 0; page < maxPages; page++) {
+        const offset = page * pageLimit;
+        const url = `https://api.stlouisfed.org/fred/releases/dates?api_key=${encodeURIComponent(
+          apiKey
+        )}&file_type=json&include_release_dates_with_no_data=false&sort_order=desc&realtime_start=${startStr}&realtime_end=${endStr}&limit=${pageLimit}&offset=${offset}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(`FRED releases/dates returned status ${res.status}`);
+        }
+        const data = await res.json();
+        const batch = Array.isArray(data?.release_dates) ? data.release_dates : [];
+        collected.push(...batch);
+        if (batch.length < pageLimit) break;
+      }
+      return collected;
+    })(),
+  ]);
+
+  const seen = new Set<string>();
+  const results: Array<{
+    releaseId: number;
+    releaseName: string;
+    date: string;
+    fredUrl: string;
+    sourceUrl: string | null;
+    pressRelease: boolean;
+  }> = [];
+
+  for (const r of pages) {
+    const releaseId = Number(r?.release_id);
+    const releaseName = typeof r?.release_name === "string" ? r.release_name.trim() : "";
+    const date = typeof r?.date === "string" ? r.date.trim() : "";
+    if (!releaseId || !releaseName || !date) continue;
+    if (date < startStr || date > endStr) continue;
+
+    const dedupeKey = `${releaseId}:${date}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    const meta = catalog.get(releaseId);
+    results.push({
+      releaseId,
+      releaseName,
+      date,
+      fredUrl: `https://fred.stlouisfed.org/release?rid=${releaseId}`,
+      sourceUrl: meta?.link ?? null,
+      pressRelease: meta?.pressRelease ?? false,
+    });
+  }
+
+  results.sort((a, b) => b.date.localeCompare(a.date) || a.releaseName.localeCompare(b.releaseName));
+  return results;
 }
 
 async function fetchLiveFredEconomics(apiKey: string, force = false) {
@@ -144,7 +250,7 @@ async function fetchLiveFredEconomics(apiKey: string, force = false) {
     safeObs("DGS10", { units: "lin", limit: 3 }),
     safeObs("DGS2", { units: "lin", limit: 3 }),
     safeObs("MORTGAGE30US", { units: "lin", limit: 3 }),
-    fetchFredReleaseDates(apiKey, 25).catch((err) => {
+    fetchFredReleaseDates(apiKey, 31).catch((err) => {
       console.warn("FRED releases/dates fetch failed:", err.message);
       return [];
     }),
@@ -260,37 +366,689 @@ app.use(express.json());
 
 const PORT = 3000;
 
-// Lazy initialize Gemini API client to prevent startup failure
+// Lazy initialize Gemini API client and refresh automatically if GEMINI_API_KEY changes
 let aiClient: GoogleGenAI | null = null;
-let isAiKeyInvalid = false;
+let aiClientKey: string = "";
+
+function getNormalizedGeminiKey(): string {
+  const raw = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
+  const cleaned = raw.trim().replace(/^['"]|['"]$/g, "").trim();
+  if (!cleaned || cleaned === "MY_GEMINI_API_KEY") return "";
+  return cleaned;
+}
 
 function getAiClient(): GoogleGenAI | null {
-  if (isAiKeyInvalid) {
+  const key = getNormalizedGeminiKey();
+  if (!key) {
+    aiClient = null;
+    aiClientKey = "";
     return null;
   }
-  if (!aiClient) {
-    const key = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
-    if (key && key !== "MY_GEMINI_API_KEY" && key.startsWith("AIzaSy")) {
-      try {
-        aiClient = new GoogleGenAI({
-          apiKey: key,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
-            }
+  if (!aiClient || aiClientKey !== key) {
+    try {
+      aiClient = new GoogleGenAI({
+        apiKey: key,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
           }
-        });
-      } catch (err) {
-        console.warn("Failed to initialize GoogleGenAI client:", err);
-      }
-    } else {
-      if (key && key !== "MY_GEMINI_API_KEY") {
-        console.warn("Gemini API: Invalid key structure detected (keys should start with AIzaSy).");
-        isAiKeyInvalid = true;
-      }
+        }
+      });
+      aiClientKey = key;
+    } catch (err) {
+      console.warn("Failed to initialize GoogleGenAI client:", err);
+      aiClient = null;
+      aiClientKey = "";
     }
   }
   return aiClient;
+}
+
+// Cached Yahoo Finance session cookie + crumb for quoteSummary (unlocked fundamentals & business profile)
+const YAHOO_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+let yahooCrumbCache: { cookie: string; crumb: string; timestamp: number } | null = null;
+const YAHOO_CRUMB_TTL_MS = 30 * 60 * 1000;
+
+async function getYahooCrumb(forceRefresh = false): Promise<{ cookie: string; crumb: string } | null> {
+  const now = Date.now();
+  if (!forceRefresh && yahooCrumbCache && now - yahooCrumbCache.timestamp < YAHOO_CRUMB_TTL_MS) {
+    return { cookie: yahooCrumbCache.cookie, crumb: yahooCrumbCache.crumb };
+  }
+  try {
+    const cRes = await fetch("https://fc.yahoo.com", { headers: { "User-Agent": YAHOO_UA } });
+    const getSetCookie = (cRes.headers as any).getSetCookie;
+    const rawCookies: string[] = typeof getSetCookie === "function"
+      ? getSetCookie.call(cRes.headers)
+      : [cRes.headers.get("set-cookie")].filter((v): v is string => Boolean(v));
+    const cookie = rawCookies.map((c) => c.split(";")[0]).filter(Boolean).join("; ");
+    if (!cookie) return null;
+
+    const crumbRes = await fetch("https://query1.finance.yahoo.com/v1/test/getcrumb", {
+      headers: { "User-Agent": YAHOO_UA, Cookie: cookie },
+    });
+    if (!crumbRes.ok) return null;
+    const crumb = (await crumbRes.text()).trim();
+    if (!crumb || crumb.includes("<")) return null;
+
+    yahooCrumbCache = { cookie, crumb, timestamp: now };
+    return { cookie, crumb };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchYahooQuoteSummary(symbol: string): Promise<any | null> {
+  const yfSymbol = mapToYahooSymbol(symbol.toUpperCase());
+  const modules = "assetProfile,summaryDetail,financialData,defaultKeyStatistics,recommendationTrend,price";
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const auth = await getYahooCrumb(attempt > 0);
+    if (!auth) continue;
+    try {
+      const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(
+        yfSymbol
+      )}?modules=${modules}&crumb=${encodeURIComponent(auth.crumb)}`;
+      const res = await fetch(url, {
+        headers: { "User-Agent": YAHOO_UA, Cookie: auth.cookie },
+      });
+      if (res.status === 401 || res.status === 403) {
+        yahooCrumbCache = null;
+        continue;
+      }
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.quoteSummary?.result?.[0] || null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+async function fetchYahooChartSnapshot(symbol: string): Promise<any | null> {
+  try {
+    const yfSymbol = mapToYahooSymbol(symbol.toUpperCase());
+    const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfSymbol)}?interval=1h&range=5d`;
+    const res = await fetch(url, { headers: { "User-Agent": YAHOO_UA } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const meta = data?.chart?.result?.[0]?.meta;
+    if (!meta) return null;
+    const price = typeof meta.regularMarketPrice === "number" ? meta.regularMarketPrice : 0;
+    const prevClose =
+      typeof meta.regularMarketPreviousClose === "number"
+        ? meta.regularMarketPreviousClose
+        : typeof meta.previousClose === "number"
+        ? meta.previousClose
+        : price;
+    const change = price - prevClose;
+    const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
+    return {
+      symbol: symbol.toUpperCase(),
+      yfSymbol,
+      name: meta.longName || meta.shortName || symbol.toUpperCase(),
+      exchange: meta.fullExchangeName || meta.exchangeName || "",
+      currency: meta.currency || "USD",
+      price,
+      prevClose,
+      change,
+      changePercent,
+      dayHigh: meta.regularMarketDayHigh,
+      dayLow: meta.regularMarketDayLow,
+      high52w: meta.fiftyTwoWeekHigh,
+      low52w: meta.fiftyTwoWeekLow,
+      volume: meta.regularMarketVolume,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchYahooSearch(query: string, quotesCount = 5, newsCount = 6): Promise<{ quotes: any[]; news: any[] }> {
+  try {
+    const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(
+      query
+    )}&quotesCount=${quotesCount}&newsCount=${newsCount}`;
+    const res = await fetch(url, { headers: { "User-Agent": YAHOO_UA } });
+    if (!res.ok) return { quotes: [], news: [] };
+    const data = await res.json();
+    return {
+      quotes: Array.isArray(data?.quotes) ? data.quotes : [],
+      news: Array.isArray(data?.news) ? data.news : [],
+    };
+  } catch {
+    return { quotes: [], news: [] };
+  }
+}
+
+const COMPANY_NAME_TO_TICKER: Record<string, string> = {
+  APPLE: "AAPL",
+  NVIDIA: "NVDA",
+  TESLA: "TSLA",
+  MICROSOFT: "MSFT",
+  AMAZON: "AMZN",
+  ALPHABET: "GOOG",
+  GOOGLE: "GOOG",
+  META: "META",
+  FACEBOOK: "META",
+  AMD: "AMD",
+  INTEL: "INTC",
+  BROADCOM: "AVGO",
+  NETFLIX: "NFLX",
+  TERAWULF: "WULF",
+  PALANTIR: "PLTR",
+  SALESFORCE: "CRM",
+  ORACLE: "ORCL",
+  QUALCOMM: "QCOM",
+  BERKSHIRE: "BRK-B",
+  JPMORGAN: "JPM",
+  WALMART: "WMT",
+  EXXON: "XOM",
+  CHEVRON: "CVX",
+  BITCOIN: "BTC",
+  GOLD: "GC",
+  CRUDE: "CL",
+  WTI: "CL",
+  BRENT: "BZ",
+  "S&P": "SPX",
+  SP500: "SPX",
+  DOW: "DJI",
+  NASDAQ: "IXIC",
+  TREASURY: "TNX",
+  "10Y": "TNX",
+};
+
+const TICKER_STOP_WORDS = new Set([
+  "A", "I", "AM", "AN", "AS", "AT", "BE", "BY", "DO", "GO", "HE", "IF", "IN", "IS", "IT",
+  "ME", "MY", "NO", "OF", "ON", "OR", "SO", "TO", "UP", "US", "WE",
+  "AND", "ARE", "BUT", "CAN", "DID", "FOR", "GET", "HAS", "HAD", "HER", "HIM", "HIS", "HOW",
+  "ITS", "LET", "MAY", "NEW", "NOT", "NOW", "OFF", "OLD", "ONE", "OUR", "OUT", "OWN", "PUT",
+  "RUN", "SAY", "SEE", "SET", "SHE", "THE", "TOO", "TWO", "USE", "WAS", "WAY", "WHO", "WHY",
+  "WIN", "YES", "YOU",
+  "ALL", "ANY", "ASK", "BUY", "CEO", "CFO", "CPI", "CTO", "DAY", "DES", "ECO", "EPS", "EST",
+  "ETF", "EUR", "FED", "FCF", "GDP", "GP", "HP", "HLP", "IPO", "JPY", "KEY", "LOW", "MAX",
+  "MIN", "NET", "OIL", "GAS", "GOLD", "SILVER", "CRUDE", "BRENT", "WTI", "PAY", "PEG", "PE",
+  "ROE", "ROI", "SEC", "TOP", "USD", "VS", "WEB", "YOY", "ANR", "CRNC", "POLY", "NEWS", "HELP",
+  "SETT", "BWRITE", "QUORIX",
+  "ABOUT", "ANALYZE", "ANALYSIS", "AFFECT", "BEAR", "BETA", "BOND", "BONDS", "BULL",
+  "CASH", "CHART", "COMPARE", "COMPANY", "DATA", "DESCRIBE", "DETAILS", "DOES", "EARNINGS",
+  "EXPLAIN", "FACTS", "FIND", "FLOW", "FREE", "FROM", "GIVE", "GLOBAL", "GROWTH", "HAVE",
+  "HIGH", "HOLD", "HOWS", "IMPACT", "IMPACTS", "INFLATION", "INFO", "LATEST", "LIST", "LIVE",
+  "LOGIC", "MAIN", "MARGIN", "MARGINS", "MARKET", "MARKETS", "METRICS", "MORE", "MOVERS",
+  "OUTLOOK", "OVERVIEW", "PRICE", "PRICES", "QUOTE", "QUOTES", "RATE", "RATES", "RATING",
+  "RECENT", "REPORT", "REVENUE", "RISK", "RISKS", "SEARCH", "SEGMENT", "SEGMENTS", "SELL",
+  "SEMICONDUCTOR", "SHARE", "SHARES", "SHOW", "STOCK", "STOCKS", "SUMMARIZE", "SUMMARY",
+  "TARGET", "TECH", "TELL", "TERMINAL", "THAT", "THEIR", "THEM", "THEN", "THEY", "THIS",
+  "TODAY", "TREND", "TRENDS", "VALUATION", "VERSUS", "WHAT", "WHEN", "WHERE", "WHICH", "WITH",
+  "YIELD", "YIELDS",
+]);
+
+function extractTickersFromCommand(command: string, fallbackTicker?: string): string[] {
+  const found: string[] = [];
+  const add = (sym: string) => {
+    const clean = sym.toUpperCase().replace(/^\$/, "");
+    if (clean && !found.includes(clean)) found.push(clean);
+  };
+
+  const upper = command.toUpperCase();
+
+  // 1. Named company/index keywords
+  for (const [name, sym] of Object.entries(COMPANY_NAME_TO_TICKER)) {
+    const re = new RegExp(`(^|[^A-Z0-9])${name.replace("&", "\\&")}([^A-Z0-9]|$)`);
+    if (re.test(upper)) add(sym);
+  }
+
+  // 2. Explicit $TICKER tags
+  for (const m of command.matchAll(/\$([A-Za-z]{1,6}(?:-[A-Za-z]{1,2})?)/g)) {
+    add(m[1]);
+  }
+
+  // 3. Uppercase tokens in original command
+  for (const m of command.matchAll(/\b([A-Z]{2,5}(?:-[A-Z]{1,2})?)\b/g)) {
+    if (!TICKER_STOP_WORDS.has(m[1])) add(m[1]);
+  }
+
+  // 4. Lowercase ticker-like tokens directly after command verbs / prepositions (e.g. "describe nvda", "nvda vs amd")
+  const verbPatterns = [
+    /\b(?:describe|analyze|summarise|summarize|about|quote|price|target|rating|ratings|overview|des|anr|gp|hp)\s+([a-zA-Z]{1,5})\b/gi,
+    /\b(?:compare)\s+([a-zA-Z]{1,5})\s+(?:and|vs\.?|versus|with|to)\s+([a-zA-Z]{1,5})\b/gi,
+    /\b([a-zA-Z]{1,5})\s+(?:vs\.?|versus|and)\s+([a-zA-Z]{1,5})\b/gi,
+    /\bnews\s+(?:on|for|about)\s+([a-zA-Z]{1,5})\b/gi,
+  ];
+  for (const re of verbPatterns) {
+    for (const m of command.matchAll(re)) {
+      for (let idx = 1; idx < m.length; idx++) {
+        const tok = (m[idx] || "").toUpperCase();
+        if (tok && !TICKER_STOP_WORDS.has(tok)) add(tok);
+      }
+    }
+  }
+
+  if (found.length === 0 && fallbackTicker) {
+    add(fallbackTicker);
+  }
+  return found.slice(0, 4);
+}
+
+function fmtVal(obj: any, fallback = "N/A"): string {
+  if (obj === null || obj === undefined) return fallback;
+  if (typeof obj === "object" && typeof obj.fmt === "string" && obj.fmt.trim()) return obj.fmt;
+  if (typeof obj === "object" && typeof obj.raw === "number") return obj.raw.toFixed(2);
+  if (typeof obj === "number") return isFinite(obj) ? obj.toFixed(2) : fallback;
+  if (typeof obj === "string" && obj.trim()) return obj;
+  return fallback;
+}
+
+function formatDescribeReport(sym: string, summary: any, chart: any, newsItems: any[]) {
+  const profile = summary?.assetProfile || {};
+  const detail = summary?.summaryDetail || {};
+  const fin = summary?.financialData || {};
+  const stats = summary?.defaultKeyStatistics || {};
+  const priceObj = summary?.price || {};
+
+  const name = priceObj.longName || priceObj.shortName || chart?.name || sym;
+  const exchange = priceObj.exchangeName || chart?.exchange || "MARKET";
+  const lastPrice = typeof chart?.price === "number" && chart.price > 0
+    ? chart.price
+    : fin?.currentPrice?.raw || priceObj?.regularMarketPrice?.raw || 0;
+  const chg = typeof chart?.change === "number" ? chart.change : priceObj?.regularMarketChange?.raw || 0;
+  const chgPct = typeof chart?.changePercent === "number"
+    ? chart.changePercent
+    : typeof priceObj?.regularMarketChangePercent?.raw === "number"
+    ? priceObj.regularMarketChangePercent.raw * 100
+    : 0;
+  const sign = chg >= 0 ? "+" : "";
+
+  const lines: string[] = [];
+  lines.push(`${name.toUpperCase()} (${sym}) — SECURITY DESCRIPTION & LIVE FUNDAMENTALS`);
+  lines.push(`${"=".repeat(72)}`);
+
+  if (profile.sector || profile.industry || profile.fullTimeEmployees) {
+    lines.push(
+      `SECTOR: ${profile.sector || "N/A"} | INDUSTRY: ${profile.industry || "N/A"} | EXCHANGE: ${exchange}`
+    );
+    const hqParts = [profile.city, profile.state, profile.country].filter(Boolean).join(", ");
+    lines.push(
+      `HQ: ${hqParts || "N/A"} | EMPLOYEES: ${
+        typeof profile.fullTimeEmployees === "number" ? profile.fullTimeEmployees.toLocaleString() : "N/A"
+      } | WEB: ${profile.website || "N/A"}`
+    );
+  } else {
+    lines.push(`EXCHANGE: ${exchange} | CURRENCY: ${chart?.currency || "USD"}`);
+  }
+
+  lines.push("");
+  lines.push(`MARKET & VALUATION METRICS`);
+  lines.push(
+    `  LAST PRICE   : ${lastPrice > 0 ? `$${lastPrice.toFixed(2)} (${sign}${chg.toFixed(2)} / ${sign}${chgPct.toFixed(2)}%)` : "N/A"}`
+  );
+  lines.push(
+    `  MARKET CAP   : ${fmtVal(priceObj.marketCap || detail.marketCap)}    |  BETA         : ${fmtVal(detail.beta || stats.beta)}`
+  );
+  lines.push(
+    `  TRAILING P/E : ${fmtVal(detail.trailingPE)}    |  FORWARD P/E  : ${fmtVal(detail.forwardPE || stats.forwardPE)}`
+  );
+  lines.push(
+    `  52W RANGE    : ${fmtVal(detail.fiftyTwoWeekLow, chart?.low52w ? chart.low52w.toFixed(2) : "N/A")} - ${fmtVal(detail.fiftyTwoWeekHigh, chart?.high52w ? chart.high52w.toFixed(2) : "N/A")}    |  DIV YIELD    : ${fmtVal(detail.dividendYield, "0.00%")}`
+  );
+
+  if (fin && Object.keys(fin).length > 0) {
+    lines.push("");
+    lines.push(`FINANCIAL HEALTH & CASH FLOW`);
+    lines.push(
+      `  REVENUE (TTM): ${fmtVal(fin.totalRevenue)}    |  REV GROWTH   : ${fmtVal(fin.revenueGrowth)}`
+    );
+    lines.push(
+      `  GROSS MARGIN : ${fmtVal(fin.grossMargins)}    |  OPER MARGIN  : ${fmtVal(fin.operatingMargins)}`
+    );
+    lines.push(
+      `  PROFIT MARGIN: ${fmtVal(fin.profitMargins)}    |  ROE          : ${fmtVal(fin.returnOnEquity)}`
+    );
+    lines.push(
+      `  FREE CASH FLW: ${fmtVal(fin.freeCashflow)}    |  TOTAL CASH   : ${fmtVal(fin.totalCash)}`
+    );
+    lines.push(
+      `  TOTAL DEBT   : ${fmtVal(fin.totalDebt)}    |  DEBT/EQUITY  : ${fmtVal(fin.debtToEquity)}`
+    );
+    if (fin.recommendationKey || fin.targetMeanPrice) {
+      lines.push(
+        `  CONSENSUS    : ${(fin.recommendationKey || "N/A").toUpperCase()} (${fin.numberOfAnalystOpinions?.raw || "—"} analysts) | MEAN TARGET: ${fmtVal(fin.targetMeanPrice)}`
+      );
+    }
+  }
+
+  if (profile.longBusinessSummary) {
+    lines.push("");
+    lines.push(`BUSINESS OVERVIEW`);
+    lines.push(profile.longBusinessSummary);
+  }
+
+  if (Array.isArray(profile.companyOfficers) && profile.companyOfficers.length > 0) {
+    lines.push("");
+    lines.push(`KEY EXECUTIVES`);
+    for (const off of profile.companyOfficers.slice(0, 5)) {
+      lines.push(`  • ${off.name} — ${off.title || "Executive"}`);
+    }
+  }
+
+  const links: Array<{ title: string; url: string }> = [
+    { title: `Yahoo Finance: ${sym}`, url: `https://finance.yahoo.com/quote/${encodeURIComponent(mapToYahooSymbol(sym))}` },
+  ];
+
+  if (newsItems.length > 0) {
+    lines.push("");
+    lines.push(`RECENT HEADLINES (${sym})`);
+    for (const item of newsItems.slice(0, 4)) {
+      const ts = item.providerPublishTime
+        ? new Date(item.providerPublishTime * 1000).toISOString().slice(0, 10)
+        : "RECENT";
+      lines.push(`  • [${ts}] ${item.publisher || "MarketWire"}: ${item.title}`);
+      if (item.link) {
+        links.push({ title: `${item.publisher || "News"}: ${item.title}`, url: item.link });
+      }
+    }
+  }
+
+  lines.push("");
+  lines.push(`SOURCE: YAHOO FINANCE LIVE STREAM`);
+
+  return { output: lines.join("\n"), links };
+}
+
+function formatAnalystReport(sym: string, summary: any, chart: any) {
+  const fin = summary?.financialData || {};
+  const priceObj = summary?.price || {};
+  const trend = Array.isArray(summary?.recommendationTrend?.trend) ? summary.recommendationTrend.trend : [];
+  const name = priceObj.longName || priceObj.shortName || chart?.name || sym;
+
+  const currentPrice = typeof chart?.price === "number" && chart.price > 0
+    ? chart.price
+    : fin?.currentPrice?.raw || 0;
+  const targetMean = fin?.targetMeanPrice?.raw;
+  const upside = currentPrice > 0 && typeof targetMean === "number"
+    ? (((targetMean - currentPrice) / currentPrice) * 100).toFixed(2)
+    : null;
+
+  const lines: string[] = [];
+  lines.push(`${name.toUpperCase()} (${sym}) — WALL STREET ANALYST CONSENSUS (ANR)`);
+  lines.push(`${"=".repeat(72)}`);
+  lines.push(
+    `RECOMMENDATION : ${(fin.recommendationKey || "N/A").toUpperCase()}  |  ANALYST COUNT: ${fin.numberOfAnalystOpinions?.raw ?? "N/A"}`
+  );
+  lines.push(
+    `CURRENT PRICE  : ${currentPrice > 0 ? `$${currentPrice.toFixed(2)}` : "N/A"}`
+  );
+  lines.push(
+    `TARGET MEAN    : ${fmtVal(fin.targetMeanPrice)}${upside !== null ? ` (${parseFloat(upside) >= 0 ? "+" : ""}${upside}% implied)` : ""}`
+  );
+  lines.push(
+    `TARGET RANGE   : LOW ${fmtVal(fin.targetLowPrice)}  |  MEDIAN ${fmtVal(fin.targetMedianPrice)}  |  HIGH ${fmtVal(fin.targetHighPrice)}`
+  );
+
+  if (trend.length > 0) {
+    lines.push("");
+    lines.push(`RATING BREAKDOWN (BY PERIOD)`);
+    lines.push(`  PERIOD   STRONG BUY   BUY   HOLD   SELL   STRONG SELL`);
+    lines.push(`  ------   ----------   ---   ----   ----   -----------`);
+    for (const row of trend.slice(0, 4)) {
+      const p = String(row.period || "").padEnd(6);
+      const sb = String(row.strongBuy ?? 0).padStart(10);
+      const b = String(row.buy ?? 0).padStart(5);
+      const h = String(row.hold ?? 0).padStart(6);
+      const s = String(row.sell ?? 0).padStart(6);
+      const ss = String(row.strongSell ?? 0).padStart(13);
+      lines.push(`  ${p}   ${sb}   ${b}   ${h}   ${s}   ${ss}`);
+    }
+  }
+
+  lines.push("");
+  lines.push(`KEY FUNDAMENTAL DRIVERS`);
+  lines.push(`  • Revenue Growth (YoY) : ${fmtVal(fin.revenueGrowth)}`);
+  lines.push(`  • Earnings Growth (YoY): ${fmtVal(fin.earningsGrowth)}`);
+  lines.push(`  • Gross / Oper Margin  : ${fmtVal(fin.grossMargins)} / ${fmtVal(fin.operatingMargins)}`);
+  lines.push(`  • Forward P/E          : ${fmtVal(summary?.summaryDetail?.forwardPE || summary?.defaultKeyStatistics?.forwardPE)}`);
+  lines.push("");
+  lines.push(`SOURCE: YAHOO FINANCE ANALYST DATA`);
+
+  return {
+    output: lines.join("\n"),
+    links: [
+      { title: `Yahoo Finance Analyst Estimates: ${sym}`, url: `https://finance.yahoo.com/quote/${encodeURIComponent(mapToYahooSymbol(sym))}/analysis` },
+    ],
+  };
+}
+
+async function runExistingApiFallback(params: {
+  command: string;
+  screen?: string;
+  ticker?: string;
+  fredKey?: string;
+}): Promise<{ output: string; links: Array<{ title: string; url: string }> }> {
+  const { command = "", screen = "", ticker = "", fredKey = "" } = params;
+  const cmdLower = command.toLowerCase();
+  let tickers = extractTickersFromCommand(command, screen === "DES" || screen === "ANR" ? ticker : undefined);
+
+  // If no explicit ticker was parsed and the user asks about a company/entity, try resolving via Yahoo search
+  if (tickers.length === 0 && !/\b(macro|gdp|cpi|inflation|fed|rate|rates|treasury|yield|oil|gold|polymarket|market|news)\b/i.test(command)) {
+    const searchRes = await fetchYahooSearch(command, 3, 4);
+    const eq = searchRes.quotes.find((q: any) => q.quoteType === "EQUITY" && q.symbol);
+    if (eq?.symbol) {
+      tickers = [eq.symbol.toUpperCase()];
+    }
+  }
+
+  const nonEquityMacroSymbols = new Set(["GC", "CL", "BZ", "TNX", "SPX", "DJI", "IXIC"]);
+  const equityTickers = tickers.filter((t) => !nonEquityMacroSymbols.has(t));
+
+  const isMacroQuery =
+    /\b(fred|macro|cpi|inflation|gdp|unemployment|fed|fomc|rate|rates|treasury|yield|yields|oil|crude|brent|wti|gold|commodity|commodities|fx|currency|currencies|polymarket)\b/i.test(
+      command
+    );
+
+  const isCompare =
+    equityTickers.length >= 2 ||
+    (/\b(compare|vs\.?|versus)\b/i.test(command) && tickers.length >= 2);
+
+  const isNewsQuery =
+    screen === "NEWS" ||
+    /\b(news|headline|headlines|movers|search the web|latest)\b/i.test(command);
+
+  const isAnrQuery =
+    screen === "ANR" ||
+    /\b(analyst|consensus|rating|ratings|price target|recommendations)\b/i.test(command);
+
+  const isDesQuery =
+    screen === "DES" ||
+    (!isMacroQuery &&
+      /\b(describe|description|overview|segment|segments|business|valuation|fundamentals|cash flow|margin|margins|bull|bear|risks|analyze)\b/i.test(
+        command
+      ));
+
+  // 1. Multi-ticker comparison
+  if (isCompare && tickers.length >= 2) {
+    const results = await Promise.all(
+      tickers.map(async (sym) => {
+        const [summary, chart] = await Promise.all([
+          fetchYahooQuoteSummary(sym),
+          fetchYahooChartSnapshot(sym),
+        ]);
+        return { sym, summary, chart };
+      })
+    );
+
+    const pad = (v: string, w = 13) => v.slice(0, w).padEnd(w);
+    const lines: string[] = [];
+    lines.push(`SIDE-BY-SIDE EQUITY COMPARISON: ${tickers.join(" vs ")}`);
+    lines.push(`${"=".repeat(78)}`);
+    lines.push(`${pad("METRIC", 18)} ${results.map((r) => pad(r.sym, 14)).join(" ")}`);
+    lines.push(`${"-".repeat(18)} ${results.map(() => "-".repeat(14)).join(" ")}`);
+
+    const rows: Array<[string, (r: { sym: string; summary: any; chart: any }) => string]> = [
+      ["LAST PRICE", (r) => (r.chart?.price > 0 ? `$${r.chart.price.toFixed(2)}` : "N/A")],
+      ["DAY CHG %", (r) => (typeof r.chart?.changePercent === "number" ? `${r.chart.changePercent >= 0 ? "+" : ""}${r.chart.changePercent.toFixed(2)}%` : "N/A")],
+      ["MARKET CAP", (r) => fmtVal(r.summary?.price?.marketCap || r.summary?.summaryDetail?.marketCap)],
+      ["TRAILING P/E", (r) => fmtVal(r.summary?.summaryDetail?.trailingPE)],
+      ["FORWARD P/E", (r) => fmtVal(r.summary?.summaryDetail?.forwardPE || r.summary?.defaultKeyStatistics?.forwardPE)],
+      ["BETA", (r) => fmtVal(r.summary?.summaryDetail?.beta || r.summary?.defaultKeyStatistics?.beta)],
+      ["REV GROWTH", (r) => fmtVal(r.summary?.financialData?.revenueGrowth)],
+      ["GROSS MARGIN", (r) => fmtVal(r.summary?.financialData?.grossMargins)],
+      ["OPER MARGIN", (r) => fmtVal(r.summary?.financialData?.operatingMargins)],
+      ["PROFIT MARGIN", (r) => fmtVal(r.summary?.financialData?.profitMargins)],
+      ["FREE CASH FLW", (r) => fmtVal(r.summary?.financialData?.freeCashflow)],
+      ["ROE", (r) => fmtVal(r.summary?.financialData?.returnOnEquity)],
+      ["MEAN TARGET", (r) => fmtVal(r.summary?.financialData?.targetMeanPrice)],
+      ["CONSENSUS", (r) => (r.summary?.financialData?.recommendationKey || "N/A").toUpperCase()],
+    ];
+
+    for (const [label, fn] of rows) {
+      lines.push(`${pad(label, 18)} ${results.map((r) => pad(fn(r), 14)).join(" ")}`);
+    }
+    lines.push("");
+    lines.push(`SOURCE: YAHOO FINANCE LIVE STREAM`);
+
+    return {
+      output: lines.join("\n"),
+      links: results.map((r) => ({
+        title: `Yahoo Finance: ${r.sym}`,
+        url: `https://finance.yahoo.com/quote/${encodeURIComponent(mapToYahooSymbol(r.sym))}`,
+      })),
+    };
+  }
+
+  // 2. Analyst consensus (ANR)
+  if (isAnrQuery && tickers.length >= 1) {
+    const sym = tickers[0];
+    const [summary, chart] = await Promise.all([
+      fetchYahooQuoteSummary(sym),
+      fetchYahooChartSnapshot(sym),
+    ]);
+    if (summary || chart) {
+      return formatAnalystReport(sym, summary, chart);
+    }
+  }
+
+  // 3. Security description / single-ticker deep dive (DES / "DESCRIBE NVDA")
+  if ((isDesQuery || (!isNewsQuery && !isMacroQuery)) && tickers.length >= 1 && !(isMacroQuery && equityTickers.length === 0)) {
+    const sym = equityTickers[0] || tickers[0];
+    const [summary, chart, search] = await Promise.all([
+      fetchYahooQuoteSummary(sym),
+      fetchYahooChartSnapshot(sym),
+      fetchYahooSearch(sym, 2, 5),
+    ]);
+    if (summary || chart) {
+      return formatDescribeReport(sym, summary, chart, search.news);
+    }
+  }
+
+  // 4. News / Web Headlines fallback via Yahoo Finance Search News
+  if (isNewsQuery) {
+    const searchTopic = tickers.length > 0 ? tickers.join(" ") : command.replace(/\b(latest|news|on|for|search the web|today's|recent)\b/gi, "").trim() || "stock market";
+    const searchRes = await fetchYahooSearch(searchTopic, 3, 8);
+    const lines: string[] = [];
+    const links: Array<{ title: string; url: string }> = [];
+    lines.push(`LIVE MARKET NEWS DISPATCH — QUERY: "${searchTopic.toUpperCase()}"`);
+    lines.push(`${"=".repeat(72)}`);
+    if (searchRes.news.length === 0) {
+      lines.push("No live headlines matched this exact query. Try the NEWS tab for the full multi-source feed.");
+    } else {
+      for (const item of searchRes.news) {
+        const dt = item.providerPublishTime
+          ? new Date(item.providerPublishTime * 1000).toISOString().replace("T", " ").slice(0, 16) + " UTC"
+          : "LIVE";
+        lines.push(`[${dt}] ${item.publisher || "MarketWire"}`);
+        lines.push(`  ${item.title}`);
+        lines.push("");
+        if (item.link) links.push({ title: `${item.publisher || "Source"}: ${item.title}`, url: item.link });
+      }
+    }
+    lines.push(`SOURCE: YAHOO FINANCE LIVE NEWS STREAM`);
+    return { output: lines.join("\n"), links };
+  }
+
+  // 5. Macro, Rates, Commodities, Polymarket & General Fallback
+  const lines: string[] = [];
+  const links: Array<{ title: string; url: string }> = [];
+  lines.push(`QUORIX LIVE DATA BRIEF — QUERY: "${command.toUpperCase()}"`);
+  lines.push(`${"=".repeat(72)}`);
+
+  const [spx, ixic, tnx, cl, bz, gc, btc, searchRes, fredData] = await Promise.all([
+    fetchYahooChartSnapshot("SPX"),
+    fetchYahooChartSnapshot("IXIC"),
+    fetchYahooChartSnapshot("TNX"),
+    fetchYahooChartSnapshot("CL"),
+    fetchYahooChartSnapshot("BZ"),
+    fetchYahooChartSnapshot("GC"),
+    fetchYahooChartSnapshot("BTC"),
+    fetchYahooSearch(command, 3, 5),
+    fredKey ? fetchLiveFredEconomics(fredKey).catch(() => null) : Promise.resolve(null),
+  ]);
+
+  lines.push(`LIVE CROSS-ASSET BENCHMARKS`);
+  for (const q of [spx, ixic, tnx, cl, bz, gc, btc]) {
+    if (!q || !q.price) continue;
+    const s = q.change >= 0 ? "+" : "";
+    const unit = q.symbol === "TNX" ? "%" : "";
+    const px = q.symbol === "TNX" ? q.price.toFixed(3) : q.price.toFixed(2);
+    lines.push(`  ${q.symbol.padEnd(5)} (${q.name.slice(0, 22).padEnd(22)}): ${px}${unit} (${s}${q.changePercent.toFixed(2)}%)`);
+  }
+
+  if (fredData) {
+    lines.push("");
+    lines.push(`LIVE FRED MACROECONOMIC & TREASURY SNAPSHOT`);
+    const us = fredData.indicators?.find((i: any) => i.country === "UNITED STATES");
+    if (us) {
+      lines.push(`  US GDP Growth: ${us.gdpGrow} | US Unemployment: ${us.unemployment} | US CPI YoY: ${us.inflation} | Fed Target: ${us.rate}`);
+    }
+    for (const m of fredData.macroMetrics || []) {
+      if (m.value !== "N/A") {
+        lines.push(`  ${m.label.padEnd(22)}: ${m.value} (as of ${m.date})`);
+      }
+    }
+    links.push({ title: "St. Louis Fed FRED", url: "https://fred.stlouisfed.org/" });
+  }
+
+  if (cmdLower.includes("oil") || cmdLower.includes("crude") || cmdLower.includes("gold") || cmdLower.includes("fed") || cmdLower.includes("rate") || cmdLower.includes("inflation") || cmdLower.includes("polymarket")) {
+    try {
+      const pmRes = await fetch("https://gamma-api.polymarket.com/events?active=true&closed=false&limit=12&order=volume&ascending=false");
+      if (pmRes.ok) {
+        const pmEvents = await pmRes.json();
+        if (Array.isArray(pmEvents)) {
+          const keywords = command.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+          const matched = pmEvents.filter((ev: any) => {
+            const title = (ev.title || "").toLowerCase();
+            return keywords.some((kw) => title.includes(kw));
+          }).slice(0, 3);
+          if (matched.length > 0) {
+            lines.push("");
+            lines.push(`RELATED POLYMARKET PREDICTION ODDS`);
+            for (const ev of matched) {
+              lines.push(`  • ${ev.title} (Vol: $${Math.round(Number(ev.volume || 0)).toLocaleString()})`);
+              if (ev.slug) links.push({ title: `Polymarket: ${ev.title}`, url: `https://polymarket.com/event/${ev.slug}` });
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore Polymarket failure in fallback
+    }
+  }
+
+  if (searchRes.news.length > 0) {
+    lines.push("");
+    lines.push(`RELATED LIVE NEWS HEADLINES`);
+    for (const item of searchRes.news.slice(0, 4)) {
+      const dt = item.providerPublishTime
+        ? new Date(item.providerPublishTime * 1000).toISOString().slice(0, 10)
+        : "LIVE";
+      lines.push(`  • [${dt}] ${item.publisher || "MarketWire"}: ${item.title}`);
+      if (item.link) links.push({ title: `${item.publisher || "News"}: ${item.title}`, url: item.link });
+    }
+  }
+
+  lines.push("");
+  lines.push(`SOURCE: FRED MACRO + YAHOO FINANCE + POLYMARKET`);
+
+  return { output: lines.join("\n"), links };
 }
 
 // REST endpoints
@@ -354,7 +1112,6 @@ app.post("/api/terminal/analyze", async (req, res) => {
     try {
       const config: any = {
         systemInstruction,
-        temperature: 0.3,
       };
 
       // Enable Google Search grounding for REAL-TIME market news
@@ -363,7 +1120,7 @@ app.post("/api/terminal/analyze", async (req, res) => {
       }
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-4-hydrogen",
         contents: prompt,
         config,
       });
@@ -386,35 +1143,48 @@ app.post("/api/terminal/analyze", async (req, res) => {
         success: true,
         output: text,
         links,
-        modelUsed: "gemini-3.5-flash",
+        modelUsed: "gemini-4-hydrogen",
         timestamp: new Date().toISOString(),
       });
     } catch (err: any) {
       const errMsg = err?.message || String(err);
-      if (errMsg.includes("API key not valid") || errMsg.includes("API_KEY_INVALID") || err?.status === 400) {
-        console.warn("Gemini API key is invalid or inactive.");
-        isAiKeyInvalid = true;
+      const isKeyError =
+        errMsg.includes("API key not valid") ||
+        errMsg.includes("API_KEY_INVALID") ||
+        err?.status === 400 ||
+        err?.status === 403;
+      if (isKeyError) {
         aiClient = null;
-      } else {
-        console.warn("Gemini API call failed:", errMsg);
+        aiClientKey = "";
       }
-      return res.json({
-        success: false,
-        output: `LIVE AI ANALYSIS UNAVAILABLE (${errMsg}). Check GEMINI_API_KEY configuration.`,
-        links: [],
-        modelUsed: "unavailable",
-        timestamp: new Date().toISOString(),
-      });
+      console.log(`Gemini unavailable (${err?.status || "error"}); falling back to existing live APIs.`);
     }
   }
 
-  return res.json({
-    success: false,
-    output: "LIVE AI ANALYSIS UNAVAILABLE: GEMINI_API_KEY is not configured in the server environment.",
-    links: [],
-    modelUsed: "unavailable",
-    timestamp: new Date().toISOString(),
-  });
+  // Fallback to existing live APIs (Yahoo Finance fundamentals/charts/search, FRED macro, Polymarket)
+  try {
+    const fallback = await runExistingApiFallback({
+      command: command || ticker || "",
+      screen,
+      ticker,
+      fredKey,
+    });
+    return res.json({
+      success: true,
+      output: fallback.output,
+      links: fallback.links,
+      modelUsed: "existing-apis-fallback",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (fallbackErr: any) {
+    return res.json({
+      success: false,
+      output: `LIVE ANALYSIS UNAVAILABLE: ${fallbackErr?.message || "Failed to fetch fallback market data."}`,
+      links: [],
+      modelUsed: "unavailable",
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 // Simple in-memory cache for Alpha Vantage quotes to protect against rate-limiting
@@ -484,17 +1254,18 @@ function adjustQuoteForTradingHours(quoteObj: any) {
   let afterHoursPrice: number | null = null;
 
   // Only apply real pre-market or after-hours prices when provided by Yahoo Finance
+  const decimals = cacheKey === 'TNX' ? 3 : 2;
   if (et.isPreMarket && cloned.isRealYF && typeof cloned.preMarketPriceYF === 'number' && cloned.preMarketPriceYF > 0) {
     isPreMarket = true;
     preMarketPrice = cloned.preMarketPriceYF;
     cloned.price = preMarketPrice;
-    cloned.change = parseFloat((preMarketPrice - cloned.prevClose).toFixed(2));
+    cloned.change = parseFloat((preMarketPrice - cloned.prevClose).toFixed(decimals));
     cloned.changePercent = cloned.prevClose > 0 ? parseFloat(((cloned.change / cloned.prevClose) * 100).toFixed(2)) : 0;
   } else if (et.isAfterHours && cloned.isRealYF && typeof cloned.postMarketPriceYF === 'number' && cloned.postMarketPriceYF > 0) {
     isAfterHours = true;
     afterHoursPrice = cloned.postMarketPriceYF;
     cloned.price = afterHoursPrice;
-    cloned.change = parseFloat((afterHoursPrice - cloned.prevClose).toFixed(2));
+    cloned.change = parseFloat((afterHoursPrice - cloned.prevClose).toFixed(decimals));
     cloned.changePercent = cloned.prevClose > 0 ? parseFloat(((cloned.change / cloned.prevClose) * 100).toFixed(2)) : 0;
   }
 
@@ -515,6 +1286,7 @@ function mapToYahooSymbol(cacheKey: string): string {
   if (cacheKey === 'IXIC') return '^IXIC';
   if (cacheKey === 'GC') return 'GC=F';
   if (cacheKey === 'CL') return 'CL=F';
+  if (cacheKey === 'BZ') return 'BZ=F';
   if (cacheKey === 'TNX') return '^TNX';
   if (cacheKey === 'BTC') return 'BTC-USD';
   return cacheKey;
@@ -522,13 +1294,27 @@ function mapToYahooSymbol(cacheKey: string): string {
 
 function formatYahooTimestamp(tsSeconds: number, interval: string): string {
   const date = new Date(tsSeconds * 1000);
-  if (['5m', '15m', '30m', '1h'].includes(interval)) {
+  if (interval === '5m') {
     return date.toLocaleTimeString('en-US', {
       timeZone: 'America/New_York',
       hour12: false,
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+  if (['15m', '30m', '1h'].includes(interval)) {
+    const md = date.toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
+      month: 'numeric',
+      day: 'numeric'
+    });
+    const hm = date.toLocaleTimeString('en-US', {
+      timeZone: 'America/New_York',
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    return `${md} ${hm}`;
   }
   if (interval === '1M') {
     return date.toLocaleDateString('en-US', {
@@ -544,7 +1330,23 @@ function formatYahooTimestamp(tsSeconds: number, interval: string): string {
   });
 }
 
-function extractYahooBars(result: any, interval: string, maxBars = 24) {
+function extractYahooBars(
+  result: any,
+  interval: string,
+  maxBarsOrOpts:
+    | number
+    | {
+        maxBars?: number;
+        windowSeconds?: number;
+        todayOnly?: boolean;
+        evenlySample?: boolean;
+      } = 24
+) {
+  const opts =
+    typeof maxBarsOrOpts === 'number'
+      ? { maxBars: maxBarsOrOpts, evenlySample: false, todayOnly: false }
+      : { maxBars: 36, evenlySample: false, todayOnly: false, ...maxBarsOrOpts };
+
   const timestamps: number[] = Array.isArray(result?.timestamp) ? result.timestamp : [];
   const quote = result?.indicators?.quote?.[0] || {};
   const opens: any[] = Array.isArray(quote.open) ? quote.open : [];
@@ -553,15 +1355,17 @@ function extractYahooBars(result: any, interval: string, maxBars = 24) {
   const closes: any[] = Array.isArray(quote.close) ? quote.close : [];
   const volumes: any[] = Array.isArray(quote.volume) ? quote.volume : [];
 
-  const bars: Array<{ date: string; open: number; high: number; low: number; close: number; volume: number }> = [];
+  let bars: Array<{ date: string; timestamp: number; open: number; high: number; low: number; close: number; volume: number }> = [];
   for (let i = 0; i < timestamps.length; i++) {
+    const ts = timestamps[i];
     const o = opens[i];
     const h = highs[i];
     const l = lows[i];
     const c = closes[i];
-    if (typeof o === 'number' && typeof h === 'number' && typeof l === 'number' && typeof c === 'number') {
+    if (typeof ts === 'number' && typeof o === 'number' && typeof h === 'number' && typeof l === 'number' && typeof c === 'number') {
       bars.push({
-        date: formatYahooTimestamp(timestamps[i], interval),
+        date: formatYahooTimestamp(ts, interval),
+        timestamp: ts,
         open: parseFloat(o.toFixed(3)),
         high: parseFloat(h.toFixed(3)),
         low: parseFloat(l.toFixed(3)),
@@ -570,8 +1374,47 @@ function extractYahooBars(result: any, interval: string, maxBars = 24) {
       });
     }
   }
-  // Return newest first, capped to maxBars
-  return bars.reverse().slice(0, maxBars);
+
+  // Sort strictly chronologically (oldest first)
+  bars.sort((a, b) => a.timestamp - b.timestamp);
+
+  if (bars.length > 0) {
+    const latestTs = bars[bars.length - 1].timestamp;
+    if (opts.todayOnly) {
+      const tz = result?.meta?.exchangeTimezoneName || 'America/New_York';
+      const latestDay = new Date(latestTs * 1000).toLocaleDateString('en-US', { timeZone: tz });
+      bars = bars.filter(
+        (b) => new Date(b.timestamp * 1000).toLocaleDateString('en-US', { timeZone: tz }) === latestDay
+      );
+    }
+    if (typeof opts.windowSeconds === 'number' && opts.windowSeconds > 0) {
+      const cutoff = latestTs - opts.windowSeconds;
+      const windowed = bars.filter((b) => b.timestamp >= cutoff);
+      if (windowed.length > 0) {
+        bars = windowed;
+      }
+    }
+  }
+
+  const maxBars = opts.maxBars ?? 36;
+  if (bars.length > maxBars) {
+    if (opts.evenlySample) {
+      // Sample evenly while preserving earliest (index 0) and latest/current (index bars.length - 1)
+      const sampled: typeof bars = [];
+      for (let i = 0; i < maxBars; i++) {
+        const idx = Math.round((i / (maxBars - 1)) * (bars.length - 1));
+        if (sampled.length === 0 || sampled[sampled.length - 1].timestamp !== bars[idx].timestamp) {
+          sampled.push(bars[idx]);
+        }
+      }
+      bars = sampled;
+    } else {
+      bars = bars.slice(bars.length - maxBars);
+    }
+  }
+
+  // Return newest first
+  return bars.reverse();
 }
 
 // Proxy endpoint for Alpha Vantage / Yahoo Finance quote updates to keep API keys safe server-side
@@ -614,15 +1457,38 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
         if (result) {
           const meta = result.meta;
           const quote = result.indicators?.quote?.[0] || {};
+          const timestamps: number[] = Array.isArray(result.timestamp) ? result.timestamp : [];
           const price = typeof meta.regularMarketPrice === 'number' ? meta.regularMarketPrice : 0;
-          const prevClose = typeof meta.chartPreviousClose === 'number' ? meta.chartPreviousClose : price;
-          const change = parseFloat((price - prevClose).toFixed(cacheKey === 'TNX' ? 3 : 2));
+          const prevClose =
+            typeof meta.regularMarketPreviousClose === 'number'
+              ? meta.regularMarketPreviousClose
+              : typeof meta.previousClose === 'number'
+              ? meta.previousClose
+              : typeof meta.chartPreviousClose === 'number'
+              ? meta.chartPreviousClose
+              : price;
+          const decimals = cacheKey === 'TNX' ? 3 : 2;
+          const change = parseFloat((price - prevClose).toFixed(decimals));
           const changePercent = prevClose > 0 ? parseFloat(((change / prevClose) * 100).toFixed(2)) : 0;
           const history = extractYahooBars(result, '1h', 16);
 
+          const regularStart = meta.currentTradingPeriod?.regular?.start;
+          let todayOpen = typeof meta.regularMarketOpen === 'number' ? meta.regularMarketOpen : 0;
+          if (!todayOpen && typeof regularStart === 'number' && Array.isArray(quote.open)) {
+            const idx = timestamps.findIndex((ts) => ts >= regularStart);
+            if (idx !== -1 && typeof quote.open[idx] === 'number') {
+              todayOpen = quote.open[idx];
+            }
+          }
+          if (!todayOpen && Array.isArray(quote.open)) {
+            const validOpens = quote.open.filter((v: any) => typeof v === 'number');
+            if (validOpens.length > 0) todayOpen = validOpens[validOpens.length - 1];
+          }
+          if (!todayOpen) todayOpen = prevClose;
+
           const parsedQuote = {
             symbol: cacheKey,
-            open: (Array.isArray(quote.open) && typeof quote.open[0] === 'number') ? quote.open[0] : prevClose,
+            open: todayOpen,
             high: typeof meta.regularMarketDayHigh === 'number' ? meta.regularMarketDayHigh : price,
             low: typeof meta.regularMarketDayLow === 'number' ? meta.regularMarketDayLow : price,
             price: price,
@@ -757,14 +1623,17 @@ app.get("/api/market/history", async (req, res) => {
       return res.status(400).json({ success: false, error: "Symbol is required" });
     }
 
-    const intervalMap: Record<string, { yfInterval: string; yfRange: string }> = {
-      "5m": { yfInterval: "5m", yfRange: "1d" },
-      "15m": { yfInterval: "15m", yfRange: "5d" },
-      "30m": { yfInterval: "30m", yfRange: "5d" },
-      "1h": { yfInterval: "1h", yfRange: "5d" },
-      "1D": { yfInterval: "1d", yfRange: "3mo" },
-      "1W": { yfInterval: "1wk", yfRange: "1y" },
-      "1M": { yfInterval: "1mo", yfRange: "5y" },
+    const intervalMap: Record<
+      string,
+      { yfInterval: string; yfRange: string; windowSeconds: number; todayOnly: boolean; maxBars: number }
+    > = {
+      "5m": { yfInterval: "1m", yfRange: "1d", windowSeconds: 5 * 60, todayOnly: true, maxBars: 10 },
+      "15m": { yfInterval: "1m", yfRange: "1d", windowSeconds: 15 * 60, todayOnly: true, maxBars: 20 },
+      "30m": { yfInterval: "1m", yfRange: "1d", windowSeconds: 30 * 60, todayOnly: true, maxBars: 35 },
+      "1h": { yfInterval: "2m", yfRange: "1d", windowSeconds: 60 * 60, todayOnly: true, maxBars: 35 },
+      "1D": { yfInterval: "15m", yfRange: "1d", windowSeconds: 24 * 60 * 60, todayOnly: true, maxBars: 42 },
+      "1W": { yfInterval: "1h", yfRange: "1mo", windowSeconds: 7 * 24 * 60 * 60, todayOnly: false, maxBars: 48 },
+      "1M": { yfInterval: "1d", yfRange: "2mo", windowSeconds: 31 * 24 * 60 * 60, todayOnly: false, maxBars: 35 },
     };
 
     const cfg = intervalMap[interval] || intervalMap["1h"];
@@ -786,7 +1655,12 @@ app.get("/api/market/history", async (req, res) => {
       return res.json({ success: false, error: "No historical data returned.", history: [] });
     }
 
-    const history = extractYahooBars(result, interval, 24);
+    const history = extractYahooBars(result, interval, {
+      windowSeconds: cfg.windowSeconds,
+      todayOnly: cfg.todayOnly,
+      maxBars: cfg.maxBars,
+      evenlySample: true,
+    });
     return res.json({ success: true, symbol, interval, history });
   } catch (err: any) {
     console.error("History endpoint error:", err.message);
@@ -965,9 +1839,21 @@ app.post("/api/settings/keys", (req, res) => {
   const { ALPHA_VANTAGE_API_KEY, NYT_API_KEY, NEWS_API_KEY, NEWSDATA_API_KEY, FRED_API_KEY } = req.body;
 
   if (ALPHA_VANTAGE_API_KEY !== undefined) customKeys.ALPHA_VANTAGE_API_KEY = ALPHA_VANTAGE_API_KEY;
-  if (NYT_API_KEY !== undefined) customKeys.NYT_API_KEY = NYT_API_KEY;
-  if (NEWS_API_KEY !== undefined) customKeys.NEWS_API_KEY = NEWS_API_KEY;
-  if (NEWSDATA_API_KEY !== undefined) customKeys.NEWSDATA_API_KEY = NEWSDATA_API_KEY;
+  if (NYT_API_KEY !== undefined) {
+    customKeys.NYT_API_KEY = NYT_API_KEY;
+    newsProviderCache.nyt = { timestamp: 0, items: [] };
+    apiCooldowns.nyt = 0;
+  }
+  if (NEWS_API_KEY !== undefined) {
+    customKeys.NEWS_API_KEY = NEWS_API_KEY;
+    newsProviderCache.newsapi = { timestamp: 0, items: [] };
+    apiCooldowns.newsapi = 0;
+  }
+  if (NEWSDATA_API_KEY !== undefined) {
+    customKeys.NEWSDATA_API_KEY = NEWSDATA_API_KEY;
+    newsProviderCache.newsdata = { timestamp: 0, items: [] };
+    apiCooldowns.newsdata = 0;
+  }
   if (FRED_API_KEY !== undefined) {
     customKeys.FRED_API_KEY = FRED_API_KEY;
     fredEconomicsCache = null;
@@ -992,10 +1878,8 @@ function formatNewsTime(dateStr?: string): string {
   }
 }
 
-function isStockOrMarketRelated(title: string, content: string): boolean {
+function isBlacklistedNews(title: string, content: string): boolean {
   const fullText = `${title} ${content}`.toLowerCase();
-  
-  // Strict blacklist to filter out lotto, recipes, local fluff, sports, lifestyle, crime obits
   const blacklist = [
     "lotto", "lottery", "jackpot", "powerball", "mega millions", "mega-millions", "scratch-off",
     "recipe", "recipes", "how to cook", "bake", "baking", "dessert", "culinary", "delicious", "chef", "cocktail",
@@ -1003,11 +1887,15 @@ function isStockOrMarketRelated(title: string, content: string): boolean {
     "high school", "sports scores", "horoscope", "dating tips", "relationship advice", "best books to read",
     "lucky winner", "drawn numbers", "soup", "salad", "sauce", "kitchen", "restaurant review"
   ];
-  
-  for (const word of blacklist) {
-    if (fullText.includes(word)) {
-      return false;
-    }
+  return blacklist.some((word) => fullText.includes(word));
+}
+
+function isStockOrMarketRelated(title: string, content: string): boolean {
+  const fullText = `${title} ${content}`.toLowerCase();
+
+  // Strict blacklist to filter out lotto, recipes, local fluff, sports, lifestyle, crime obits
+  if (isBlacklistedNews(title, content)) {
+    return false;
   }
 
   // Ensure it has clear relevance to business, stocks, finance, macroeconomics, or public markets
@@ -1046,27 +1934,86 @@ function analyzeNewsSentiment(text: string): "positive" | "negative" | "neutral"
   return "neutral";
 }
 
-// Proxy endpoint for news aggregation from NYT, News API, and Newsdata.io
+// Proxy endpoint for news aggregation from NYT, News API, Newsdata.io, and ticker-specific Yahoo Finance
 app.get("/api/news/ticker", async (req, res) => {
   const nytKey = customKeys.NYT_API_KEY || process.env.NYT_API_KEY;
   const newsApiKey = customKeys.NEWS_API_KEY || process.env.NEWS_API_KEY;
   const newsdataKey = customKeys.NEWSDATA_API_KEY || process.env.NEWSDATA_API_KEY;
+  const requestedTicker = ((req.query.ticker as string) || "").toUpperCase().trim();
 
   const newsItems: any[] = [];
   const activeSources: string[] = [];
   const fetchPromises: Promise<any>[] = [];
 
-  // 1. New York Times Business Top Stories
+  // 0. Yahoo Finance News (ONLY articles strictly related to the requested stock ticker)
+  if (requestedTicker) {
+    const yfTicker = mapToYahooSymbol(requestedTicker);
+    const yfUpper = yfTicker.toUpperCase();
+    const baseTicker = yfUpper.split("-")[0].split("=")[0];
+    const tickerMatchSet = new Set([requestedTicker, yfUpper, baseTicker]);
+    const escapedBase = baseTicker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const titleTickerRegex = new RegExp(`\\b${escapedBase}\\b`, "i");
+
+    activeSources.push(`Yahoo Finance (${requestedTicker})`);
+    fetchPromises.push(
+      fetchYahooSearch(yfTicker, 2, 15)
+        .then((searchData) => {
+          const rawNews = Array.isArray(searchData?.news) ? searchData.news : [];
+          return rawNews
+            .filter((art: any) => {
+              if (!art?.title || !art?.link) return false;
+              if (isBlacklistedNews(art.title, "")) return false;
+              const rel = Array.isArray(art.relatedTickers)
+                ? art.relatedTickers.map((t: any) => String(t).toUpperCase())
+                : [];
+              if (rel.length > 0) {
+                return rel.some((t: string) => tickerMatchSet.has(t));
+              }
+              return titleTickerRegex.test(art.title);
+            })
+            .map((art: any, index: number) => {
+              const publishedAt =
+                typeof art.providerPublishTime === "number"
+                  ? new Date(art.providerPublishTime * 1000).toISOString()
+                  : new Date().toISOString();
+              const publisher = typeof art.publisher === "string" && art.publisher.trim()
+                ? art.publisher.trim()
+                : "Yahoo Finance";
+              return {
+                id: `yf-${art.uuid || index}-${requestedTicker}`,
+                title: art.title,
+                source: publisher === "Yahoo Finance" ? "Yahoo Finance" : `${publisher} / Yahoo Finance`,
+                time: formatNewsTime(publishedAt),
+                symbol: requestedTicker,
+                relatedTickers: Array.isArray(art.relatedTickers)
+                  ? art.relatedTickers.filter((t: any) => typeof t === "string" && /^[A-Z0-9.-]{1,8}$/i.test(t))
+                  : [requestedTicker],
+                sentiment: analyzeNewsSentiment(art.title),
+                classification: `YAHOO FINANCE - ${requestedTicker}`,
+                content: "",
+                url: art.link,
+                publishedAt,
+              };
+            });
+        })
+        .catch(() => [])
+    );
+  }
+
+  // 1. New York Times Business Top Stories (5-minute cache + stale fallback on 429)
   if (nytKey && nytKey !== "MY_NYT_API_KEY" && nytKey.trim() !== "") {
-    if (Date.now() < apiCooldowns.nyt) {
+    activeSources.push("NYT Business");
+    const nytAge = Date.now() - newsProviderCache.nyt.timestamp;
+    if (newsProviderCache.nyt.items.length > 0 && (nytAge < NEWS_CACHE_TTL_MS || Date.now() < apiCooldowns.nyt)) {
+      fetchPromises.push(Promise.resolve(newsProviderCache.nyt.items));
+    } else if (Date.now() < apiCooldowns.nyt) {
       console.log("NYT Business is in cooldown. Skipping fetch.");
     } else {
-      activeSources.push("NYT Business");
       fetchPromises.push(
         fetch(`https://api.nytimes.com/svc/topstories/v2/business.json?api-key=${nytKey}`)
           .then(async (r) => {
             if (r.status === 429) {
-              apiCooldowns.nyt = Date.now() + 5 * 60 * 1000; // 5 min cooldown
+              apiCooldowns.nyt = Date.now() + 5 * 60 * 1000;
             }
             if (!r.ok) throw new Error(`NYT status ${r.status}`);
             return r.json();
@@ -1074,7 +2021,7 @@ app.get("/api/news/ticker", async (req, res) => {
           .then(data => {
             if (data && Array.isArray(data.results)) {
               const mapped = data.results.map((art: any, index: number) => ({
-                id: `nyt-${index}-${Date.now()}`,
+                id: `nyt-${index}-${art.published_date || index}`,
                 title: art.title || "NYT Market Update",
                 source: "New York Times Business",
                 time: formatNewsTime(art.published_date || art.created_date),
@@ -1085,29 +2032,34 @@ app.get("/api/news/ticker", async (req, res) => {
                 publishedAt: art.published_date || art.created_date || new Date().toISOString()
               }));
               // Filter strictly for stocks and market relevance
-              return mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+              const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+              newsProviderCache.nyt = { timestamp: Date.now(), items: filtered };
+              return filtered;
             }
-            return [];
+            return newsProviderCache.nyt.items;
           })
           .catch(err => {
-            console.warn("NYT API fetch handled gracefully:", err.message);
-            return [];
+            console.log("NYT API fetch handled gracefully:", err.message);
+            return newsProviderCache.nyt.items;
           })
       );
     }
   }
 
-  // 2. News API Top Headlines for Business
+  // 2. News API Top Headlines for Business (5-minute cache + stale fallback on 429)
   if (newsApiKey && newsApiKey !== "MY_NEWS_API_KEY" && newsApiKey.trim() !== "") {
-    if (Date.now() < apiCooldowns.newsapi) {
+    activeSources.push("News API");
+    const newsApiAge = Date.now() - newsProviderCache.newsapi.timestamp;
+    if (newsProviderCache.newsapi.items.length > 0 && (newsApiAge < NEWS_CACHE_TTL_MS || Date.now() < apiCooldowns.newsapi)) {
+      fetchPromises.push(Promise.resolve(newsProviderCache.newsapi.items));
+    } else if (Date.now() < apiCooldowns.newsapi) {
       console.log("News API is in cooldown. Skipping fetch.");
     } else {
-      activeSources.push("News API");
       fetchPromises.push(
         fetch(`https://newsapi.org/v2/top-headlines?category=business&country=us&apiKey=${newsApiKey}`)
           .then(async (r) => {
             if (r.status === 429) {
-              apiCooldowns.newsapi = Date.now() + 5 * 60 * 1000; // 5 min cooldown
+              apiCooldowns.newsapi = Date.now() + 5 * 60 * 1000;
             }
             if (!r.ok) throw new Error(`News API status ${r.status}`);
             return r.json();
@@ -1115,7 +2067,7 @@ app.get("/api/news/ticker", async (req, res) => {
           .then(data => {
             if (data && Array.isArray(data.articles)) {
               const mapped = data.articles.map((art: any, index: number) => ({
-                id: `newsapi-${index}-${Date.now()}`,
+                id: `newsapi-${index}-${art.publishedAt || index}`,
                 title: art.title || "Corporate Headline",
                 source: art.source?.name || "News API Business",
                 time: formatNewsTime(art.publishedAt),
@@ -1126,29 +2078,34 @@ app.get("/api/news/ticker", async (req, res) => {
                 publishedAt: art.publishedAt || new Date().toISOString()
               }));
               // Filter strictly for stocks and market relevance
-              return mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+              const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+              newsProviderCache.newsapi = { timestamp: Date.now(), items: filtered };
+              return filtered;
             }
-            return [];
+            return newsProviderCache.newsapi.items;
           })
           .catch(err => {
-            console.warn("News API fetch handled gracefully:", err.message);
-            return [];
+            console.log("News API fetch handled gracefully:", err.message);
+            return newsProviderCache.newsapi.items;
           })
       );
     }
   }
 
-  // 3. Newsdata.io Business News
+  // 3. Newsdata.io Business News (5-minute cache + stale fallback on 429)
   if (newsdataKey && newsdataKey !== "MY_NEWSDATA_API_KEY" && newsdataKey.trim() !== "") {
-    if (Date.now() < apiCooldowns.newsdata) {
+    activeSources.push("Newsdata.io");
+    const newsdataAge = Date.now() - newsProviderCache.newsdata.timestamp;
+    if (newsProviderCache.newsdata.items.length > 0 && (newsdataAge < NEWS_CACHE_TTL_MS || Date.now() < apiCooldowns.newsdata)) {
+      fetchPromises.push(Promise.resolve(newsProviderCache.newsdata.items));
+    } else if (Date.now() < apiCooldowns.newsdata) {
       console.log("Newsdata.io is in cooldown. Skipping fetch.");
     } else {
-      activeSources.push("Newsdata.io");
       fetchPromises.push(
         fetch(`https://newsdata.io/api/1/news?apikey=${newsdataKey}&category=business&language=en`)
           .then(async (r) => {
             if (r.status === 429) {
-              apiCooldowns.newsdata = Date.now() + 5 * 60 * 1000; // 5 min cooldown
+              apiCooldowns.newsdata = Date.now() + 5 * 60 * 1000;
             }
             if (!r.ok) throw new Error(`Newsdata.io status ${r.status}`);
             return r.json();
@@ -1156,7 +2113,7 @@ app.get("/api/news/ticker", async (req, res) => {
           .then(data => {
             if (data && Array.isArray(data.results)) {
               const mapped = data.results.map((art: any, index: number) => ({
-                id: `newsdata-${index}-${Date.now()}`,
+                id: `newsdata-${index}-${art.pubDate || index}`,
                 title: art.title || "Market Pulse",
                 source: art.source_id || "Newsdata.io",
                 time: formatNewsTime(art.pubDate),
@@ -1167,13 +2124,15 @@ app.get("/api/news/ticker", async (req, res) => {
                 publishedAt: art.pubDate || new Date().toISOString()
               }));
               // Filter strictly for stocks and market relevance
-              return mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+              const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+              newsProviderCache.newsdata = { timestamp: Date.now(), items: filtered };
+              return filtered;
             }
-            return [];
+            return newsProviderCache.newsdata.items;
           })
           .catch(err => {
-            console.warn("Newsdata.io API fetch handled gracefully:", err.message);
-            return [];
+            console.log("Newsdata.io API fetch handled gracefully:", err.message);
+            return newsProviderCache.newsdata.items;
           })
       );
     }
@@ -1248,7 +2207,7 @@ app.get("/api/news/ticker", async (req, res) => {
       }
     }
 
-    const finalNewsSlice = deduplicatedNews.slice(0, 30);
+    const finalNewsSlice = deduplicatedNews.slice(0, 40);
 
     return res.json({
       success: true,
