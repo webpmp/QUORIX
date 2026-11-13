@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StockData } from '../types';
-import { Sparkles, Settings, GripHorizontal } from 'lucide-react';
+import { GripHorizontal } from 'lucide-react';
 
 interface CommandPanelProps {
   stocks: Record<string, StockData>;
@@ -126,8 +126,6 @@ export default function CommandPanel({
                   <div className="min-w-0 flex-1">
                     <div className="font-bold text-zinc-200 text-[11px] truncate flex items-center gap-1">
                       {cmd.name}
-                      {cmd.code === 'BWRITE' && <Sparkles size={10} className="text-[#3498db]" />}
-                      {cmd.code === 'SETT' && <Settings size={10} className="text-[#ffaa00]" />}
                     </div>
                     <div className="text-[9px] text-zinc-500 line-clamp-1 truncate">
                       {cmd.desc}
