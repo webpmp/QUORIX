@@ -1,0 +1,6 @@
+{
+  "name": "Blooballsberg Terminal",
+  "description": "An immersive, interactive Blooballsberg Terminal replica with retro CRT styling, real-time live tickers, dynamic charting tools, and server-side AI-powered market analysis and search grounding.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
