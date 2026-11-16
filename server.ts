@@ -1914,6 +1914,76 @@ function isStockOrMarketRelated(title: string, content: string): boolean {
   return hasBusinessKeyword;
 }
 
+function decodeNewsText(raw: string): string {
+  if (!raw) return "";
+  let text = raw
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&apos;/g, "'")
+    .replace(/&#0*39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  // Fix merged Yahoo RSS section labels like "Key TakeawaysApple is..."
+  text = text.replace(/\bKey Takeaways(?=[A-Z])/g, "Key Takeaways: ");
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function formatIntroSentences(raw: string, title = "", maxSentences = 2, maxChars = 260): string {
+  const clean = decodeNewsText(raw);
+  if (!clean) return "";
+  // Avoid repeating identical headline text verbatim
+  if (title && clean.toLowerCase() === decodeNewsText(title).toLowerCase()) {
+    return "";
+  }
+  const parts = clean.split(/(?<=[.!?]["”']?)\s+(?=[A-Z0-9"“‘$])/).filter(Boolean);
+  let selected = parts.slice(0, maxSentences).join(" ").trim();
+  if (!selected) selected = clean;
+  if (selected.length > maxChars) {
+    selected = selected.slice(0, maxChars - 1).replace(/\s+\S*$/, "") + "…";
+  }
+  return selected;
+}
+
+async function fetchYahooTickerRssIntros(
+  yfTicker: string
+): Promise<{ byGuid: Map<string, string>; byTitle: Map<string, string> }> {
+  const byGuid = new Map<string, string>();
+  const byTitle = new Map<string, string>();
+  try {
+    const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(
+      yfTicker
+    )}&region=US&lang=en-US`;
+    const res = await fetch(url, { headers: { "User-Agent": YAHOO_UA } });
+    if (!res.ok) return { byGuid, byTitle };
+    const xml = await res.text();
+    for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+      const block = m[1];
+      const getTag = (tag: string) => {
+        const match = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      const guid = decodeNewsText(getTag("guid"));
+      const rawTitle = decodeNewsText(getTag("title"));
+      const rawDesc = getTag("description");
+      const intro = formatIntroSentences(rawDesc, rawTitle, 2, 260);
+      if (!intro) continue;
+      if (guid) byGuid.set(guid, intro);
+      if (rawTitle) {
+        const normTitle = rawTitle.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+        if (normTitle) byTitle.set(normTitle, intro);
+      }
+    }
+  } catch {
+    // Non-fatal if RSS fails; search items still render headlines
+  }
+  return { byGuid, byTitle };
+}
+
 function analyzeNewsSentiment(text: string): "positive" | "negative" | "neutral" {
   const lower = text.toLowerCase();
   const positiveWords = ["rally", "surge", "gain", "rise", "beat", "positive", "bullish", "record", "growth", "high", "success", "won", "boost", "exceed", "upgrade", "acquisition", "merger", "expansion"];
@@ -1956,8 +2026,11 @@ app.get("/api/news/ticker", async (req, res) => {
 
     activeSources.push(`Yahoo Finance (${requestedTicker})`);
     fetchPromises.push(
-      fetchYahooSearch(yfTicker, 2, 15)
-        .then((searchData) => {
+      Promise.all([
+        fetchYahooSearch(yfTicker, 2, 15),
+        fetchYahooTickerRssIntros(yfTicker),
+      ])
+        .then(([searchData, rssIntros]) => {
           const rawNews = Array.isArray(searchData?.news) ? searchData.news : [];
           return rawNews
             .filter((art: any) => {
@@ -1979,6 +2052,11 @@ app.get("/api/news/ticker", async (req, res) => {
               const publisher = typeof art.publisher === "string" && art.publisher.trim()
                 ? art.publisher.trim()
                 : "Yahoo Finance";
+              const normTitle = decodeNewsText(art.title).toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+              const intro =
+                (art.uuid ? rssIntros.byGuid.get(art.uuid) : undefined) ||
+                rssIntros.byTitle.get(normTitle) ||
+                "";
               return {
                 id: `yf-${art.uuid || index}-${requestedTicker}`,
                 title: art.title,
@@ -1988,9 +2066,9 @@ app.get("/api/news/ticker", async (req, res) => {
                 relatedTickers: Array.isArray(art.relatedTickers)
                   ? art.relatedTickers.filter((t: any) => typeof t === "string" && /^[A-Z0-9.-]{1,8}$/i.test(t))
                   : [requestedTicker],
-                sentiment: analyzeNewsSentiment(art.title),
+                sentiment: analyzeNewsSentiment(`${art.title} ${intro}`),
                 classification: `YAHOO FINANCE - ${requestedTicker}`,
-                content: "",
+                content: intro,
                 url: art.link,
                 publishedAt,
               };
@@ -2027,7 +2105,7 @@ app.get("/api/news/ticker", async (req, res) => {
                 time: formatNewsTime(art.published_date || art.created_date),
                 sentiment: analyzeNewsSentiment((art.title || "") + " " + (art.abstract || "")),
                 classification: "NYT - BUSINESS",
-                content: art.abstract || "",
+                content: formatIntroSentences(art.abstract || "", art.title || "", 2, 260),
                 url: art.url || "https://www.nytimes.com/section/business",
                 publishedAt: art.published_date || art.created_date || new Date().toISOString()
               }));
@@ -2073,7 +2151,7 @@ app.get("/api/news/ticker", async (req, res) => {
                 time: formatNewsTime(art.publishedAt),
                 sentiment: analyzeNewsSentiment((art.title || "") + " " + (art.description || "")),
                 classification: "NEWSAPI - CORP",
-                content: art.description || art.content || "",
+                content: formatIntroSentences(art.description || art.content || "", art.title || "", 2, 260),
                 url: art.url || "https://newsapi.org",
                 publishedAt: art.publishedAt || new Date().toISOString()
               }));
@@ -2119,7 +2197,7 @@ app.get("/api/news/ticker", async (req, res) => {
                 time: formatNewsTime(art.pubDate),
                 sentiment: analyzeNewsSentiment((art.title || "") + " " + (art.description || "")),
                 classification: "NEWSDATA - MARKET",
-                content: art.description || "",
+                content: formatIntroSentences(art.description || "", art.title || "", 2, 260),
                 url: art.link || "https://newsdata.io",
                 publishedAt: art.pubDate || new Date().toISOString()
               }));
