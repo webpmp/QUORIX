@@ -1,11 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StockData } from '../types';
-import { GripHorizontal } from 'lucide-react';
+import { GripHorizontal, ChevronUp, ChevronDown, X, GripVertical, RotateCcw } from 'lucide-react';
 
 interface CommandPanelProps {
   stocks: Record<string, StockData>;
+  trackedTickers: string[];
   selectedTicker: string;
   onSelectTicker: (ticker: string) => void;
+  onReorderTicker: (fromIndex: number, toIndex: number) => void;
+  onRemoveTicker: (ticker: string) => void;
+  onResetTrackedTickers: () => void;
   activeScreen: string;
   onSelectScreen: (screen: string) => void;
 }
@@ -14,8 +18,12 @@ const SPLIT_STORAGE_KEY = 'quorix_tracked_equities_height_pct';
 
 export default function CommandPanel({
   stocks,
+  trackedTickers,
   selectedTicker,
   onSelectTicker,
+  onReorderTicker,
+  onRemoveTicker,
+  onResetTrackedTickers,
   activeScreen,
   onSelectScreen
 }: CommandPanelProps) {
@@ -32,6 +40,9 @@ export default function CommandPanel({
     return 50;
   });
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isEditingEquities, setIsEditingEquities] = useState<boolean>(false);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -167,65 +178,207 @@ export default function CommandPanel({
         >
           <div className="flex items-center justify-between text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-2">
             <span>Tracked Equities</span>
-            <span className="text-[#3498db] font-mono text-[9px]">
-              {Object.keys(stocks).filter(sym => !['SPX', 'DJI', 'IXIC', 'GC', 'CL', 'TNX', 'BTC'].includes(sym)).length} TICKERS
-            </span>
+            <div className="flex items-center gap-1.5">
+              {isEditingEquities && (
+                <button
+                  type="button"
+                  onClick={onResetTrackedTickers}
+                  title="Restore default watchlist"
+                  className="text-[9px] text-zinc-400 hover:text-[#ff9900] border border-[#333] hover:border-[#ff9900] px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <RotateCcw size={9} />
+                  <span>RESET</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsEditingEquities((prev) => !prev)}
+                title={isEditingEquities ? 'Finish editing watchlist' : 'Rearrange or remove tracked equities'}
+                className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                  isEditingEquities
+                    ? 'border-[#ff9900] bg-[#ff9900]/15 text-[#ff9900]'
+                    : 'border-[#333] text-zinc-400 hover:border-[#3498db] hover:text-[#3498db]'
+                }`}
+              >
+                {isEditingEquities ? 'DONE' : 'EDIT'}
+              </button>
+              <span className="text-[#3498db] font-mono text-[9px]">
+                {trackedTickers.length} TICKERS
+              </span>
+            </div>
           </div>
-          
+
           <div className="space-y-1">
-            {Object.values(stocks)
-              .filter((stock) => !['SPX', 'DJI', 'IXIC', 'GC', 'CL', 'TNX', 'BTC'].includes(stock.symbol))
-              .map((stock) => {
+            {trackedTickers.length === 0 ? (
+              <div className="text-center py-6 px-2 border border-dashed border-[#222] rounded text-[10px] text-zinc-500 space-y-2">
+                <div>NO TRACKED EQUITIES IN LIST.</div>
+                <button
+                  type="button"
+                  onClick={onResetTrackedTickers}
+                  className="px-2 py-1 rounded border border-[#333] text-[#ff9900] hover:border-[#ff9900] font-bold uppercase cursor-pointer"
+                >
+                  RESTORE DEFAULTS
+                </button>
+              </div>
+            ) : (
+              trackedTickers.map((sym, idx) => {
+                const stock: Pick<
+                  StockData,
+                  'symbol' | 'name' | 'price' | 'change' | 'changePercent' | 'volume' | 'isPreMarket' | 'isAfterHours'
+                > = stocks[sym] || {
+                  symbol: sym,
+                  name: sym,
+                  price: 0,
+                  change: 0,
+                  changePercent: 0,
+                  volume: 0,
+                  isPreMarket: false,
+                  isAfterHours: false,
+                };
                 const isSelected = stock.symbol === selectedTicker;
                 const hasPrice = stock.price > 0;
                 const isPositive = stock.change >= 0;
-              return (
-                <button
-                  key={stock.symbol}
-                  onClick={() => onSelectTicker(stock.symbol)}
-                  className={`w-full flex items-center justify-between p-2 rounded text-left transition-all ${
-                    isSelected
-                      ? 'bg-[#1a1a1a] border-l-2 border-[#3498db] text-white'
-                      : 'bg-[#010101] hover:bg-[#111] border-l-2 border-transparent text-zinc-300'
-                  }`}
-                  id={`stock-ticker-${stock.symbol}`}
-                >
-                <div>
-                  <div className="font-bold flex items-center gap-1.5 min-w-0">
-                    <span className={isSelected ? 'text-[#3498db]' : 'text-zinc-200'}>
-                      {stock.symbol}
-                    </span>
-                    <span className="text-[9px] text-zinc-500 truncate max-w-[90px]">
-                      {stock.name}
-                    </span>
+                const isDragTarget = dragOverIdx === idx && draggedIdx !== null && draggedIdx !== idx;
+
+                return (
+                  <div
+                    key={stock.symbol}
+                    role="button"
+                    tabIndex={0}
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggedIdx(idx);
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', stock.symbol);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverIdx !== idx) setDragOverIdx(idx);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedIdx !== null && draggedIdx !== idx) {
+                        onReorderTicker(draggedIdx, idx);
+                      }
+                      setDraggedIdx(null);
+                      setDragOverIdx(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedIdx(null);
+                      setDragOverIdx(null);
+                    }}
+                    onClick={() => onSelectTicker(stock.symbol)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelectTicker(stock.symbol);
+                      }
+                    }}
+                    className={`group w-full flex items-center justify-between gap-1.5 p-2 rounded text-left transition-all cursor-pointer ${
+                      isDragTarget
+                        ? 'border border-[#ff9900] bg-[#1a1205]'
+                        : isSelected
+                        ? 'bg-[#1a1a1a] border-l-2 border-[#3498db] text-white'
+                        : 'bg-[#010101] hover:bg-[#111] border-l-2 border-transparent text-zinc-300'
+                    } ${draggedIdx === idx ? 'opacity-50' : ''}`}
+                    id={`stock-ticker-${stock.symbol}`}
+                    title={isEditingEquities ? 'Drag or use arrows to reorder / X to remove' : `Click to view ${stock.symbol} (drag to reorder)`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <GripVertical
+                        size={11}
+                        className={`shrink-0 cursor-grab active:cursor-grabbing ${
+                          isEditingEquities ? 'text-zinc-400' : 'text-zinc-700 group-hover:text-zinc-400'
+                        }`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold flex items-center gap-1.5 min-w-0">
+                          <span className={isSelected ? 'text-[#3498db]' : 'text-zinc-200'}>
+                            {stock.symbol}
+                          </span>
+                          <span className="text-[9px] text-zinc-500 truncate">
+                            {stock.name}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-500 mt-0.5">
+                          Vol: {stock.volume > 0 ? `${(stock.volume / 1000000).toFixed(1)}M` : '--'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {!isEditingEquities && (
+                        <div className="text-right flex flex-col items-end">
+                          <div className="font-bold text-white font-mono flex items-center gap-1">
+                            {hasPrice ? `$${stock.price.toFixed(2)}` : '--'}
+                            {stock.isPreMarket && (
+                              <span className="text-[7px] bg-amber-500/20 text-amber-500 px-1 rounded font-bold border border-amber-500/30">
+                                PRE
+                              </span>
+                            )}
+                            {stock.isAfterHours && (
+                              <span className="text-[7px] bg-indigo-500/20 text-indigo-400 px-1.5 rounded font-bold border border-indigo-500/30">
+                                AFT
+                              </span>
+                            )}
+                          </div>
+                          <div className={`text-[10px] font-semibold ${!hasPrice ? 'text-zinc-600' : isPositive ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
+                            {hasPrice ? `${isPositive ? '▲' : '▼'} ${Math.abs(stock.changePercent).toFixed(2)}%` : '--'}
+                          </div>
+                        </div>
+                      )}
+
+                      <div
+                        className={`items-center gap-0.5 ${
+                          isEditingEquities ? 'flex' : 'hidden group-hover:flex'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onReorderTicker(idx, idx - 1);
+                          }}
+                          disabled={idx === 0}
+                          title={`Move ${stock.symbol} up`}
+                          aria-label={`Move ${stock.symbol} up`}
+                          className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-25 disabled:hover:text-zinc-400 disabled:hover:border-[#333] cursor-pointer disabled:cursor-not-allowed"
+                        >
+                          <ChevronUp size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onReorderTicker(idx, idx + 1);
+                          }}
+                          disabled={idx === trackedTickers.length - 1}
+                          title={`Move ${stock.symbol} down`}
+                          aria-label={`Move ${stock.symbol} down`}
+                          className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-25 disabled:hover:text-zinc-400 disabled:hover:border-[#333] cursor-pointer disabled:cursor-not-allowed"
+                        >
+                          <ChevronDown size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveTicker(stock.symbol);
+                          }}
+                          title={`Remove ${stock.symbol} from list`}
+                          aria-label={`Remove ${stock.symbol} from list`}
+                          className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff4444] hover:border-[#ff4444] cursor-pointer"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[10px] text-zinc-500 mt-0.5">
-                    Vol: {stock.volume > 0 ? `${(stock.volume / 1000000).toFixed(1)}M` : '--'}
-                  </div>
-                </div>
-                
-                <div className="text-right flex flex-col items-end">
-                  <div className="font-bold text-white font-mono flex items-center gap-1">
-                    {hasPrice ? `$${stock.price.toFixed(2)}` : '--'}
-                    {stock.isPreMarket && (
-                      <span className="text-[7px] bg-amber-500/20 text-amber-500 px-1 rounded font-bold border border-amber-500/30">
-                        PRE
-                      </span>
-                    )}
-                    {stock.isAfterHours && (
-                      <span className="text-[7px] bg-indigo-500/20 text-indigo-400 px-1.5 rounded font-bold border border-indigo-500/30">
-                        AFT
-                      </span>
-                    )}
-                  </div>
-                  <div className={`text-[10px] font-semibold ${!hasPrice ? 'text-zinc-600' : isPositive ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
-                    {hasPrice ? `${isPositive ? '▲' : '▼'} ${Math.abs(stock.changePercent).toFixed(2)}%` : '--'}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                );
+              })
+            )}
+          </div>
 
           {/* Ticker status */}
           <div className="mt-2 text-[8px] text-zinc-500 font-mono text-center border border-[#1a1a1a] bg-[#050505] p-1.5 rounded uppercase select-none">

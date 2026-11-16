@@ -3,6 +3,7 @@ import path from "path";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import { enrichBarsWithStudies } from "./src/utils/technicalStudies";
 
 // Load environment variables
 dotenv.config();
@@ -1281,15 +1282,23 @@ function adjustQuoteForTradingHours(quoteObj: any) {
 }
 
 function mapToYahooSymbol(cacheKey: string): string {
-  if (cacheKey === 'SPX') return '^GSPC';
-  if (cacheKey === 'DJI') return '^DJI';
-  if (cacheKey === 'IXIC') return '^IXIC';
-  if (cacheKey === 'GC') return 'GC=F';
-  if (cacheKey === 'CL') return 'CL=F';
-  if (cacheKey === 'BZ') return 'BZ=F';
-  if (cacheKey === 'TNX') return '^TNX';
-  if (cacheKey === 'BTC') return 'BTC-USD';
-  return cacheKey;
+  const key = cacheKey.toUpperCase().trim();
+  if (key === 'SPX') return '^GSPC';
+  if (key === 'DJI') return '^DJI';
+  if (key === 'IXIC') return '^IXIC';
+  if (key === 'VIX') return '^VIX';
+  if (key === 'RUT') return '^RUT';
+  if (key === 'GC') return 'GC=F';
+  if (key === 'CL') return 'CL=F';
+  if (key === 'BZ') return 'BZ=F';
+  if (key === 'TNX') return '^TNX';
+  if (key === 'BTC') return 'BTC-USD';
+  if (key === 'ETH') return 'ETH-USD';
+  if (key === 'SOL') return 'SOL-USD';
+  if (key === 'DXY') return 'DX-Y.NYB';
+  // Convert US class-share dot notation (e.g., BRK.B -> BRK-B, BF.B -> BF-B)
+  if (/^[A-Z0-9]+\.[A-Z]$/.test(key)) return key.replace('.', '-');
+  return key;
 }
 
 function formatYahooTimestamp(tsSeconds: number, interval: string): string {
@@ -1355,7 +1364,16 @@ function extractYahooBars(
   const closes: any[] = Array.isArray(quote.close) ? quote.close : [];
   const volumes: any[] = Array.isArray(quote.volume) ? quote.volume : [];
 
-  let bars: Array<{ date: string; timestamp: number; open: number; high: number; low: number; close: number; volume: number }> = [];
+  let bars: Array<{
+    date: string;
+    timestamp: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+    [key: string]: any;
+  }> = [];
   for (let i = 0; i < timestamps.length; i++) {
     const ts = timestamps[i];
     const o = opens[i];
@@ -1377,6 +1395,12 @@ function extractYahooBars(
 
   // Sort strictly chronologically (oldest first)
   bars.sort((a, b) => a.timestamp - b.timestamp);
+
+  // Compute all technical studies over full continuous warmup series BEFORE window slicing
+  const tz = result?.meta?.exchangeTimezoneName || 'America/New_York';
+  if (bars.length > 0) {
+    enrichBarsWithStudies(bars, tz);
+  }
 
   if (bars.length > 0) {
     const latestTs = bars[bars.length - 1].timestamp;
@@ -1486,6 +1510,22 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
           }
           if (!todayOpen) todayOpen = prevClose;
 
+          const formatExchangeName = (m: any): string => {
+            const full = String(m?.fullExchangeName || '').trim();
+            const code = String(m?.exchangeName || '').trim().toUpperCase();
+            const fullUpper = full.toUpperCase();
+            if (fullUpper.includes('NASDAQ') || ['NMS', 'NCM', 'NGM', 'NAS', 'NIM'].includes(code)) return 'NASDAQ';
+            if (fullUpper === 'NYSEARCA' || code === 'PCX') return 'NYSE ARCA';
+            if (fullUpper === 'NYSE' || code === 'NYQ') return 'NYSE';
+            if (fullUpper.includes('NYSE AMERICAN') || code === 'ASE') return 'NYSE AMERICAN';
+            if (fullUpper.includes('NY MERCANTILE') || code === 'NYM') return 'NYMEX';
+            if (code === 'CMX') return 'COMEX';
+            if (code === 'CCC' || fullUpper === 'CCC') return 'CRYPTO';
+            if (code === 'SNP') return 'S&P INDEX';
+            if (code === 'DJI') return 'DOW JONES';
+            return (full || code || '').toUpperCase();
+          };
+
           const parsedQuote = {
             symbol: cacheKey,
             open: todayOpen,
@@ -1498,6 +1538,7 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
             change: change,
             changePercent: changePercent,
             name: meta.longName || meta.shortName || `${cacheKey} Corp.`,
+            exchange: formatExchangeName(meta),
             history,
             isRealYF: true,
             preMarketPriceYF: meta.preMarketPrice || null,
@@ -1519,7 +1560,7 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
         }
       }
     } catch (yfErr: any) {
-      console.warn("Yahoo Finance query failed or returned empty results, falling back to Alpha Vantage:", yfErr.message);
+      console.log("Yahoo Finance query failed or returned empty results, falling back to Alpha Vantage:", yfErr.message);
     }
 
     // --- STEP 2: Fallback to Alpha Vantage ---
@@ -1535,7 +1576,7 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
     
     // Check for rate limiting or information messages
     if (data.Note || data.Information) {
-      console.warn("Alpha Vantage warning message:", data.Note || data.Information);
+      console.log("Alpha Vantage notice:", data.Note || data.Information);
       
       // Fallback: If we have a previously fetched real cached quote, serve it with notice
       if (cached) {
@@ -1606,7 +1647,7 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
       isCached: false
     });
   } catch (err: any) {
-    console.error("Quote endpoint error:", err.message);
+    console.log("Quote endpoint handled gracefully:", err.message);
     return res.json({
       success: false,
       error: err.message,
@@ -1627,26 +1668,58 @@ app.get("/api/market/history", async (req, res) => {
       string,
       { yfInterval: string; yfRange: string; windowSeconds: number; todayOnly: boolean; maxBars: number }
     > = {
-      "5m": { yfInterval: "1m", yfRange: "1d", windowSeconds: 5 * 60, todayOnly: true, maxBars: 10 },
-      "15m": { yfInterval: "1m", yfRange: "1d", windowSeconds: 15 * 60, todayOnly: true, maxBars: 20 },
-      "30m": { yfInterval: "1m", yfRange: "1d", windowSeconds: 30 * 60, todayOnly: true, maxBars: 35 },
-      "1h": { yfInterval: "2m", yfRange: "1d", windowSeconds: 60 * 60, todayOnly: true, maxBars: 35 },
-      "1D": { yfInterval: "15m", yfRange: "1d", windowSeconds: 24 * 60 * 60, todayOnly: true, maxBars: 42 },
+      "5m": { yfInterval: "1m", yfRange: "5d", windowSeconds: 5 * 60, todayOnly: true, maxBars: 10 },
+      "15m": { yfInterval: "1m", yfRange: "5d", windowSeconds: 15 * 60, todayOnly: true, maxBars: 20 },
+      "30m": { yfInterval: "1m", yfRange: "5d", windowSeconds: 30 * 60, todayOnly: true, maxBars: 35 },
+      "1h": { yfInterval: "2m", yfRange: "5d", windowSeconds: 60 * 60, todayOnly: true, maxBars: 35 },
+      "1D": { yfInterval: "15m", yfRange: "5d", windowSeconds: 24 * 60 * 60, todayOnly: true, maxBars: 42 },
       "1W": { yfInterval: "1h", yfRange: "1mo", windowSeconds: 7 * 24 * 60 * 60, todayOnly: false, maxBars: 48 },
-      "1M": { yfInterval: "1d", yfRange: "2mo", windowSeconds: 31 * 24 * 60 * 60, todayOnly: false, maxBars: 35 },
+      "1M": { yfInterval: "1d", yfRange: "6mo", windowSeconds: 31 * 24 * 60 * 60, todayOnly: false, maxBars: 35 },
     };
 
     const cfg = intervalMap[interval] || intervalMap["1h"];
-    const yfSymbol = mapToYahooSymbol(symbol);
-    const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfSymbol)}?interval=${cfg.yfInterval}&range=${cfg.yfRange}`;
-    const yfResponse = await fetch(yfUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    const fetchChartForSymbol = async (targetYfSymbol: string) => {
+      const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(targetYfSymbol)}?interval=${cfg.yfInterval}&range=${cfg.yfRange}`;
+      return fetch(yfUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      });
+    };
+
+    let yfSymbol = mapToYahooSymbol(symbol);
+    let yfResponse = await fetchChartForSymbol(yfSymbol);
+
+    // If Yahoo returned 404 (e.g. company name or alias), try resolving the exact Yahoo symbol via search
+    if (yfResponse.status === 404) {
+      const searchRes = await fetchYahooSearch(symbol, 3, 0);
+      const resolved = searchRes.quotes.find(
+        (q: any) =>
+          q?.symbol &&
+          ["EQUITY", "ETF", "INDEX", "CRYPTOCURRENCY", "FUTURE", "CURRENCY"].includes(q.quoteType)
+      )?.symbol;
+      if (resolved && resolved.toUpperCase() !== yfSymbol.toUpperCase()) {
+        yfSymbol = resolved;
+        yfResponse = await fetchChartForSymbol(yfSymbol);
       }
-    });
+    }
+
+    if (yfResponse.status === 404) {
+      console.log(`Yahoo Finance returned 404 for symbol "${symbol}" (${yfSymbol})`);
+      return res.json({
+        success: false,
+        error: `No market chart data found for symbol "${symbol}".`,
+        history: []
+      });
+    }
 
     if (!yfResponse.ok) {
-      throw new Error(`Yahoo Finance returned status ${yfResponse.status}`);
+      console.log(`Yahoo Finance history status ${yfResponse.status} for ${yfSymbol}`);
+      return res.json({
+        success: false,
+        error: `Yahoo Finance returned status ${yfResponse.status}`,
+        history: []
+      });
     }
 
     const yfData = await yfResponse.json();
@@ -1663,7 +1736,7 @@ app.get("/api/market/history", async (req, res) => {
     });
     return res.json({ success: true, symbol, interval, history });
   } catch (err: any) {
-    console.error("History endpoint error:", err.message);
+    console.log("History endpoint handled gracefully:", err.message);
     return res.json({ success: false, error: err.message, history: [] });
   }
 });

@@ -20,8 +20,63 @@ export interface FredFeedStatus {
   fetchedAt: string | null;
 }
 
+const TAPE_SYMBOLS = ['SPX', 'DJI', 'IXIC', 'GC', 'CL', 'TNX', 'BTC'];
+const DEFAULT_TRACKED_TICKERS = ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'GOOG', 'AMZN', 'META', 'WULF'];
+const TRACKED_TICKERS_STORAGE_KEY = 'quorix_tracked_equities_v1';
+
 export default function App() {
-  const [stocks, setStocks] = useState<Record<string, StockData>>(INITIAL_STOCKS);
+  const [trackedTickers, setTrackedTickers] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(TRACKED_TICKERS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+            .map((t) => t.toUpperCase().trim())
+            .filter((t) => !TAPE_SYMBOLS.includes(t));
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return DEFAULT_TRACKED_TICKERS;
+  });
+  const [stocks, setStocks] = useState<Record<string, StockData>>(() => {
+    const initial = { ...INITIAL_STOCKS };
+    try {
+      const saved = localStorage.getItem(TRACKED_TICKERS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          for (const raw of parsed) {
+            const sym = typeof raw === 'string' ? raw.toUpperCase().trim() : '';
+            if (sym && !initial[sym]) {
+              initial[sym] = {
+                symbol: sym,
+                name: sym,
+                price: 0,
+                change: 0,
+                changePercent: 0,
+                high: 0,
+                low: 0,
+                open: 0,
+                prevClose: 0,
+                volume: 0,
+                marketCap: '—',
+                peRatio: 0,
+                beta: 0,
+                history: [],
+              };
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return initial;
+  });
   const [currencies, setCurrencies] = useState<CurrencyPair[]>([]);
   const [economics, setEconomics] = useState<EconomicIndicator[]>([]);
   const [fredMacroMetrics, setFredMacroMetrics] = useState<FredMacroMetric[]>([]);
@@ -76,6 +131,7 @@ export default function App() {
             [q.symbol]: {
               symbol: q.symbol,
               name: q.name || existing?.name || q.symbol,
+              exchange: q.exchange || existing?.exchange,
               price: q.price,
               change: q.change,
               changePercent: q.changePercent,
@@ -171,32 +227,45 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(TRACKED_TICKERS_STORAGE_KEY, JSON.stringify(trackedTickers));
+    } catch {
+      // ignore storage errors
+    }
+  }, [trackedTickers]);
+
   // Fetch initial live quotes and FRED macro/FX data on mount
   useEffect(() => {
-    const allTickers = Object.keys(INITIAL_STOCKS);
+    const allTickers = Array.from(new Set([...trackedTickers, ...TAPE_SYMBOLS]));
     Promise.allSettled(allTickers.map((ticker) => fetchLiveQuote(ticker, true, false)));
     fetchFredEconomics(false);
     fetchFredCurrencies(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchLiveQuote, fetchFredEconomics, fetchFredCurrencies]);
 
   // Poll live market quotes every 60 seconds
   useEffect(() => {
     const refreshInterval = setInterval(() => {
-      const tracked = Array.from(new Set([selectedTicker, ...Object.keys(INITIAL_STOCKS)]));
+      const tracked = Array.from(new Set([selectedTicker, ...trackedTickers, ...TAPE_SYMBOLS]));
       Promise.allSettled(tracked.map((ticker) => fetchLiveQuote(ticker, true, true)));
     }, 60000);
 
     return () => clearInterval(refreshInterval);
-  }, [selectedTicker, fetchLiveQuote]);
+  }, [selectedTicker, trackedTickers, fetchLiveQuote]);
 
-  const ensureTickerSlot = (ticker: string) => {
+  const ensureTickerSlot = (ticker: string, addToTracked = false) => {
+    const sym = ticker.toUpperCase().trim();
+    if (addToTracked && !TAPE_SYMBOLS.includes(sym)) {
+      setTrackedTickers((prev) => (prev.includes(sym) ? prev : [...prev, sym]));
+    }
     setStocks((prev) => {
-      if (prev[ticker]) return prev;
+      if (prev[sym]) return prev;
       return {
         ...prev,
-        [ticker]: {
-          symbol: ticker,
-          name: ticker,
+        [sym]: {
+          symbol: sym,
+          name: sym,
           price: 0,
           change: 0,
           changePercent: 0,
@@ -212,6 +281,34 @@ export default function App() {
         },
       };
     });
+  };
+
+  const handleReorderTicker = (fromIndex: number, toIndex: number) => {
+    setTrackedTickers((prev) => {
+      if (
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= prev.length ||
+        toIndex >= prev.length ||
+        fromIndex === toIndex
+      ) {
+        return prev;
+      }
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+
+  const handleRemoveTicker = (ticker: string) => {
+    const sym = ticker.toUpperCase().trim();
+    setTrackedTickers((prev) => prev.filter((t) => t !== sym));
+  };
+
+  const handleResetTrackedTickers = () => {
+    setTrackedTickers(DEFAULT_TRACKED_TICKERS);
+    DEFAULT_TRACKED_TICKERS.forEach((sym) => fetchLiveQuote(sym, true, false));
   };
 
   // Submit terminal CLI input parser
@@ -245,7 +342,7 @@ export default function App() {
 
     if (secondary && (stocks[secondary] || isSecondaryTickerPattern) && directScreens.includes(primary)) {
       const ticker = secondary.toUpperCase();
-      ensureTickerSlot(ticker);
+      ensureTickerSlot(ticker, true);
       setSelectedTicker(ticker);
       setActiveScreen(primary);
       fetchLiveQuote(ticker, false, true);
@@ -254,7 +351,7 @@ export default function App() {
 
     if (parts.length <= 2 && isTickerPattern && !directScreens.includes(primary)) {
       const ticker = primary;
-      ensureTickerSlot(ticker);
+      ensureTickerSlot(ticker, true);
       setSelectedTicker(ticker);
 
       if (secondary && directScreens.includes(secondary)) {
@@ -278,7 +375,7 @@ export default function App() {
   };
 
   const handleSelectTicker = (ticker: string) => {
-    ensureTickerSlot(ticker);
+    ensureTickerSlot(ticker, false);
     setSelectedTicker(ticker);
     fetchLiveQuote(ticker, false, true);
     if (!['GP', 'HP', 'DES', 'ANR', 'NEWS'].includes(activeScreen)) {
@@ -310,8 +407,12 @@ export default function App() {
         {/* Left Hand selection console for stocks and shortcuts */}
         <CommandPanel
           stocks={stocks}
+          trackedTickers={trackedTickers}
           selectedTicker={selectedTicker}
           onSelectTicker={handleSelectTicker}
+          onReorderTicker={handleReorderTicker}
+          onRemoveTicker={handleRemoveTicker}
+          onResetTrackedTickers={handleResetTrackedTickers}
           activeScreen={activeScreen}
           onSelectScreen={handleSelectScreen}
         />

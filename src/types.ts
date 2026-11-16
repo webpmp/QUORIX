@@ -1,6 +1,7 @@
 export interface StockData {
   symbol: string;
   name: string;
+  exchange?: string;
   price: number;
   change: number;
   changePercent: number;
@@ -20,6 +21,30 @@ export interface StockData {
     low: number;
     close: number;
     volume: number;
+    rsi?: number;
+    ma3?: number;
+    ema9?: number;
+    ema20?: number;
+    sma50?: number;
+    vwap?: number;
+    bbUpper?: number;
+    bbMid?: number;
+    bbLower?: number;
+    psar?: number;
+    psarUp?: boolean;
+    volMa?: number;
+    atr?: number;
+    obv?: number;
+    macd?: number;
+    macdSignal?: number;
+    macdHist?: number;
+    stochK?: number;
+    stochD?: number;
+    cci?: number;
+    adx?: number;
+    plusDi?: number;
+    minusDi?: number;
+    roc?: number;
   }>;
   isRealTime?: boolean;
   isPreMarket?: boolean;
