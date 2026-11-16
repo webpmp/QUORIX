@@ -346,13 +346,8 @@ export default function App() {
       <NewsTicker />
 
       {/* Bottom status boundary line */}
-      <footer className="bg-black text-[9px] text-zinc-600 border-t border-[#333] px-3 py-1.5 flex flex-col sm:flex-row justify-between items-center select-none font-mono">
-        <div>
-          CONSOLE TERMINAL CODES: AAPL GP - DRAW GRAPH | POLY - POLYMARKET SCREENER | ECO - ECONOMIC CALENDAR | NEWS - CENTRAL FEED
-        </div>
-        <div className="mt-1 sm:mt-0 text-[10px] text-zinc-500 font-semibold uppercase">
-          SEC-PROT: 256B ENCRYPTED COUPLING ● ON
-        </div>
+      <footer className="bg-black text-[10px] text-zinc-500 border-t border-[#333] px-3 py-1.5 flex justify-center items-center select-none font-mono">
+        <span>Quorix © 2026 Chris Adkins</span>
       </footer>
     </div>
   );
