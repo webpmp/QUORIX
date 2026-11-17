@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { StockData } from '../types';
-import { Activity, RefreshCw, X } from 'lucide-react';
+import { Activity, Info, RefreshCw, X } from 'lucide-react';
 import StudiesModal from './StudiesModal';
 import {
   DEFAULT_STUDY_IDS,
@@ -354,6 +354,16 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     return paddingLeft + (index / (history.length - 1)) * adjWidth;
   };
 
+  const getHoverStripeBounds = (index: number) => {
+    if (history.length <= 1) {
+      return { x: paddingLeft, stripeWidth: adjWidth };
+    }
+    const left = index === 0 ? paddingLeft : (getX(index - 1) + getX(index)) / 2;
+    const right =
+      index === history.length - 1 ? paddingLeft + adjWidth : (getX(index) + getX(index + 1)) / 2;
+    return { x: left, stripeWidth: Math.max(1, right - left) };
+  };
+
   const getY = (price: number) =>
     pricePaddingTop + priceAdjHeight - ((price - minPrice) / priceRange) * priceAdjHeight;
 
@@ -423,7 +433,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
           high: typeof stock.high === 'number' && stock.high > 0 ? stock.high : hoveredData.high,
           low: typeof stock.low === 'number' && stock.low > 0 ? stock.low : hoveredData.low,
           close: typeof stock.price === 'number' && stock.price > 0 ? stock.price : hoveredData.close,
-          volume: typeof stock.volume === 'number' && stock.volume > 0 ? stock.volume : hoveredData.volume,
+          volume: hoveredData.volume,
         };
   const currentRsi = rsiList[activeIndex];
 
@@ -447,19 +457,21 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
 
   const renderPanelHoverStripes = (keyPrefix: string) => (
     <>
-      {history.map((_, i) => (
-        <rect
-          key={`${keyPrefix}-detect-${i}`}
-          x={getX(i) - adjWidth / history.length / 2}
-          y={subPadTop}
-          width={adjWidth / history.length}
-          height={subAdjHeight}
-          fill="transparent"
-          className="cursor-crosshair"
-          onMouseEnter={() => setHoverIndex(i)}
-          onMouseLeave={() => setHoverIndex(null)}
-        />
-      ))}
+      {history.map((_, i) => {
+        const { x, stripeWidth } = getHoverStripeBounds(i);
+        return (
+          <rect
+            key={`${keyPrefix}-detect-${i}`}
+            x={x}
+            y={subPadTop}
+            width={stripeWidth}
+            height={subAdjHeight}
+            fill="transparent"
+            className="cursor-crosshair"
+            onMouseEnter={() => setHoverIndex(i)}
+          />
+        );
+      })}
       {hoverIndex !== null && (
         <line
           x1={getX(hoverIndex)}
@@ -657,8 +669,13 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
         </div>
         {showVolumeStudy && (
           <div>
-            <span className="text-zinc-300 font-bold block">VOLUME</span>
+            <span className="text-zinc-300 font-bold block">BAR VOLUME</span>
             <span className="text-white font-black">{displayData.volume.toLocaleString()}</span>
+            {typeof stock.volume === 'number' && stock.volume > 0 && (
+              <span className="text-[9px] text-zinc-500 font-bold block">
+                DAY TOTAL: {stock.volume.toLocaleString()}
+              </span>
+            )}
           </div>
         )}
         {showRsiStudy && (
@@ -692,6 +709,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             height={priceHeight}
             viewBox={`0 0 ${width} ${priceHeight}`}
             className="block w-full overflow-visible"
+            onMouseLeave={() => setHoverIndex(null)}
           >
             {/* Horizontal Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
@@ -970,19 +988,21 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             })}
 
             {/* Interactive hover detection vertical stripes */}
-            {history.map((_, i) => (
-              <rect
-                key={`detect-${i}`}
-                x={getX(i) - adjWidth / history.length / 2}
-                y={pricePaddingTop}
-                width={adjWidth / history.length}
-                height={priceAdjHeight}
-                fill="transparent"
-                className="cursor-crosshair"
-                onMouseEnter={() => setHoverIndex(i)}
-                onMouseLeave={() => setHoverIndex(null)}
-              />
-            ))}
+            {history.map((_, i) => {
+              const { x, stripeWidth } = getHoverStripeBounds(i);
+              return (
+                <rect
+                  key={`detect-${i}`}
+                  x={x}
+                  y={pricePaddingTop}
+                  width={stripeWidth}
+                  height={priceAdjHeight}
+                  fill="transparent"
+                  className="cursor-crosshair"
+                  onMouseEnter={() => setHoverIndex(i)}
+                />
+              );
+            })}
 
             {/* Target Vertical Crosshair */}
             {hoverIndex !== null && (
@@ -1024,6 +1044,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               height={volHeight}
               viewBox={`0 0 ${width} ${volHeight}`}
               className="block w-full overflow-visible"
+              onMouseLeave={() => setHoverIndex(null)}
             >
               {[0.25, 0.5, 0.75].map((pct, idx) => {
                 const yVal = volPaddingTop + pct * volAdjHeight;
@@ -1095,19 +1116,21 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 />
               )}
 
-              {history.map((_, i) => (
-                <rect
-                  key={`vol-detect-${i}`}
-                  x={getX(i) - adjWidth / history.length / 2}
-                  y={volPaddingTop}
-                  width={adjWidth / history.length}
-                  height={volAdjHeight}
-                  fill="transparent"
-                  className="cursor-crosshair"
-                  onMouseEnter={() => setHoverIndex(i)}
-                  onMouseLeave={() => setHoverIndex(null)}
-                />
-              ))}
+              {history.map((_, i) => {
+                const { x, stripeWidth } = getHoverStripeBounds(i);
+                return (
+                  <rect
+                    key={`vol-detect-${i}`}
+                    x={x}
+                    y={volPaddingTop}
+                    width={stripeWidth}
+                    height={volAdjHeight}
+                    fill="transparent"
+                    className="cursor-crosshair"
+                    onMouseEnter={() => setHoverIndex(i)}
+                  />
+                );
+              })}
 
               {hoverIndex !== null && (
                 <line
@@ -1124,6 +1147,9 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
               <span className="text-zinc-500 flex items-center gap-2">
                 <span>VOLUME STUDY</span>
+                <span className="text-zinc-300 tabular-nums">
+                  BAR: {formatAxisVolume(hoveredData.volume)}
+                </span>
                 {showVolMaStudy && (
                   <span className="text-[#ff9900] tabular-nums">
                     MA(20): {typeof hoveredData.volMa === 'number' ? formatAxisVolume(hoveredData.volMa) : '--'}
@@ -1151,6 +1177,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               height={rsiHeight}
               viewBox={`0 0 ${width} ${rsiHeight}`}
               className="block w-full overflow-visible"
+              onMouseLeave={() => setHoverIndex(null)}
             >
               <rect
                 x={paddingLeft}
@@ -1195,6 +1222,17 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                     >
                       {labelText}
                     </text>
+                    <text
+                      x={width - paddingRight + 4}
+                      y={yVal + 3}
+                      textAnchor="start"
+                      fill={textColor}
+                      fontSize="8.5"
+                      fontFamily="monospace"
+                      fontWeight="bold"
+                    >
+                      {labelText}
+                    </text>
                   </g>
                 );
               })}
@@ -1207,19 +1245,21 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 strokeLinejoin="round"
               />
 
-              {history.map((_, i) => (
-                <rect
-                  key={`rsi-detect-${i}`}
-                  x={getX(i) - adjWidth / history.length / 2}
-                  y={rsiPaddingTop}
-                  width={adjWidth / history.length}
-                  height={rsiAdjHeight}
-                  fill="transparent"
-                  className="cursor-crosshair"
-                  onMouseEnter={() => setHoverIndex(i)}
-                  onMouseLeave={() => setHoverIndex(null)}
-                />
-              ))}
+              {history.map((_, i) => {
+                const { x, stripeWidth } = getHoverStripeBounds(i);
+                return (
+                  <rect
+                    key={`rsi-detect-${i}`}
+                    x={x}
+                    y={rsiPaddingTop}
+                    width={stripeWidth}
+                    height={rsiAdjHeight}
+                    fill="transparent"
+                    className="cursor-crosshair"
+                    onMouseEnter={() => setHoverIndex(i)}
+                  />
+                );
+              })}
 
               {hoverIndex !== null && (
                 <g>
@@ -1244,10 +1284,43 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               )}
             </svg>
             <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
-              <span className="text-zinc-500">
-                RSI OSCILLATOR (14){' '}
-                <span className="text-[#9b59b6] tabular-nums ml-1">{currentRsi.toFixed(1)}</span>
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-zinc-500">
+                  RSI OSCILLATOR (14){' '}
+                  <span className="text-[#9b59b6] tabular-nums ml-1">{currentRsi.toFixed(1)}</span>
+                </span>
+                <div className="relative group/rsi-tip pointer-events-auto inline-flex items-center">
+                  <button
+                    type="button"
+                    aria-label="How to read RSI Oscillator (14)"
+                    className="text-zinc-500 hover:text-[#9b59b6] focus:text-[#9b59b6] focus:outline-none cursor-help p-0.5 flex items-center"
+                  >
+                    <Info size={10} />
+                  </button>
+                  <div
+                    role="tooltip"
+                    className="hidden group-hover/rsi-tip:block group-focus-within/rsi-tip:block absolute left-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-[11px] leading-relaxed text-zinc-300 select-text"
+                  >
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#9b59b6] border-b border-[#222] pb-1 mb-2">
+                      Reading RSI Oscillator (14)
+                    </div>
+                    <ul className="space-y-1.5">
+                      <li>
+                        <span className="text-[#ef4444] font-bold">• 70 (Overbought):</span> An RSI reading above 70 suggests the stock has seen heavy buying pressure and may be overbought or due for a short-term pullback. (In strong bull markets, traders sometimes adjust this threshold to 80.)
+                      </li>
+                      <li>
+                        <span className="text-[#22c55e] font-bold">• 30 (Oversold):</span> An RSI reading below 30 suggests the stock has experienced heavy selling pressure and may be oversold or due for a bounce. (In strong downtrends, traders sometimes adjust this threshold to 20.)
+                      </li>
+                      <li>
+                        <span className="text-zinc-100 font-bold">• 50 (The Centerline):</span> Acts as the balance point between bullish and bearish momentum. Readings above 50 generally confirm bullish momentum, while readings below 50 confirm bearish momentum.
+                      </li>
+                      <li>
+                        <span className="text-[#9b59b6] font-bold">• 40 and 60 (Trend-Specific Zones):</span> During a strong uptrend, RSI often stays in the 40 to 90 range, with the 40–50 zone acting as support. During a strong downtrend, RSI tends to stay in the 10 to 60 range, with the 50–60 zone acting as resistance.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => toggleStudy('rsi')}
@@ -1269,6 +1342,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               height={subPanelHeight}
               viewBox={`0 0 ${width} ${subPanelHeight}`}
               className="block w-full overflow-visible"
+              onMouseLeave={() => setHoverIndex(null)}
             >
               {/* Zero line & bounds */}
               <line
@@ -1364,6 +1438,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               height={subPanelHeight}
               viewBox={`0 0 ${width} ${subPanelHeight}`}
               className="block w-full overflow-visible"
+              onMouseLeave={() => setHoverIndex(null)}
             >
               <rect
                 x={paddingLeft}
@@ -1449,6 +1524,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               height={subPanelHeight}
               viewBox={`0 0 ${width} ${subPanelHeight}`}
               className="block w-full overflow-visible"
+              onMouseLeave={() => setHoverIndex(null)}
             >
               {[100, 0, -100].map((lvl) => (
                 <g key={`cci-lvl-${lvl}`}>
@@ -1510,6 +1586,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               height={subPanelHeight}
               viewBox={`0 0 ${width} ${subPanelHeight}`}
               className="block w-full overflow-visible"
+              onMouseLeave={() => setHoverIndex(null)}
             >
               {[25, Math.round(adxMax)].map((lvl, idx) => (
                 <g key={`adx-lvl-${idx}`}>
@@ -1591,6 +1668,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               height={subPanelHeight}
               viewBox={`0 0 ${width} ${subPanelHeight}`}
               className="block w-full overflow-visible"
+              onMouseLeave={() => setHoverIndex(null)}
             >
               {[atrMax, (atrMax + atrMin) / 2, atrMin].map((lvl, idx) => (
                 <g key={`atr-lvl-${idx}`}>
@@ -1652,6 +1730,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               height={subPanelHeight}
               viewBox={`0 0 ${width} ${subPanelHeight}`}
               className="block w-full overflow-visible"
+              onMouseLeave={() => setHoverIndex(null)}
             >
               {[obvMax, obvMin].map((lvl, idx) => (
                 <g key={`obv-lvl-${idx}`}>
@@ -1713,6 +1792,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               height={subPanelHeight}
               viewBox={`0 0 ${width} ${subPanelHeight}`}
               className="block w-full overflow-visible"
+              onMouseLeave={() => setHoverIndex(null)}
             >
               <line
                 x1={paddingLeft}

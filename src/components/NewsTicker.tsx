@@ -17,6 +17,7 @@ interface NewsTickerResponse {
 }
 
 const ROTATION_INTERVAL_MS = 10 * 60 * 1000;
+const TICKER_SPEED_PX_PER_SEC = 55;
 
 function getCurrentRotationSlot(): number {
   return Math.floor(Date.now() / ROTATION_INTERVAL_MS);
@@ -34,7 +35,13 @@ export default function NewsTicker() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [repeatCount, setRepeatCount] = useState<number>(1);
+  const [marqueeDurationSec, setMarqueeDurationSec] = useState<number>(150);
+  const [feedVersion, setFeedVersion] = useState<number>(0);
   const lastSlotRef = React.useRef<number>(getCurrentRotationSlot());
+  const lastFeedSigRef = React.useRef<string>('');
+  const viewportRef = React.useRef<HTMLDivElement | null>(null);
+  const firstSequenceRef = React.useRef<HTMLDivElement | null>(null);
 
   const formatSourceLabel = (source: string) => {
     const cleaned = source.replace(' Business', '').trim().toUpperCase();
@@ -57,7 +64,14 @@ export default function NewsTicker() {
       }
       const result: NewsTickerResponse = await response.json();
       if (result.success && Array.isArray(result.data)) {
-        setNews(result.data);
+        const nextSource = result.activeSource ?? null;
+        const nextSig = `${nextSource || ''}|${result.data.map((item) => `${item.id}:${item.title}`).join('|')}`;
+        if (nextSig !== lastFeedSigRef.current) {
+          lastFeedSigRef.current = nextSig;
+          setRepeatCount(1);
+          setNews(result.data);
+          setFeedVersion((v) => v + 1);
+        }
         if (result.configuredSources) {
           setConfiguredSources(result.configuredSources);
         } else {
@@ -68,7 +82,7 @@ export default function NewsTicker() {
             newsdata: srcs.some((s) => s.toUpperCase().includes('NEWSDATA')),
           });
         }
-        setActiveSource(result.activeSource ?? null);
+        setActiveSource(nextSource);
         setIsSimulated(!!result.isSimulated);
       } else {
         throw new Error(result.error || 'Failed to parse news payload');
@@ -99,24 +113,77 @@ export default function NewsTicker() {
     };
   }, []);
 
+  const updateMarqueeMetrics = React.useCallback(() => {
+    const seqEl = firstSequenceRef.current;
+    const vpEl = viewportRef.current;
+    if (!seqEl || !vpEl || news.length === 0) return;
+
+    const seqWidth = seqEl.getBoundingClientRect().width;
+    const vpWidth = vpEl.getBoundingClientRect().width;
+    if (seqWidth <= 0) return;
+
+    if (vpWidth > 0 && seqWidth < vpWidth + 100 && repeatCount < 20) {
+      const singlePassWidth = seqWidth / repeatCount;
+      if (singlePassWidth > 0) {
+        const needed = Math.min(20, Math.max(repeatCount + 1, Math.ceil((vpWidth + 200) / singlePassWidth)));
+        if (needed > repeatCount) {
+          setRepeatCount(needed);
+          return;
+        }
+      }
+    }
+
+    const nextDuration = Math.max(1, Number((seqWidth / TICKER_SPEED_PX_PER_SEC).toFixed(2)));
+    setMarqueeDurationSec((prev) => (Math.abs(prev - nextDuration) > 0.05 ? nextDuration : prev));
+  }, [news.length, repeatCount]);
+
+  React.useLayoutEffect(() => {
+    updateMarqueeMetrics();
+  }, [updateMarqueeMetrics, news, feedVersion]);
+
+  useEffect(() => {
+    const seqEl = firstSequenceRef.current;
+    const vpEl = viewportRef.current;
+    if (!seqEl && !vpEl) return;
+
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      updateMarqueeMetrics();
+    });
+    if (seqEl) observer.observe(seqEl);
+    if (vpEl) observer.observe(vpEl);
+    return () => observer.disconnect();
+  }, [updateMarqueeMetrics, feedVersion]);
+
+  const repeatedNews = React.useMemo(() => {
+    if (repeatCount <= 1 || news.length === 0) return news;
+    const expanded: NewsItem[] = [];
+    for (let i = 0; i < repeatCount; i++) {
+      expanded.push(...news);
+    }
+    return expanded;
+  }, [news, repeatCount]);
+
   return (
     <div className="bg-[#0b0b0b] border-t border-[#333] select-none text-xs font-mono py-1 flex items-center relative z-20 h-9 overflow-hidden w-full">
       {/* Styles for continuous marquee animation */}
       <style>{`
         @keyframes marquee-scroll {
           0% {
-            transform: translateX(0%);
+            transform: translate3d(0%, 0, 0);
           }
           100% {
-            transform: translateX(-50%);
+            transform: translate3d(-50%, 0, 0);
           }
         }
         .animate-marquee-continuous {
           display: flex;
           width: max-content;
-          animation: marquee-scroll 150s linear infinite;
+          will-change: transform;
+          animation: marquee-scroll ${marqueeDurationSec}s linear infinite;
         }
-        .animate-marquee-continuous:hover {
+        .animate-marquee-continuous:hover,
+        .animate-marquee-paused {
           animation-play-state: paused;
         }
       `}</style>
@@ -183,7 +250,7 @@ export default function NewsTicker() {
       </div>
 
       {/* Scrolling Content Wrapper */}
-      <div className="flex-1 overflow-hidden relative flex items-center h-full">
+      <div ref={viewportRef} className="flex-1 overflow-hidden relative flex items-center h-full">
         {error ? (
           <div className="px-3 text-[#ff4444] text-[10px] flex items-center gap-1 font-bold">
             <AlertCircle size={11} />
@@ -197,13 +264,12 @@ export default function NewsTicker() {
         ) : (
           /* Double the items to make the marquee transition infinite and completely seamless */
           <div 
-            key={activeSource || 'default'}
-            className="animate-marquee-continuous"
-            style={{ animationPlayState: isPaused ? 'paused' : undefined }}
+            key={`${activeSource || 'default'}-${feedVersion}`}
+            className={`animate-marquee-continuous${isPaused ? ' animate-marquee-paused' : ''}`}
           >
             {/* First sequence */}
-            <div className="flex items-center gap-12 pr-12">
-              {news.map((item, index) => {
+            <div ref={firstSequenceRef} className="flex items-center gap-12 pr-12">
+              {repeatedNews.map((item, index) => {
                 const sentimentColor = 
                   item.sentiment === 'positive' ? 'text-[#00ff00]' : 
                   item.sentiment === 'negative' ? 'text-[#ff4444]' : 'text-zinc-400';
@@ -240,7 +306,7 @@ export default function NewsTicker() {
 
             {/* Identical cloned second sequence for seamless loop */}
             <div className="flex items-center gap-12 pr-12">
-              {news.map((item, index) => {
+              {repeatedNews.map((item, index) => {
                 const sentimentColor = 
                   item.sentiment === 'positive' ? 'text-[#00ff00]' : 
                   item.sentiment === 'negative' ? 'text-[#ff4444]' : 'text-zinc-400';
