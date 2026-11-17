@@ -213,9 +213,9 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
   }, [events, selectedEventId]);
 
   return (
-    <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl select-text">
+    <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl select-text flex flex-col lg:flex-1 lg:min-h-0 lg:overflow-hidden">
       {/* 1. HEADER SECTION */}
-      <div className="border-b border-[#333] pb-3 mb-4 flex flex-col md:flex-row justify-between items-start md:items-center select-none gap-2">
+      <div className="border-b border-[#333] pb-3 mb-3 flex flex-col md:flex-row justify-between items-start md:items-center select-none gap-2 shrink-0">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[#ff9900] text-sm font-extrabold uppercase tracking-wider block">
@@ -245,7 +245,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
       </div>
 
       {/* 2. SEARCH, QUICK TICKERS & DEPARTMENT FILTERS */}
-      <div className="space-y-2.5 mb-4 select-none">
+      <div className="space-y-2.5 mb-3 select-none shrink-0">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
           {/* Search Input bar */}
           <form
@@ -325,9 +325,9 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
       </div>
 
       {/* 3. CORE SUBSTRUCTURE LAYOUT - TWO COLS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[440px] overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:flex-1 lg:min-h-0 lg:overflow-hidden">
         {/* LEFT COLUMN: EVENTS BROWSER LIST */}
-        <div className="lg:col-span-5 border border-[#333] bg-black rounded flex flex-col overflow-y-auto">
+        <div className="lg:col-span-5 border border-[#333] bg-black rounded flex flex-col min-h-[320px] lg:min-h-0 lg:h-full overflow-hidden">
           <div className="bg-[#0c0c0c] border-[#333] border-b p-2 flex justify-between items-center select-none shrink-0">
             <span className="text-[#ff9900] font-bold text-[10px] uppercase">
               {searchTerm
@@ -352,7 +352,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
               No active stock markets matched &ldquo;{searchTerm || selectedCategory}&rdquo;. Click RESET or try another ticker.
             </div>
           ) : (
-            <div className="divide-y divide-[#222] overflow-y-auto flex-1 h-[400px]">
+            <div className="divide-y divide-[#222] overflow-y-auto flex-1 min-h-0">
               {events.map((ev) => {
                 const isSelected = selectedEventId === ev.id;
                 const primaryYesProb = ev.markets[0]
@@ -402,9 +402,9 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
         </div>
 
         {/* RIGHT COLUMN: IMPLIED PROBABILITIES DETAIL VIEW */}
-        <div className="lg:col-span-7 flex flex-col bg-black border border-[#333] rounded overflow-y-auto">
+        <div className="lg:col-span-7 flex flex-col bg-black border border-[#333] rounded min-h-[360px] lg:min-h-0 lg:h-full overflow-hidden">
           {activeEvent ? (
-            <div className="flex flex-col h-full overflow-y-auto">
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Event Header Panel */}
               <div className="bg-[#0c0c0c] border-[#333] border-b p-2 select-none shrink-0 flex justify-between items-center gap-2">
                 <span className="text-[#3498db] font-bold text-[10px] uppercase">
@@ -425,7 +425,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                 )}
               </div>
 
-              <div className="p-3 flex-1 overflow-y-auto space-y-4">
+              <div className="p-3 flex-1 min-h-0 overflow-y-auto space-y-4">
                 {/* Event Summary Title */}
                 <div>
                   <h3 className="text-white font-extrabold text-sm select-text block">

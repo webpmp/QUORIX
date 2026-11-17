@@ -89,7 +89,7 @@ export default function CommandPanel({
 
   // Command structures
   const commands = [
-    { code: 'BWRITE', name: 'ASK QUORIX', desc: 'Consult GPT-4 / Gemini analyst', category: 'Tools' },
+    { code: 'BWRITE', name: 'ASK QUORIX', desc: 'Consult AI analyst', category: 'Tools' },
     { code: 'NEWS', name: 'NEWS HUB', desc: 'Real-time grounding', category: 'Information' },
     { code: 'GP', name: 'GRAPH PRICE', desc: 'Candlestick / Vol Chart', category: 'Equities' },
     { code: 'HP', name: 'HISTORICAL PRICING', desc: 'Price Archive table', category: 'Equities' },

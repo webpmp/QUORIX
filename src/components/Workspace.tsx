@@ -703,7 +703,11 @@ export default function Workspace({
 
   return (
     <div className={`flex-1 bg-[#010101] p-4 font-mono text-zinc-300 relative select-text ${
-      activeScreen === 'BWRITE' ? 'flex flex-col overflow-hidden min-h-0' : 'overflow-y-auto'
+      activeScreen === 'BWRITE'
+        ? 'flex flex-col overflow-hidden min-h-0'
+        : activeScreen === 'POLY'
+        ? 'flex flex-col overflow-y-auto lg:overflow-hidden min-h-0'
+        : 'overflow-y-auto'
     }`}>
       
       {/* 1. GP: CHART GRAPH SCREEN */}

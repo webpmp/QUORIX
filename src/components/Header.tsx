@@ -131,6 +131,19 @@ export default function Header({
     setHistorySubmitTick((n) => n + 1);
   };
 
+  const handleRemoveHistoryItem = (entry: string) => {
+    const key = entry.trim().toLowerCase();
+    setSearchHistory((prev) => {
+      const next = prev.filter((item) => item.trim().toLowerCase() !== key);
+      try {
+        localStorage.setItem(SEARCH_HISTORY_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
+
   const formatZoneTime = (timeZone: string) => {
     return time.toLocaleTimeString('en-GB', {
       timeZone,
@@ -150,9 +163,8 @@ export default function Header({
             <span className="w-1.5 h-1.5 rounded-full bg-[#00ff00]"></span>
             CONNECTED
           </span>
-          <span className="inline-flex items-center gap-1.5 tabular-nums">
-            <span className="text-zinc-300 font-bold">TICK/TIME</span>
-            <span className="text-white font-black">{tickTime || '--'}</span>
+          <span className="tabular-nums text-white font-black">
+            {tickTime || '--'}
           </span>
           <span className="hidden sm:inline">GMT {formatZoneTime('UTC')}</span>
           <span className="hidden md:inline"><span className="text-[#ff9900]">NY</span> {formatZoneTime('America/New_York')}</span>
@@ -241,18 +253,34 @@ export default function Header({
                 </div>
               ) : (
                 searchHistory.map((item) => (
-                  <button
+                  <div
                     key={item}
-                    type="button"
                     role="option"
                     aria-selected={false}
-                    aria-label={`Run recent search: ${item}`}
-                    onClick={() => handleSelectHistoryItem(item)}
-                    className="w-full text-left px-2.5 py-1.5 flex items-center gap-2 border-b border-[#222] last:border-b-0 bg-black hover:bg-[#3498db]/15 focus-visible:bg-[#3498db]/15 focus-visible:outline-none transition-colors cursor-pointer font-mono text-xs"
+                    className="flex items-center border-b border-[#222] last:border-b-0 bg-black hover:bg-[#3498db]/15 transition-colors"
                   >
-                    <span className="text-[#3498db] font-bold shrink-0" aria-hidden="true">&gt;</span>
-                    <span className="text-[#00ff00] truncate">{item}</span>
-                  </button>
+                    <button
+                      type="button"
+                      aria-label={`Run recent search: ${item}`}
+                      onClick={() => handleSelectHistoryItem(item)}
+                      className="flex-1 min-w-0 text-left px-2.5 py-1.5 flex items-center gap-2 focus-visible:bg-[#3498db]/15 focus-visible:outline-none cursor-pointer font-mono text-xs"
+                    >
+                      <span className="text-[#3498db] font-bold shrink-0" aria-hidden="true">&gt;</span>
+                      <span className="text-[#00ff00] truncate">{item}</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${item} from search history`}
+                      title="Remove from history"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveHistoryItem(item);
+                      }}
+                      className="shrink-0 px-2.5 py-1.5 text-zinc-500 hover:text-[#ff4444] focus-visible:text-[#ff4444] focus-visible:outline-none cursor-pointer font-mono text-xs font-bold leading-none transition-colors"
+                    >
+                      &times;
+                    </button>
+                  </div>
                 ))
               )}
             </div>
