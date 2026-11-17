@@ -86,7 +86,7 @@ export default function Header({
         {/* Active command display */}
         <div className="flex items-center space-x-2 text-[10px] self-end sm:self-auto">
           <span className="text-zinc-500">ACTIVE SCREEN:</span>
-          <span className="bg-[#222] border border-[#444] px-2 py-0.5 text-white font-bold rounded uppercase tracking-wider">
+          <span className="bg-black border border-[#333] px-2 py-0.5 text-[#ff9900] font-bold rounded uppercase tracking-wider min-w-[42px] text-center">
             {activeScreen || 'GP COMMAND'}
           </span>
         </div>
