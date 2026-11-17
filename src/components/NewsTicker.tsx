@@ -5,6 +5,11 @@ import { NewsItem } from '../types';
 interface NewsTickerResponse {
   success: boolean;
   sources: string[];
+  configuredSources?: {
+    nyt: boolean;
+    news: boolean;
+    newsdata: boolean;
+  };
   isSimulated: boolean;
   data: NewsItem[];
   error?: string;
@@ -12,7 +17,11 @@ interface NewsTickerResponse {
 
 export default function NewsTicker() {
   const [news, setNews] = useState<NewsItem[]>([]);
-  const [sources, setSources] = useState<string[]>([]);
+  const [configuredSources, setConfiguredSources] = useState<{
+    nyt: boolean;
+    news: boolean;
+    newsdata: boolean;
+  }>({ nyt: false, news: false, newsdata: false });
   const [isSimulated, setIsSimulated] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +43,16 @@ export default function NewsTicker() {
       const result: NewsTickerResponse = await response.json();
       if (result.success && Array.isArray(result.data)) {
         setNews(result.data);
-        setSources(result.sources || []);
+        if (result.configuredSources) {
+          setConfiguredSources(result.configuredSources);
+        } else {
+          const srcs = result.sources || [];
+          setConfiguredSources({
+            nyt: srcs.some((s) => s.toUpperCase().includes('NYT')),
+            news: srcs.some((s) => s.toUpperCase().includes('NEWS API')),
+            newsdata: srcs.some((s) => s.toUpperCase().includes('NEWSDATA')),
+          });
+        }
         setIsSimulated(!!result.isSimulated);
       } else {
         throw new Error(result.error || 'Failed to parse news payload');
@@ -51,7 +69,14 @@ export default function NewsTicker() {
     fetchNews();
     // Poll for fresh stock market headlines every 60 seconds
     const interval = setInterval(fetchNews, 60000);
-    return () => clearInterval(interval);
+    const handleSettingsUpdate = () => {
+      fetchNews();
+    };
+    window.addEventListener('quorix-settings-updated', handleSettingsUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('quorix-settings-updated', handleSettingsUpdate);
+    };
   }, []);
 
   return (
@@ -91,18 +116,28 @@ export default function NewsTicker() {
         </button>
         
         {/* Source connection indicators */}
-        <div className="hidden md:flex items-center gap-1 text-zinc-500 font-normal">
-          {sources.length > 0 ? (
-            sources.map(src => (
-              <span key={src} className="text-[8px] bg-[#1a1a1a] text-[#00ff00] border border-[#00ff00]/30 px-1 rounded-sm" title={`Live ${src} connected`}>
-                {src.split(' ')[0]}
-              </span>
-            ))
-          ) : (
-            <span className="text-[8px] bg-zinc-900 text-zinc-400 border border-zinc-700 px-1 rounded-sm" title="No news API keys active">
-              OFFLINE
+        <div className="hidden md:flex items-center gap-1 font-normal">
+          {[
+            { id: 'nyt', label: 'NYT', active: configuredSources.nyt },
+            { id: 'news', label: 'NEWS', active: configuredSources.news },
+            { id: 'newsdata', label: 'NEWSDATA.IO', active: configuredSources.newsdata },
+          ].map((src) => (
+            <span
+              key={src.id}
+              className={`text-[8px] px-1 rounded-sm border transition-colors ${
+                src.active
+                  ? 'bg-[#1a1a1a] text-[#00ff00] border-[#00ff00]/30'
+                  : 'bg-zinc-900 text-zinc-500 border-zinc-700/80'
+              }`}
+              title={
+                src.active
+                  ? `${src.label} API key active`
+                  : `${src.label} API key not configured`
+              }
+            >
+              {src.label}
             </span>
-          )}
+          ))}
         </div>
 
         {/* Sync trigger */}

@@ -1891,18 +1891,18 @@ app.get("/api/settings/keys", (req, res) => {
   res.json({
     success: true,
     keys: {
-      ALPHA_VANTAGE_API_KEY: customKeys.ALPHA_VANTAGE_API_KEY || process.env.ALPHA_VANTAGE_API_KEY || "",
-      NYT_API_KEY: customKeys.NYT_API_KEY || process.env.NYT_API_KEY || "",
-      NEWS_API_KEY: customKeys.NEWS_API_KEY || process.env.NEWS_API_KEY || "",
-      NEWSDATA_API_KEY: customKeys.NEWSDATA_API_KEY || process.env.NEWSDATA_API_KEY || "",
-      FRED_API_KEY: customKeys.FRED_API_KEY || process.env.FRED_API_KEY || "",
+      ALPHA_VANTAGE_API_KEY: customKeys.ALPHA_VANTAGE_API_KEY,
+      NYT_API_KEY: customKeys.NYT_API_KEY,
+      NEWS_API_KEY: customKeys.NEWS_API_KEY,
+      NEWSDATA_API_KEY: customKeys.NEWSDATA_API_KEY,
+      FRED_API_KEY: customKeys.FRED_API_KEY,
     },
     maskedKeys: {
-      ALPHA_VANTAGE_API_KEY: mask(customKeys.ALPHA_VANTAGE_API_KEY || process.env.ALPHA_VANTAGE_API_KEY),
-      NYT_API_KEY: mask(customKeys.NYT_API_KEY || process.env.NYT_API_KEY),
-      NEWS_API_KEY: mask(customKeys.NEWS_API_KEY || process.env.NEWS_API_KEY),
-      NEWSDATA_API_KEY: mask(customKeys.NEWSDATA_API_KEY || process.env.NEWSDATA_API_KEY),
-      FRED_API_KEY: mask(customKeys.FRED_API_KEY || process.env.FRED_API_KEY),
+      ALPHA_VANTAGE_API_KEY: mask(customKeys.ALPHA_VANTAGE_API_KEY),
+      NYT_API_KEY: mask(customKeys.NYT_API_KEY),
+      NEWS_API_KEY: mask(customKeys.NEWS_API_KEY),
+      NEWSDATA_API_KEY: mask(customKeys.NEWSDATA_API_KEY),
+      FRED_API_KEY: mask(customKeys.FRED_API_KEY),
     }
   });
 });
@@ -2079,10 +2079,20 @@ function analyzeNewsSentiment(text: string): "positive" | "negative" | "neutral"
 
 // Proxy endpoint for news aggregation from NYT, News API, Newsdata.io, and ticker-specific Yahoo Finance
 app.get("/api/news/ticker", async (req, res) => {
-  const nytKey = customKeys.NYT_API_KEY || process.env.NYT_API_KEY;
-  const newsApiKey = customKeys.NEWS_API_KEY || process.env.NEWS_API_KEY;
-  const newsdataKey = customKeys.NEWSDATA_API_KEY || process.env.NEWSDATA_API_KEY;
+  const nytKey = customKeys.NYT_API_KEY;
+  const newsApiKey = customKeys.NEWS_API_KEY;
+  const newsdataKey = customKeys.NEWSDATA_API_KEY;
   const requestedTicker = ((req.query.ticker as string) || "").toUpperCase().trim();
+
+  const hasNytKey = Boolean(nytKey && nytKey !== "MY_NYT_API_KEY" && nytKey.trim() !== "");
+  const hasNewsApiKey = Boolean(newsApiKey && newsApiKey !== "MY_NEWS_API_KEY" && newsApiKey.trim() !== "");
+  const hasNewsdataKey = Boolean(newsdataKey && newsdataKey !== "MY_NEWSDATA_API_KEY" && newsdataKey.trim() !== "");
+
+  const configuredSources = {
+    nyt: hasNytKey,
+    news: hasNewsApiKey,
+    newsdata: hasNewsdataKey,
+  };
 
   const newsItems: any[] = [];
   const activeSources: string[] = [];
@@ -2363,6 +2373,7 @@ app.get("/api/news/ticker", async (req, res) => {
     return res.json({
       success: true,
       sources: activeSources,
+      configuredSources,
       isSimulated: false,
       data: finalNewsSlice
     });
@@ -2371,6 +2382,8 @@ app.get("/api/news/ticker", async (req, res) => {
     console.error("News aggregation error:", err);
     return res.json({
       success: false,
+      sources: activeSources,
+      configuredSources,
       error: err.message,
       data: []
     });

@@ -381,8 +381,11 @@ export default function CommandPanel({
           </div>
 
           {/* Ticker status */}
-          <div className="mt-2 text-[8px] text-zinc-500 font-mono text-center border border-[#1a1a1a] bg-[#050505] p-1.5 rounded uppercase select-none">
-            QUOTES MODE: <span className="text-[#00ff00] font-extrabold">REAL-TIME / DELAYED</span>
+          <div
+            className="mt-2 text-[8px] text-zinc-500 font-mono text-center border border-[#1a1a1a] bg-[#050505] p-1.5 rounded uppercase select-none"
+            title="Equity prices poll via HTTP every 60 seconds (1 min). There is no live WebSocket tick stream."
+          >
+            QUOTES MODE: <span className="text-[#00ff00] font-extrabold">DELAYED 1 MIN</span>
           </div>
         </div>
       </div>

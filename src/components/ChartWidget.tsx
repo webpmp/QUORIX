@@ -553,7 +553,7 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
                 key={int}
                 type="button"
                 onClick={() => setInterval(int)}
-                className={`px-2 py-0.5 text-[8px] sm:text-[9px] font-bold transition-all cursor-pointer border-r border-[#222] last:border-0 ${
+                className={`px-2.5 py-1 text-[11px] sm:text-xs font-bold transition-all cursor-pointer border-r border-[#222] last:border-0 ${
                   interval === int
                     ? 'bg-[#00ff00] text-black font-extrabold'
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
@@ -583,7 +583,7 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
             <button
               type="button"
               onClick={() => setChartType('candle')}
-              className={`px-2 py-0.5 text-[8px] sm:text-[9px] font-bold transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer ${
                 chartType === 'candle' ? 'bg-[#ff9900] text-black' : 'text-zinc-400 hover:text-white'
               }`}
             >
@@ -592,7 +592,7 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
             <button
               type="button"
               onClick={() => setChartType('line')}
-              className={`px-2 py-0.5 text-[8px] sm:text-[9px] font-bold transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer ${
                 chartType === 'line' ? 'bg-[#ff9900] text-black' : 'text-zinc-400 hover:text-white'
               }`}
             >
@@ -601,7 +601,7 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
             <button
               type="button"
               onClick={() => setChartType('area')}
-              className={`px-2 py-0.5 text-[8px] sm:text-[9px] font-bold transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer ${
                 chartType === 'area' ? 'bg-[#ff9900] text-black' : 'text-zinc-400 hover:text-white'
               }`}
             >
@@ -612,10 +612,10 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
           <button
             type="button"
             onClick={() => setIsStudiesModalOpen(true)}
-            className="px-2.5 py-0.5 rounded border border-[#3498db] bg-[#0a1931]/60 hover:bg-[#3498db] text-[#3498db] hover:text-black text-[8px] sm:text-[9px] font-extrabold transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
+            className="px-3 py-1 rounded border border-[#3498db] bg-[#0a1931]/60 hover:bg-[#3498db] text-[#3498db] hover:text-black text-[11px] sm:text-xs font-extrabold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
             title="Choose overlays, momentum oscillators, and volatility studies"
           >
-            <SlidersHorizontal size={10} />
+            <SlidersHorizontal size={12} />
             <span>STUDIES ({activeStudies.length})</span>
           </button>
         </div>

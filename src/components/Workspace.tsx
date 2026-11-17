@@ -351,6 +351,7 @@ export default function Workspace({
         setSavedKeysSnapshot(payload);
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
+        window.dispatchEvent(new Event('quorix-settings-updated'));
         onRefreshEconomics?.();
         onRefreshCurrencies?.();
       }
@@ -388,6 +389,7 @@ export default function Workspace({
           FRED_API_KEY: fredKey,
         })
       });
+      window.dispatchEvent(new Event('quorix-settings-updated'));
 
       const response = await fetch('/api/alpha-vantage/quote?symbol=AAPL');
       const data = await response.json();
@@ -711,7 +713,7 @@ export default function Workspace({
                     return (
                       <div key={item.id || idx} className="bg-[#010101] border border-[#222] hover:border-[#333] p-2.5 rounded flex flex-col justify-between text-[10px]/relaxed transition-all">
                         <div>
-                          <div className="flex justify-between items-center text-[8px] text-zinc-500 mb-1.5 font-mono uppercase">
+                          <div className="flex justify-between items-center text-[11px] text-zinc-400 mb-1.5 font-mono uppercase">
                             <span className="text-[#3498db] font-bold">
                               {item.source.replace(' Business', '').toUpperCase()}
                             </span>
