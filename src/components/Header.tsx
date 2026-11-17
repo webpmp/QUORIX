@@ -177,7 +177,7 @@ export default function Header({
         {/* Terminal Indicator */}
         <div className="flex items-center space-x-2 text-[#ff9900] font-extrabold pr-2 sm:border-r border-[#333]">
           <span className="text-2xl leading-none tracking-wider uppercase">QUORIX</span>
-          <span className="text-zinc-500 text-[10px] font-normal">v4.2</span>
+          <span className="text-zinc-500 text-[10px] font-normal">v1.0</span>
         </div>
 
         {/* Input area */}

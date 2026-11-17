@@ -1862,7 +1862,7 @@ export default function Workspace({
 
           <div className="bg-[#050505] border border-[#333] p-3 rounded text-[10px] text-zinc-500/90 leading-relaxed select-none">
             <span className="text-white font-bold block mb-1">COMPLIANCE &amp; SYSTEM INFORMATION:</span>
-            Terminal v4.2 routes live market, FRED macro/FX, news, and Gemini requests through server-side proxy endpoints.
+            Terminal v1.0 routes live market, FRED macro/FX, news, and Gemini requests through server-side proxy endpoints.
           </div>
         </div>
       )}
