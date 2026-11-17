@@ -301,8 +301,8 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
   const subPadBottom = 10;
   const subAdjHeight = subPanelHeight - subPadTop - subPadBottom;
 
-  const volHeight = 65;
-  const volPaddingTop = 10;
+  const volHeight = 75;
+  const volPaddingTop = 20;
   const volPaddingBottom = 10;
   const volAdjHeight = volHeight - volPaddingTop - volPaddingBottom;
 
@@ -1145,17 +1145,47 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               )}
             </svg>
             <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
-              <span className="text-zinc-500 flex items-center gap-2">
-                <span>VOLUME STUDY</span>
-                <span className="text-zinc-300 tabular-nums">
-                  BAR: {formatAxisVolume(hoveredData.volume)}
+              <div className="flex items-center gap-1.5">
+                <span className="text-zinc-500 flex items-center gap-2">
+                  <span>VOLUME STUDY</span>
+                  <span className="text-zinc-300 tabular-nums">
+                    BAR: {formatAxisVolume(hoveredData.volume)}
+                  </span>
                 </span>
+                <div className="relative group/vol-tip pointer-events-auto inline-flex items-center">
+                  <button
+                    type="button"
+                    aria-label="How to read Volume Study"
+                    className="text-zinc-500 hover:text-[#ff9900] focus:text-[#ff9900] focus:outline-none cursor-help p-0.5 flex items-center"
+                  >
+                    <Info size={10} />
+                  </button>
+                  <div
+                    role="tooltip"
+                    className="hidden group-hover/vol-tip:block group-focus-within/vol-tip:block absolute left-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-[11px] leading-relaxed text-zinc-300 select-text"
+                  >
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#ff9900] border-b border-[#222] pb-1 mb-2">
+                      Volume Study
+                    </div>
+                    <div className="space-y-2">
+                      <p>
+                        <span className="text-zinc-100 font-bold">Bar Height:</span> The height of each vertical bar represents the total trading activity for that single candle. Taller bars indicate heavy participation from institutional and retail traders, while shorter bars show quiet trading.
+                      </p>
+                      <p>
+                        <span className="text-[#00ff00] font-bold">Bar Color:</span> The volume bar is green if the stock closed higher than it opened for that period, and red if it closed lower.
+                      </p>
+                      <p>
+                        <span className="text-[#ff9900] font-bold">Moving Average Line:</span> Many traders add a 20-period moving average line across the volume bars. Any bar rising well above this line signals unusual market interest.
+                      </p>
+                    </div>
+                  </div>
+                </div>
                 {showVolMaStudy && (
-                  <span className="text-[#ff9900] tabular-nums">
+                  <span className="text-[#ff9900] tabular-nums ml-1">
                     MA(20): {typeof hoveredData.volMa === 'number' ? formatAxisVolume(hoveredData.volMa) : '--'}
                   </span>
                 )}
-              </span>
+              </div>
               <button
                 type="button"
                 onClick={() => toggleStudy('volume')}
@@ -1302,22 +1332,22 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                     className="hidden group-hover/rsi-tip:block group-focus-within/rsi-tip:block absolute left-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-[11px] leading-relaxed text-zinc-300 select-text"
                   >
                     <div className="text-[10px] font-bold uppercase tracking-wider text-[#9b59b6] border-b border-[#222] pb-1 mb-2">
-                      Reading RSI Oscillator (14)
+                      RSI Oscillator Study
                     </div>
-                    <ul className="space-y-1.5">
-                      <li>
-                        <span className="text-[#ef4444] font-bold">• 70 (Overbought):</span> An RSI reading above 70 suggests the stock has seen heavy buying pressure and may be overbought or due for a short-term pullback. (In strong bull markets, traders sometimes adjust this threshold to 80.)
-                      </li>
-                      <li>
-                        <span className="text-[#22c55e] font-bold">• 30 (Oversold):</span> An RSI reading below 30 suggests the stock has experienced heavy selling pressure and may be oversold or due for a bounce. (In strong downtrends, traders sometimes adjust this threshold to 20.)
-                      </li>
-                      <li>
-                        <span className="text-zinc-100 font-bold">• 50 (The Centerline):</span> Acts as the balance point between bullish and bearish momentum. Readings above 50 generally confirm bullish momentum, while readings below 50 confirm bearish momentum.
-                      </li>
-                      <li>
-                        <span className="text-[#9b59b6] font-bold">• 40 and 60 (Trend-Specific Zones):</span> During a strong uptrend, RSI often stays in the 40 to 90 range, with the 40–50 zone acting as support. During a strong downtrend, RSI tends to stay in the 10 to 60 range, with the 50–60 zone acting as resistance.
-                      </li>
-                    </ul>
+                    <div className="space-y-2">
+                      <p>
+                        <span className="text-[#ef4444] font-bold">70 (Overbought):</span> An RSI reading above 70 suggests the stock has seen heavy buying pressure and may be overbought or due for a short-term pullback. (In strong bull markets, traders sometimes adjust this threshold to 80.)
+                      </p>
+                      <p>
+                        <span className="text-[#22c55e] font-bold">30 (Oversold):</span> An RSI reading below 30 suggests the stock has experienced heavy selling pressure and may be oversold or due for a bounce. (In strong downtrends, traders sometimes adjust this threshold to 20.)
+                      </p>
+                      <p>
+                        <span className="text-zinc-100 font-bold">50 (The Centerline):</span> Acts as the balance point between bullish and bearish momentum. Readings above 50 generally confirm bullish momentum, while readings below 50 confirm bearish momentum.
+                      </p>
+                      <p>
+                        <span className="text-[#9b59b6] font-bold">40 and 60 (Trend-Specific Zones):</span> During a strong uptrend, RSI often stays in the 40 to 90 range, with the 40–50 zone acting as support. During a strong downtrend, RSI tends to stay in the 10 to 60 range, with the 50–60 zone acting as resistance.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
