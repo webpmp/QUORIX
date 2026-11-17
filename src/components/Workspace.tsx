@@ -737,7 +737,7 @@ export default function Workspace({
                             rel="noopener noreferrer"
                             className="text-zinc-100 hover:text-[#00ff00] text-sm md:text-base font-bold leading-snug hover:underline block mb-1"
                           >
-                            {renderHeadlineWithTickers(cleanedTitle, stocks, onSelectTicker)}
+                            {cleanedTitle}
                           </a>
                         </div>
                         <div className="flex justify-between items-center mt-2.5 pt-1.5 border-t border-[#151515]">
