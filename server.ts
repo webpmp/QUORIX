@@ -791,16 +791,39 @@ function formatAnalystReport(sym: string, summary: any, chart: any) {
   if (trend.length > 0) {
     lines.push("");
     lines.push(`RATING BREAKDOWN (BY PERIOD)`);
-    lines.push(`  PERIOD   STRONG BUY   BUY   HOLD   SELL   STRONG SELL`);
-    lines.push(`  ------   ----------   ---   ----   ----   -----------`);
-    for (const row of trend.slice(0, 4)) {
-      const p = String(row.period || "").padEnd(6);
-      const sb = String(row.strongBuy ?? 0).padStart(10);
-      const b = String(row.buy ?? 0).padStart(5);
-      const h = String(row.hold ?? 0).padStart(6);
-      const s = String(row.sell ?? 0).padStart(6);
-      const ss = String(row.strongSell ?? 0).padStart(13);
-      lines.push(`  ${p}   ${sb}   ${b}   ${h}   ${s}   ${ss}`);
+    const columns = [
+      { header: "PERIOD", align: "left" as const },
+      { header: "STRONG BUY", align: "right" as const },
+      { header: "BUY", align: "right" as const },
+      { header: "HOLD", align: "right" as const },
+      { header: "SELL", align: "right" as const },
+      { header: "STRONG SELL", align: "right" as const },
+    ];
+    const rowValues = trend.slice(0, 4).map((row: any) => [
+      String(row.period || ""),
+      String(row.strongBuy ?? 0),
+      String(row.buy ?? 0),
+      String(row.hold ?? 0),
+      String(row.sell ?? 0),
+      String(row.strongSell ?? 0),
+    ]);
+    const colWidths = columns.map((col, idx) =>
+      Math.max(col.header.length, ...rowValues.map((vals) => vals[idx].length))
+    );
+    const formatCols = (vals: string[]) =>
+      "  " +
+      vals
+        .map((val, idx) =>
+          columns[idx].align === "left"
+            ? val.padEnd(colWidths[idx])
+            : val.padStart(colWidths[idx])
+        )
+        .join("   ");
+
+    lines.push(formatCols(columns.map((c) => c.header)));
+    lines.push(formatCols(colWidths.map((w) => "-".repeat(w))));
+    for (const vals of rowValues) {
+      lines.push(formatCols(vals));
     }
   }
 
@@ -1093,7 +1116,7 @@ app.post("/api/terminal/analyze", async (req, res) => {
     1. A breakdown of BUY / HOLD / SELL recommendations.
     2. An estimated Consensus Price Target.
     3. 3 core bullish arguments and 3 core bearish risks.
-    Format as bullet points with absolute brevity.`;
+    Format as plain text with absolute brevity. If presenting tabular columns (e.g. a Rating Breakdown), pad every cell strictly with ASCII spaces (no tabs, no markdown tables) so every data value aligns cleanly under its column header in a monospaced font.`;
   } else if (screen === "NEWS") {
     prompt = `Retrieve 4 recent factual financial news headlines for stock ticker/symbol ${ticker || command || 'Global Markets'}.
     For each headline, specify:
