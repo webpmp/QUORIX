@@ -1849,33 +1849,132 @@ app.get("/api/fred/currencies", async (req, res) => {
   }
 });
 
-// Proxy endpoint for Polymarket API to avoid CORS issues
+// Proxy endpoint for Polymarket API focused on individual stocks, earnings, equities, and market catalysts
 app.get("/api/polymarket/events", async (req, res) => {
   try {
-    const { search, category, limit = "25" } = req.query;
-    let url = `https://gamma-api.polymarket.com/events?active=true&closed=false&limit=${limit}&order=volume&ascending=false`;
-    
+    const search = ((req.query.search as string) || "").trim();
+    const category = ((req.query.category as string) || "Stocks").trim();
+    const limitNum = Math.min(50, Math.max(10, parseInt(String(req.query.limit || "30"), 10) || 30));
+
+    const fetchGammaByTag = async (tagSlug: string, tagLimit: number): Promise<any[]> => {
+      try {
+        const url = `https://gamma-api.polymarket.com/events?active=true&closed=false&limit=${tagLimit}&order=volume&ascending=false&tag_slug=${encodeURIComponent(tagSlug)}`;
+        const r = await fetch(url);
+        if (!r.ok) return [];
+        const json = await r.json();
+        return Array.isArray(json) ? json : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const getTagSlugs = (ev: any): string[] => {
+      if (!Array.isArray(ev?.tags)) return [];
+      return ev.tags.map((t: any) => String(t?.slug || t?.label || "").toLowerCase()).filter(Boolean);
+    };
+
+    const classifyEvent = (ev: any): string => {
+      const slugs = getTagSlugs(ev);
+      if (slugs.includes("earnings")) return "Earnings";
+      if (slugs.includes("ipos") || slugs.includes("ipo") || slugs.includes("acquisitions")) return "IPOs & M&A";
+      if (slugs.includes("big-tech") || slugs.includes("ai") || slugs.includes("tech")) return "Big Tech & AI";
+      if (slugs.includes("fed-rates") || slugs.includes("fed") || slugs.includes("fomc")) return "Fed & Macro";
+      if (slugs.includes("stocks") || slugs.includes("equities") || slugs.includes("multi-strikes") || slugs.includes("hit-price") || slugs.includes("market-cap")) return "Stocks";
+      if (slugs.includes("economy") || slugs.includes("economic-policy")) return "Fed & Macro";
+      return "Stocks";
+    };
+
+    const isEquityOrMarketRelevant = (ev: any, allowMacro = false): boolean => {
+      if (!ev || ev.closed === true || ev.active === false) return false;
+      const slugs = getTagSlugs(ev);
+      const title = String(ev.title || "").toLowerCase();
+
+      const hasStockTag = slugs.some((s) =>
+        ["stocks", "equities", "earnings", "market-cap", "hit-price", "multi-strikes", "ipos", "ipo", "acquisitions", "big-tech", "corporate-financials"].includes(s)
+      );
+      const hasPoliticalTag = slugs.some((s) =>
+        ["politics", "elections", "geopolitics", "diplomacy-ceasefire", "sports", "ukraine", "iran", "senate", "congress", "presidential-election"].includes(s)
+      );
+
+      // Block pure politics/geopolitics/sports unless explicitly equity-tagged
+      if (hasPoliticalTag && !hasStockTag) return false;
+      if (/\b(election|senate|president|trump|biden|macron|ukrain|ceasefire|military|nato|tariff|indiana enacts)\b/i.test(title) && !hasStockTag) {
+        return false;
+      }
+
+      if (allowMacro) return true;
+      // In stock-first mode, avoid general political/crypto noise unless matched by stock/tech/earnings tags
+      if (!hasStockTag && slugs.includes("crypto") && !/\b(mstr|microstrategy|coin|coinbase|hood|robinhood|mara|riot)\b/i.test(title)) {
+        return false;
+      }
+      return true;
+    };
+
+    let rawEvents: any[] = [];
+
     if (search) {
-      url += `&search=${encodeURIComponent(search as string)}`;
-    }
-    if (category) {
-      url += `&category=${encodeURIComponent(category as string)}`;
+      const searchUrl = `https://gamma-api.polymarket.com/public-search?q=${encodeURIComponent(search)}&events_status=active&limit_per_type=${limitNum}`;
+      const r = await fetch(searchUrl);
+      if (!r.ok) {
+        throw new Error(`Polymarket search returned status ${r.status}`);
+      }
+      const json = await r.json();
+      rawEvents = Array.isArray(json?.events) ? json.events : [];
+    } else {
+      const catLower = category.toLowerCase();
+      let batchArrays: any[][] = [];
+      let allowMacro = false;
+
+      if (catLower === "earnings") {
+        batchArrays = await Promise.all([fetchGammaByTag("earnings", limitNum)]);
+      } else if (catLower === "big tech & ai" || catLower === "tech") {
+        batchArrays = await Promise.all([fetchGammaByTag("big-tech", limitNum), fetchGammaByTag("tech", 15)]);
+      } else if (catLower === "ipos & m&a" || catLower === "ipos") {
+        batchArrays = await Promise.all([fetchGammaByTag("ipos", limitNum), fetchGammaByTag("acquisitions", 15)]);
+      } else if (catLower === "fed & macro" || catLower === "macro") {
+        allowMacro = true;
+        batchArrays = await Promise.all([fetchGammaByTag("fed-rates", limitNum), fetchGammaByTag("economy", 15)]);
+      } else {
+        // Default "Stocks" / "All": focus strictly on individual stocks, equities, and earnings
+        batchArrays = await Promise.all([
+          fetchGammaByTag("stocks", limitNum),
+          fetchGammaByTag("equities", limitNum),
+          fetchGammaByTag("earnings", 20),
+        ]);
+      }
+
+      const seenIds = new Set<string>();
+      for (const arr of batchArrays) {
+        for (const ev of arr) {
+          const evId = String(ev?.id || ev?.slug || ev?.title || "");
+          if (!evId || seenIds.has(evId)) continue;
+          if (!isEquityOrMarketRelevant(ev, allowMacro)) continue;
+          seenIds.add(evId);
+          rawEvents.push(ev);
+        }
+      }
     }
 
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Polymarket API returned status ${response.status}`);
-    }
-    const data = await response.json();
+    const normalized = rawEvents
+      .filter((ev) => ev && ev.closed !== true && Array.isArray(ev.markets) && ev.markets.length > 0)
+      .map((ev) => ({
+        ...ev,
+        category: classifyEvent(ev),
+        volume: Number(ev.volume || 0),
+      }))
+      .sort((a, b) => (b.volume || 0) - (a.volume || 0))
+      .slice(0, limitNum);
+
     return res.json({
       success: true,
-      data,
+      data: normalized,
     });
   } catch (err: any) {
-    console.error("Polymarket events fetch error:", err.message);
+    console.log("Polymarket events fetch handled gracefully:", err.message);
     return res.json({
       success: false,
       error: err.message,
+      data: [],
     });
   }
 });
@@ -1980,7 +2079,9 @@ function isStockOrMarketRelated(title: string, content: string): boolean {
     // Sectors / Commodities
     "oil", "wti", "crude", "gold", "energy", "semiconductor", "automaker", "retailer", "banking", "treasury", "tariff", "trade", "economic", "commodity", "commodities",
     // Major publicly traded company references & tech giants
-    "apple", "microsoft", "nvidia", "amazon", "alphabet", "google", "meta", "tesla", "berkshire", "broadcom", "eli lilly", "jpmorgan", "visa", "walmart", "exxon", "chevron", "intel", "amd", "tsmc"
+    "apple", "microsoft", "nvidia", "amazon", "alphabet", "google", "meta", "tesla", "berkshire", "broadcom", "eli lilly", "jpmorgan", "visa", "walmart", "exxon", "chevron", "intel", "amd", "tsmc",
+    // Major digital assets / crypto markets
+    "bitcoin", "btc", "ethereum", "solana", "crypto", "cryptocurrency"
   ];
 
   const hasBusinessKeyword = businessKeywords.some(keyword => fullText.includes(keyword));
@@ -2024,15 +2125,20 @@ function formatIntroSentences(raw: string, title = "", maxSentences = 2, maxChar
 
 async function fetchYahooTickerRssIntros(
   yfTicker: string
-): Promise<{ byGuid: Map<string, string>; byTitle: Map<string, string> }> {
+): Promise<{
+  byGuid: Map<string, string>;
+  byTitle: Map<string, string>;
+  items: Array<{ guid: string; title: string; link: string; publishedAt: string; intro: string }>;
+}> {
   const byGuid = new Map<string, string>();
   const byTitle = new Map<string, string>();
+  const items: Array<{ guid: string; title: string; link: string; publishedAt: string; intro: string }> = [];
   try {
     const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(
       yfTicker
     )}&region=US&lang=en-US`;
     const res = await fetch(url, { headers: { "User-Agent": YAHOO_UA } });
-    if (!res.ok) return { byGuid, byTitle };
+    if (!res.ok) return { byGuid, byTitle, items };
     const xml = await res.text();
     for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
       const block = m[1];
@@ -2042,19 +2148,28 @@ async function fetchYahooTickerRssIntros(
       };
       const guid = decodeNewsText(getTag("guid"));
       const rawTitle = decodeNewsText(getTag("title"));
+      const link = decodeNewsText(getTag("link"));
+      const pubDateRaw = decodeNewsText(getTag("pubDate"));
       const rawDesc = getTag("description");
       const intro = formatIntroSentences(rawDesc, rawTitle, 2, 260);
-      if (!intro) continue;
-      if (guid) byGuid.set(guid, intro);
-      if (rawTitle) {
+      if (guid && intro) byGuid.set(guid, intro);
+      if (rawTitle && intro) {
         const normTitle = rawTitle.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
         if (normTitle) byTitle.set(normTitle, intro);
+      }
+      if (rawTitle && link) {
+        let publishedAt = new Date().toISOString();
+        if (pubDateRaw) {
+          const parsed = new Date(pubDateRaw);
+          if (!isNaN(parsed.getTime())) publishedAt = parsed.toISOString();
+        }
+        items.push({ guid, title: rawTitle, link, publishedAt, intro });
       }
     }
   } catch {
     // Non-fatal if RSS fails; search items still render headlines
   }
-  return { byGuid, byTitle };
+  return { byGuid, byTitle, items };
 }
 
 function analyzeNewsSentiment(text: string): "positive" | "negative" | "neutral" {
@@ -2098,24 +2213,56 @@ app.get("/api/news/ticker", async (req, res) => {
   const activeSources: string[] = [];
   const fetchPromises: Promise<any>[] = [];
 
-  // 0. Yahoo Finance News (ONLY articles strictly related to the requested stock ticker)
+  // 0. Yahoo Finance News (ONLY articles strictly related to the requested stock/asset ticker)
   if (requestedTicker) {
     const yfTicker = mapToYahooSymbol(requestedTicker);
     const yfUpper = yfTicker.toUpperCase();
-    const baseTicker = yfUpper.split("-")[0].split("=")[0];
+    const baseTicker = yfUpper.split("-")[0].split("=")[0].replace(/^\^/, "");
     const tickerMatchSet = new Set([requestedTicker, yfUpper, baseTicker]);
+
+    const newsSearchAlias: Record<string, string> = {
+      BTC: "Bitcoin",
+      "BTC-USD": "Bitcoin",
+      ETH: "Ethereum",
+      "ETH-USD": "Ethereum",
+      SOL: "Solana",
+      "SOL-USD": "Solana",
+      SPX: "S&P 500",
+      "^GSPC": "S&P 500",
+      DJI: "Dow Jones",
+      "^DJI": "Dow Jones",
+      IXIC: "Nasdaq",
+      "^IXIC": "Nasdaq",
+      GC: "Gold price",
+      "GC=F": "Gold price",
+      CL: "Crude oil",
+      "CL=F": "Crude oil",
+      TNX: "Treasury yield",
+      "^TNX": "Treasury yield",
+    };
+
+    const aliasQuery = newsSearchAlias[requestedTicker] || newsSearchAlias[yfUpper];
+    const primaryQuery = aliasQuery || yfTicker;
     const escapedBase = baseTicker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const titleTickerRegex = new RegExp(`\\b${escapedBase}\\b`, "i");
+    const escapedAlias = aliasQuery ? aliasQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "";
+    const titleTickerRegex = escapedAlias
+      ? new RegExp(`(\\b${escapedBase}\\b|\\b${escapedAlias}\\b)`, "i")
+      : new RegExp(`\\b${escapedBase}\\b`, "i");
 
     activeSources.push(`Yahoo Finance (${requestedTicker})`);
     fetchPromises.push(
       Promise.all([
-        fetchYahooSearch(yfTicker, 2, 15),
+        fetchYahooSearch(primaryQuery, 2, 15).then(async (resData) => {
+          if (Array.isArray(resData?.news) && resData.news.length > 0) return resData;
+          if (primaryQuery !== yfTicker) return fetchYahooSearch(yfTicker, 2, 15);
+          return resData;
+        }),
         fetchYahooTickerRssIntros(yfTicker),
       ])
         .then(([searchData, rssIntros]) => {
           const rawNews = Array.isArray(searchData?.news) ? searchData.news : [];
-          return rawNews
+          const seenKeys = new Set<string>();
+          const fromSearch = rawNews
             .filter((art: any) => {
               if (!art?.title || !art?.link) return false;
               if (isBlacklistedNews(art.title, "")) return false;
@@ -2123,7 +2270,7 @@ app.get("/api/news/ticker", async (req, res) => {
                 ? art.relatedTickers.map((t: any) => String(t).toUpperCase())
                 : [];
               if (rel.length > 0) {
-                return rel.some((t: string) => tickerMatchSet.has(t));
+                if (rel.some((t: string) => tickerMatchSet.has(t))) return true;
               }
               return titleTickerRegex.test(art.title);
             })
@@ -2136,6 +2283,8 @@ app.get("/api/news/ticker", async (req, res) => {
                 ? art.publisher.trim()
                 : "Yahoo Finance";
               const normTitle = decodeNewsText(art.title).toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+              if (art.uuid) seenKeys.add(art.uuid);
+              if (normTitle) seenKeys.add(normTitle);
               const intro =
                 (art.uuid ? rssIntros.byGuid.get(art.uuid) : undefined) ||
                 rssIntros.byTitle.get(normTitle) ||
@@ -2156,6 +2305,32 @@ app.get("/api/news/ticker", async (req, res) => {
                 publishedAt,
               };
             });
+
+          // Also include fresh Yahoo Finance RSS articles for the ticker not returned by Search
+          const fromRss = rssIntros.items
+            .filter((rssArt) => {
+              if (isBlacklistedNews(rssArt.title, rssArt.intro)) return false;
+              const normTitle = rssArt.title.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+              if (rssArt.guid && seenKeys.has(rssArt.guid)) return false;
+              if (normTitle && seenKeys.has(normTitle)) return false;
+              return titleTickerRegex.test(`${rssArt.title} ${rssArt.intro}`);
+            })
+            .slice(0, 10)
+            .map((rssArt, index) => ({
+              id: `yfrss-${rssArt.guid || index}-${requestedTicker}`,
+              title: rssArt.title,
+              source: "Yahoo Finance",
+              time: formatNewsTime(rssArt.publishedAt),
+              symbol: requestedTicker,
+              relatedTickers: [requestedTicker],
+              sentiment: analyzeNewsSentiment(`${rssArt.title} ${rssArt.intro}`),
+              classification: `YAHOO FINANCE - ${requestedTicker}`,
+              content: rssArt.intro,
+              url: rssArt.link,
+              publishedAt: rssArt.publishedAt,
+            }));
+
+          return [...fromSearch, ...fromRss];
         })
         .catch(() => [])
     );

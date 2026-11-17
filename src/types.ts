@@ -117,6 +117,7 @@ export interface PolymarketEvent {
   id: string;
   title: string;
   category?: string;
+  volume?: number;
   markets: PolymarketMarket[];
   image?: string;
   slug?: string;

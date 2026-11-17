@@ -144,7 +144,7 @@ function getRelatedTickers(title: string, content: string, stocks: Record<string
     }
   });
 
-  // Check company names
+  // Check company & asset names
   const companyKeywords: Record<string, string[]> = {
     AAPL: ['APPLE', 'IPHONE', 'IPAD', 'MACBOOK', 'IOS'],
     NVDA: ['NVIDIA', 'GEFORCE', 'AI CHIP', 'CUDA', 'BLACKWELL', 'H100', 'JEN-HSUN'],
@@ -152,7 +152,15 @@ function getRelatedTickers(title: string, content: string, stocks: Record<string
     MSFT: ['MICROSOFT', 'WINDOWS', 'AZURE', 'COPILOT', 'SATYA'],
     GOOG: ['GOOGLE', 'ALPHABET', 'ANDROID', 'GEMINI', 'PICHAI'],
     AMZN: ['AMAZON', 'AWS', 'BEZOS', 'KINDLE'],
-    META: ['META', 'FACEBOOK', 'INSTAGRAM', 'WHATSAPP', 'ZUCKERBERG']
+    META: ['META', 'FACEBOOK', 'INSTAGRAM', 'WHATSAPP', 'ZUCKERBERG'],
+    BTC: ['BITCOIN', 'BTC-USD', 'IBIT'],
+    ETH: ['ETHEREUM', 'ETH-USD'],
+    SOL: ['SOLANA', 'SOL-USD'],
+    GC: ['GOLD FUTURES', 'GOLD PRICE', 'BULLION'],
+    CL: ['CRUDE OIL', 'WTI CRUDE', 'BRENT CRUDE'],
+    SPX: ['S&P 500', 'S&P500'],
+    DJI: ['DOW JONES'],
+    IXIC: ['NASDAQ'],
   };
 
   Object.entries(companyKeywords).forEach(([ticker, keywords]) => {
@@ -412,6 +420,8 @@ export default function Workspace({
   useEffect(() => {
     if (lastRefreshed === 0) {
       fetchAggregatedNews(selectedTicker);
+    } else if ((activeScreen === 'GP' || activeScreen === 'NEWS') && lastNewsTickerRef.current !== selectedTicker) {
+      fetchAggregatedNews(selectedTicker);
     }
 
     if (activeScreen === 'DES') {
@@ -423,9 +433,7 @@ export default function Workspace({
       const isMarketActive = details.isPreMarket || details.isCoreHours || details.isAfterHours;
       const oneHourInMs = 60 * 60 * 1000;
 
-      if (lastNewsTickerRef.current !== selectedTicker) {
-        fetchAggregatedNews(selectedTicker);
-      } else if (lastRefreshed > 0 && isMarketActive && Date.now() - lastRefreshed >= oneHourInMs) {
+      if (lastRefreshed > 0 && isMarketActive && Date.now() - lastRefreshed >= oneHourInMs) {
         fetchAggregatedNews(selectedTicker);
       }
     }
@@ -478,11 +486,11 @@ export default function Workspace({
   };
 
   const fetchAggregatedNews = async (targetTicker = selectedTicker) => {
+    lastNewsTickerRef.current = targetTicker;
     setNewsLoading(true);
     try {
       const tickerQuery = targetTicker ? `?ticker=${encodeURIComponent(targetTicker)}` : '';
       const response = await fetch(`/api/news/ticker${tickerQuery}`);
-      lastNewsTickerRef.current = targetTicker;
       const data = await response.json();
       if (data.success && Array.isArray(data.data)) {
         // Map missing fields and ensure ISO publishedAt timestamp exists
@@ -658,16 +666,20 @@ export default function Workspace({
 
     const filtered = pool.filter((item) => {
       const related = getRelatedTickers(item.title, item.content || '', stocks);
-      const isForTicker = related.includes(selectedTicker) ||
-                          (item.symbol && item.symbol.toUpperCase() === selectedTicker.toUpperCase()) ||
-                          (item.title && item.title.toUpperCase().includes(selectedTicker.toUpperCase()));
+      const upperTicker = selectedTicker.toUpperCase();
+      const hasApiTicker = Array.isArray(item.relatedTickers) &&
+                           item.relatedTickers.some((t: string) => t.toUpperCase() === upperTicker);
+      const isForTicker = hasApiTicker ||
+                          related.includes(selectedTicker) ||
+                          (item.symbol && item.symbol.toUpperCase() === upperTicker) ||
+                          (item.title && item.title.toUpperCase().includes(upperTicker));
 
       if (!isForTicker) return false;
 
       if (!item.publishedAt) return false;
       try {
         const pubTime = new Date(item.publishedAt).getTime();
-        return pubTime >= twentyFourHoursAgo && pubTime <= now;
+        return pubTime >= twentyFourHoursAgo && pubTime <= now + 5 * 60 * 1000;
       } catch {
         return false;
       }
