@@ -10,9 +10,16 @@ interface NewsTickerResponse {
     news: boolean;
     newsdata: boolean;
   };
+  activeSource?: 'nyt' | 'news' | 'newsdata' | 'yahoo' | null;
   isSimulated: boolean;
   data: NewsItem[];
   error?: string;
+}
+
+const ROTATION_INTERVAL_MS = 10 * 60 * 1000;
+
+function getCurrentRotationSlot(): number {
+  return Math.floor(Date.now() / ROTATION_INTERVAL_MS);
 }
 
 export default function NewsTicker() {
@@ -22,22 +29,29 @@ export default function NewsTicker() {
     news: boolean;
     newsdata: boolean;
   }>({ nyt: false, news: false, newsdata: false });
+  const [activeSource, setActiveSource] = useState<'nyt' | 'news' | 'newsdata' | 'yahoo' | null>(null);
   const [isSimulated, setIsSimulated] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const lastSlotRef = React.useRef<number>(getCurrentRotationSlot());
 
   const formatSourceLabel = (source: string) => {
     const cleaned = source.replace(' Business', '').trim().toUpperCase();
     return cleaned === 'NEW YORK TIMES' ? 'NYT' : cleaned;
   };
 
-  const fetchNews = async (force = false) => {
+  const fetchNews = async (force = false, slot = getCurrentRotationSlot()) => {
     setLoading(true);
     setError(null);
+    lastSlotRef.current = slot;
     try {
-      const url = force ? '/api/news/ticker?force=true' : '/api/news/ticker';
-      const response = await fetch(url, { cache: 'no-store' });
+      const params = new URLSearchParams({
+        mode: 'rotate',
+        slot: String(slot),
+      });
+      if (force) params.set('force', 'true');
+      const response = await fetch(`/api/news/ticker?${params.toString()}`, { cache: 'no-store' });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -54,6 +68,7 @@ export default function NewsTicker() {
             newsdata: srcs.some((s) => s.toUpperCase().includes('NEWSDATA')),
           });
         }
+        setActiveSource(result.activeSource ?? null);
         setIsSimulated(!!result.isSimulated);
       } else {
         throw new Error(result.error || 'Failed to parse news payload');
@@ -67,11 +82,15 @@ export default function NewsTicker() {
   };
 
   useEffect(() => {
-    fetchNews(false);
-    // Poll for fresh stock market headlines every 60 seconds
-    const interval = setInterval(() => fetchNews(false), 60000);
+    fetchNews(false, getCurrentRotationSlot());
+    // Check every 30s; force-refresh immediately whenever the 10-minute source slot rolls over
+    const interval = setInterval(() => {
+      const currentSlot = getCurrentRotationSlot();
+      const slotChanged = currentSlot !== lastSlotRef.current;
+      fetchNews(slotChanged, currentSlot);
+    }, 30000);
     const handleSettingsUpdate = () => {
-      fetchNews(true);
+      fetchNews(true, getCurrentRotationSlot());
     };
     window.addEventListener('quorix-settings-updated', handleSettingsUpdate);
     return () => {
@@ -119,33 +138,40 @@ export default function NewsTicker() {
         {/* Source connection indicators */}
         <div className="hidden md:flex items-center gap-1 font-normal">
           {[
-            { id: 'nyt', label: 'NYT', active: configuredSources.nyt },
-            { id: 'news', label: 'NEWS', active: configuredSources.news },
-            { id: 'newsdata', label: 'NEWSDATA.IO', active: configuredSources.newsdata },
-          ].map((src) => (
-            <span
-              key={src.id}
-              className={`text-[8px] px-1 rounded-sm border transition-colors ${
-                src.active
-                  ? 'bg-[#1a1a1a] text-[#00ff00] border-[#00ff00]/30'
-                  : 'bg-zinc-900 text-zinc-500 border-zinc-700/80'
-              }`}
-              title={
-                src.active
-                  ? `${src.label} API key active`
-                  : `${src.label} API key not configured`
-              }
-            >
-              {src.label}
-            </span>
-          ))}
+            { id: 'nyt' as const, label: 'NYT', active: configuredSources.nyt },
+            { id: 'news' as const, label: 'NEWS', active: configuredSources.news },
+            { id: 'newsdata' as const, label: 'NEWSDATA.IO', active: configuredSources.newsdata },
+          ].map((src) => {
+            const isCurrentFeed = src.active && activeSource === src.id;
+            return (
+              <span
+                key={src.id}
+                className={`text-[8px] px-1 rounded-sm border transition-colors ${
+                  !src.active
+                    ? 'bg-zinc-900 text-zinc-500 border-zinc-700/80'
+                    : isCurrentFeed
+                    ? 'bg-[#00ff00]/15 text-[#00ff00] border-[#00ff00] font-bold'
+                    : 'bg-[#1a1a1a] text-[#00ff00] border-[#00ff00]/30'
+                }`}
+                title={
+                  !src.active
+                    ? `${src.label} API key not configured`
+                    : isCurrentFeed
+                    ? `${src.label} API key active — currently sourcing ticker (rotates every 10 min)`
+                    : `${src.label} API key active (rotates every 10 min)`
+                }
+              >
+                {src.label}
+              </span>
+            );
+          })}
         </div>
 
         {/* Sync trigger */}
         <button
           type="button"
           onClick={() => {
-            fetchNews(true);
+            fetchNews(true, getCurrentRotationSlot());
             window.dispatchEvent(new Event('quorix-news-refresh'));
           }}
           disabled={loading}
@@ -171,6 +197,7 @@ export default function NewsTicker() {
         ) : (
           /* Double the items to make the marquee transition infinite and completely seamless */
           <div 
+            key={activeSource || 'default'}
             className="animate-marquee-continuous"
             style={{ animationPlayState: isPaused ? 'paused' : undefined }}
           >

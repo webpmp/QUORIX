@@ -28,10 +28,12 @@ const newsProviderCache: {
   nyt: { timestamp: number; items: any[] };
   newsapi: { timestamp: number; items: any[] };
   newsdata: { timestamp: number; items: any[] };
+  yahoo: { timestamp: number; items: any[] };
 } = {
   nyt: { timestamp: 0, items: [] },
   newsapi: { timestamp: 0, items: [] },
   newsdata: { timestamp: 0, items: [] },
+  yahoo: { timestamp: 0, items: [] },
 };
 
 // In-memory cache for FRED API responses (5 minute TTL)
@@ -2199,6 +2201,8 @@ app.get("/api/news/ticker", async (req, res) => {
   const newsdataKey = customKeys.NEWSDATA_API_KEY;
   const requestedTicker = ((req.query.ticker as string) || "").toUpperCase().trim();
   const forceRefresh = req.query.force === "true";
+  const rotateMode = req.query.mode === "rotate";
+  const parsedSlot = parseInt(String(req.query.slot ?? ""), 10);
 
   const hasNytKey = Boolean(nytKey && nytKey !== "MY_NYT_API_KEY" && nytKey.trim() !== "");
   const hasNewsApiKey = Boolean(newsApiKey && newsApiKey !== "MY_NEWS_API_KEY" && newsApiKey.trim() !== "");
@@ -2210,9 +2214,17 @@ app.get("/api/news/ticker", async (req, res) => {
     newsdata: hasNewsdataKey,
   };
 
+  type ApiNewsSourceId = "nyt" | "news" | "newsdata";
+  type RotationSourceId = ApiNewsSourceId | "yahoo";
+  const availableApiSources: ApiNewsSourceId[] = [];
+  if (hasNytKey) availableApiSources.push("nyt");
+  if (hasNewsApiKey) availableApiSources.push("news");
+  if (hasNewsdataKey) availableApiSources.push("newsdata");
+
   const newsItems: any[] = [];
   const activeSources: string[] = [];
   const fetchPromises: Promise<any>[] = [];
+  let chosenRotationSource: RotationSourceId | null = null;
 
   // 0. Yahoo Finance News (ONLY articles strictly related to the requested stock/asset ticker)
   if (requestedTicker) {
@@ -2337,151 +2349,221 @@ app.get("/api/news/ticker", async (req, res) => {
     );
   }
 
-  // 1. New York Times Business Top Stories (5-minute cache + stale fallback on 429)
-  if (nytKey && nytKey !== "MY_NYT_API_KEY" && nytKey.trim() !== "") {
-    activeSources.push("NYT Business");
+  const fetchNytItems = async (): Promise<any[]> => {
+    if (!hasNytKey) return [];
     const nytAge = Date.now() - newsProviderCache.nyt.timestamp;
     if (newsProviderCache.nyt.items.length > 0 && ((!forceRefresh && nytAge < NEWS_CACHE_TTL_MS) || Date.now() < apiCooldowns.nyt)) {
-      fetchPromises.push(Promise.resolve(newsProviderCache.nyt.items));
-    } else if (Date.now() < apiCooldowns.nyt) {
-      console.log("NYT Business is in cooldown. Skipping fetch.");
-    } else {
-      fetchPromises.push(
-        fetch(`https://api.nytimes.com/svc/topstories/v2/business.json?api-key=${nytKey}`)
-          .then(async (r) => {
-            if (r.status === 429) {
-              apiCooldowns.nyt = Date.now() + 5 * 60 * 1000;
-            }
-            if (!r.ok) throw new Error(`NYT status ${r.status}`);
-            return r.json();
-          })
-          .then(data => {
-            if (data && Array.isArray(data.results)) {
-              const mapped = data.results.map((art: any, index: number) => ({
-                id: `nyt-${index}-${art.published_date || index}`,
-                title: art.title || "NYT Market Update",
-                source: "New York Times Business",
-                time: formatNewsTime(art.published_date || art.created_date),
-                sentiment: analyzeNewsSentiment((art.title || "") + " " + (art.abstract || "")),
-                classification: "NYT - BUSINESS",
-                content: formatIntroSentences(art.abstract || "", art.title || "", 2, 260),
-                url: art.url || "https://www.nytimes.com/section/business",
-                publishedAt: art.published_date || art.created_date || new Date().toISOString()
-              }));
-              // Filter strictly for stocks and market relevance
-              const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
-              newsProviderCache.nyt = { timestamp: Date.now(), items: filtered };
-              return filtered;
-            }
-            return newsProviderCache.nyt.items;
-          })
-          .catch(err => {
-            console.log("NYT API fetch handled gracefully:", err.message);
-            return newsProviderCache.nyt.items;
-          })
-      );
+      return newsProviderCache.nyt.items;
     }
-  }
+    if (Date.now() < apiCooldowns.nyt) {
+      console.log("NYT Business is in cooldown. Skipping fetch.");
+      return [];
+    }
+    try {
+      const r = await fetch(`https://api.nytimes.com/svc/topstories/v2/business.json?api-key=${nytKey}`);
+      if (!r.ok) {
+        apiCooldowns.nyt = Date.now() + 5 * 60 * 1000;
+        throw new Error(`NYT status ${r.status}`);
+      }
+      const data = await r.json();
+      if (data && Array.isArray(data.results)) {
+        const mapped = data.results.map((art: any, index: number) => ({
+          id: `nyt-${index}-${art.published_date || index}`,
+          title: art.title || "NYT Market Update",
+          source: "New York Times Business",
+          time: formatNewsTime(art.published_date || art.created_date),
+          sentiment: analyzeNewsSentiment((art.title || "") + " " + (art.abstract || "")),
+          classification: "NYT - BUSINESS",
+          content: formatIntroSentences(art.abstract || "", art.title || "", 2, 260),
+          url: art.url || "https://www.nytimes.com/section/business",
+          publishedAt: art.published_date || art.created_date || new Date().toISOString()
+        }));
+        const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+        newsProviderCache.nyt = { timestamp: Date.now(), items: filtered };
+        return filtered;
+      }
+      return newsProviderCache.nyt.items;
+    } catch (err: any) {
+      console.log("NYT API fetch handled gracefully:", err.message);
+      return newsProviderCache.nyt.items;
+    }
+  };
 
-  // 2. News API Top Headlines for Business (5-minute cache + stale fallback on 429)
-  if (newsApiKey && newsApiKey !== "MY_NEWS_API_KEY" && newsApiKey.trim() !== "") {
-    activeSources.push("News API");
+  const fetchNewsApiItems = async (): Promise<any[]> => {
+    if (!hasNewsApiKey) return [];
     const newsApiAge = Date.now() - newsProviderCache.newsapi.timestamp;
     if (newsProviderCache.newsapi.items.length > 0 && ((!forceRefresh && newsApiAge < NEWS_CACHE_TTL_MS) || Date.now() < apiCooldowns.newsapi)) {
-      fetchPromises.push(Promise.resolve(newsProviderCache.newsapi.items));
-    } else if (Date.now() < apiCooldowns.newsapi) {
-      console.log("News API is in cooldown. Skipping fetch.");
-    } else {
-      fetchPromises.push(
-        fetch(`https://newsapi.org/v2/top-headlines?category=business&country=us&apiKey=${newsApiKey}`)
-          .then(async (r) => {
-            if (r.status === 429) {
-              apiCooldowns.newsapi = Date.now() + 5 * 60 * 1000;
-            }
-            if (!r.ok) throw new Error(`News API status ${r.status}`);
-            return r.json();
-          })
-          .then(data => {
-            if (data && Array.isArray(data.articles)) {
-              const mapped = data.articles.map((art: any, index: number) => ({
-                id: `newsapi-${index}-${art.publishedAt || index}`,
-                title: art.title || "Corporate Headline",
-                source: art.source?.name || "News API Business",
-                time: formatNewsTime(art.publishedAt),
-                sentiment: analyzeNewsSentiment((art.title || "") + " " + (art.description || "")),
-                classification: "NEWSAPI - CORP",
-                content: formatIntroSentences(art.description || art.content || "", art.title || "", 2, 260),
-                url: art.url || "https://newsapi.org",
-                publishedAt: art.publishedAt || new Date().toISOString()
-              }));
-              // Filter strictly for stocks and market relevance
-              const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
-              newsProviderCache.newsapi = { timestamp: Date.now(), items: filtered };
-              return filtered;
-            }
-            return newsProviderCache.newsapi.items;
-          })
-          .catch(err => {
-            console.log("News API fetch handled gracefully:", err.message);
-            return newsProviderCache.newsapi.items;
-          })
-      );
+      return newsProviderCache.newsapi.items;
     }
-  }
+    if (Date.now() < apiCooldowns.newsapi) {
+      console.log("News API is in cooldown. Skipping fetch.");
+      return [];
+    }
+    try {
+      const r = await fetch(`https://newsapi.org/v2/top-headlines?category=business&country=us&apiKey=${newsApiKey}`);
+      if (!r.ok) {
+        apiCooldowns.newsapi = Date.now() + 5 * 60 * 1000;
+        throw new Error(`News API status ${r.status}`);
+      }
+      const data = await r.json();
+      if (data && Array.isArray(data.articles)) {
+        const mapped = data.articles.map((art: any, index: number) => ({
+          id: `newsapi-${index}-${art.publishedAt || index}`,
+          title: art.title || "Corporate Headline",
+          source: art.source?.name || "News API Business",
+          time: formatNewsTime(art.publishedAt),
+          sentiment: analyzeNewsSentiment((art.title || "") + " " + (art.description || "")),
+          classification: "NEWSAPI - CORP",
+          content: formatIntroSentences(art.description || art.content || "", art.title || "", 2, 260),
+          url: art.url || "https://newsapi.org",
+          publishedAt: art.publishedAt || new Date().toISOString()
+        }));
+        const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+        newsProviderCache.newsapi = { timestamp: Date.now(), items: filtered };
+        return filtered;
+      }
+      return newsProviderCache.newsapi.items;
+    } catch (err: any) {
+      console.log("News API fetch handled gracefully:", err.message);
+      return newsProviderCache.newsapi.items;
+    }
+  };
 
-  // 3. Newsdata.io Business News (5-minute cache + stale fallback on 429)
-  if (newsdataKey && newsdataKey !== "MY_NEWSDATA_API_KEY" && newsdataKey.trim() !== "") {
-    activeSources.push("Newsdata.io");
+  const fetchNewsdataItems = async (): Promise<any[]> => {
+    if (!hasNewsdataKey) return [];
     const newsdataAge = Date.now() - newsProviderCache.newsdata.timestamp;
     if (newsProviderCache.newsdata.items.length > 0 && ((!forceRefresh && newsdataAge < NEWS_CACHE_TTL_MS) || Date.now() < apiCooldowns.newsdata)) {
-      fetchPromises.push(Promise.resolve(newsProviderCache.newsdata.items));
-    } else if (Date.now() < apiCooldowns.newsdata) {
+      return newsProviderCache.newsdata.items;
+    }
+    if (Date.now() < apiCooldowns.newsdata) {
       console.log("Newsdata.io is in cooldown. Skipping fetch.");
-    } else {
-      fetchPromises.push(
-        fetch(`https://newsdata.io/api/1/news?apikey=${newsdataKey}&category=business&language=en`)
-          .then(async (r) => {
-            if (r.status === 429) {
-              apiCooldowns.newsdata = Date.now() + 5 * 60 * 1000;
-            }
-            if (!r.ok) throw new Error(`Newsdata.io status ${r.status}`);
-            return r.json();
-          })
-          .then(data => {
-            if (data && Array.isArray(data.results)) {
-              const mapped = data.results.map((art: any, index: number) => ({
-                id: `newsdata-${index}-${art.pubDate || index}`,
-                title: art.title || "Market Pulse",
-                source: art.source_id || "Newsdata.io",
-                time: formatNewsTime(art.pubDate),
-                sentiment: analyzeNewsSentiment((art.title || "") + " " + (art.description || "")),
-                classification: "NEWSDATA - MARKET",
-                content: formatIntroSentences(art.description || "", art.title || "", 2, 260),
-                url: art.link || "https://newsdata.io",
-                publishedAt: art.pubDate || new Date().toISOString()
-              }));
-              // Filter strictly for stocks and market relevance
-              const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
-              newsProviderCache.newsdata = { timestamp: Date.now(), items: filtered };
-              return filtered;
-            }
-            return newsProviderCache.newsdata.items;
-          })
-          .catch(err => {
-            console.log("Newsdata.io API fetch handled gracefully:", err.message);
-            return newsProviderCache.newsdata.items;
-          })
+      return [];
+    }
+    try {
+      const r = await fetch(`https://newsdata.io/api/1/news?apikey=${newsdataKey}&category=business&language=en`);
+      if (!r.ok) {
+        apiCooldowns.newsdata = Date.now() + 5 * 60 * 1000;
+        throw new Error(`Newsdata.io status ${r.status}`);
+      }
+      const data = await r.json();
+      if (data && Array.isArray(data.results)) {
+        const mapped = data.results.map((art: any, index: number) => ({
+          id: `newsdata-${index}-${art.pubDate || index}`,
+          title: art.title || "Market Pulse",
+          source: art.source_id || "Newsdata.io",
+          time: formatNewsTime(art.pubDate),
+          sentiment: analyzeNewsSentiment((art.title || "") + " " + (art.description || "")),
+          classification: "NEWSDATA - MARKET",
+          content: formatIntroSentences(art.description || "", art.title || "", 2, 260),
+          url: art.link || "https://newsdata.io",
+          publishedAt: art.pubDate || new Date().toISOString()
+        }));
+        const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+        newsProviderCache.newsdata = { timestamp: Date.now(), items: filtered };
+        return filtered;
+      }
+      return newsProviderCache.newsdata.items;
+    } catch (err: any) {
+      console.log("Newsdata.io API fetch handled gracefully:", err.message);
+      return newsProviderCache.newsdata.items;
+    }
+  };
+
+  const fetchYahooMarketItems = async (): Promise<any[]> => {
+    const yahooAge = Date.now() - newsProviderCache.yahoo.timestamp;
+    if (newsProviderCache.yahoo.items.length > 0 && !forceRefresh && yahooAge < NEWS_CACHE_TTL_MS) {
+      return newsProviderCache.yahoo.items;
+    }
+    try {
+      const r = await fetch(
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC,%5EDJI,%5EIXIC&region=US&lang=en-US",
+        { headers: { "User-Agent": YAHOO_UA } }
       );
+      if (!r.ok) throw new Error(`Yahoo RSS status ${r.status}`);
+      const xml = await r.text();
+      const parsedItems: any[] = [];
+      for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+        const block = m[1];
+        const getTag = (tag: string) => {
+          const match = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+          return match ? match[1].trim() : "";
+        };
+        const guid = decodeNewsText(getTag("guid"));
+        const rawTitle = decodeNewsText(getTag("title"));
+        const link = decodeNewsText(getTag("link"));
+        const pubDateRaw = decodeNewsText(getTag("pubDate"));
+        const intro = formatIntroSentences(getTag("description"), rawTitle, 2, 260);
+        if (!rawTitle || !link || isBlacklistedNews(rawTitle, intro)) continue;
+        let publishedAt = new Date().toISOString();
+        if (pubDateRaw) {
+          const d = new Date(pubDateRaw);
+          if (!isNaN(d.getTime())) publishedAt = d.toISOString();
+        }
+        parsedItems.push({
+          id: `yhmkt-${guid || parsedItems.length}`,
+          title: rawTitle,
+          source: "Yahoo Finance",
+          time: formatNewsTime(publishedAt),
+          sentiment: analyzeNewsSentiment(`${rawTitle} ${intro}`),
+          classification: "YAHOO FINANCE - MARKETS",
+          content: intro,
+          url: link,
+          publishedAt,
+        });
+        if (parsedItems.length >= 15) break;
+      }
+      if (parsedItems.length > 0) {
+        newsProviderCache.yahoo = { timestamp: Date.now(), items: parsedItems };
+        return parsedItems;
+      }
+      return newsProviderCache.yahoo.items;
+    } catch (err: any) {
+      console.log("Yahoo Market RSS fetch handled gracefully:", err.message);
+      return newsProviderCache.yahoo.items;
+    }
+  };
+
+  const providerFetchers: Record<RotationSourceId, { label: string; fn: () => Promise<any[]> }> = {
+    nyt: { label: "NYT Business", fn: fetchNytItems },
+    news: { label: "News API", fn: fetchNewsApiItems },
+    newsdata: { label: "Newsdata.io", fn: fetchNewsdataItems },
+    yahoo: { label: "Yahoo Finance", fn: fetchYahooMarketItems },
+  };
+
+  if (rotateMode && !requestedTicker) {
+    const rotationCandidates: RotationSourceId[] = [...availableApiSources, "yahoo"];
+    const results = await Promise.all(
+      rotationCandidates.map(async (id) => ({
+        id,
+        items: await providerFetchers[id].fn(),
+      }))
+    );
+    const workingPool = results.filter((entry) => entry.items.length > 0);
+    if (workingPool.length > 0) {
+      const slot = Number.isFinite(parsedSlot)
+        ? Math.abs(parsedSlot)
+        : Math.floor(Date.now() / (10 * 60 * 1000));
+      const picked = workingPool[slot % workingPool.length];
+      chosenRotationSource = picked.id;
+      activeSources.push(providerFetchers[picked.id].label);
+      newsItems.push(...picked.items);
+    }
+  } else {
+    for (const srcId of availableApiSources) {
+      activeSources.push(providerFetchers[srcId].label);
+      fetchPromises.push(providerFetchers[srcId].fn());
     }
   }
 
   try {
-    const results = await Promise.all(fetchPromises);
-    results.forEach(items => {
-      if (Array.isArray(items)) {
-        newsItems.push(...items);
-      }
-    });
+    if (fetchPromises.length > 0) {
+      const results = await Promise.all(fetchPromises);
+      results.forEach(items => {
+        if (Array.isArray(items)) {
+          newsItems.push(...items);
+        }
+      });
+    }
 
     // Sort all real news by publication date descending (newest first)
     const sortedNews = [...newsItems].sort((a, b) => {
@@ -2550,6 +2632,7 @@ app.get("/api/news/ticker", async (req, res) => {
       success: true,
       sources: activeSources,
       configuredSources,
+      activeSource: chosenRotationSource,
       isSimulated: false,
       data: finalNewsSlice
     });
