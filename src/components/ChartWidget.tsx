@@ -669,13 +669,13 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
         </div>
         {showVolumeStudy && (
           <div>
-            <span className="text-zinc-300 font-bold block">BAR VOLUME</span>
-            <span className="text-white font-black">{displayData.volume.toLocaleString()}</span>
-            {typeof stock.volume === 'number' && stock.volume > 0 && (
-              <span className="text-[9px] text-zinc-500 font-bold block">
-                DAY TOTAL: {stock.volume.toLocaleString()}
-              </span>
-            )}
+            <span className="text-zinc-300 font-bold block">DAY TOTAL</span>
+            <span className="text-white font-black">
+              {typeof stock.volume === 'number' && stock.volume > 0 ? stock.volume.toLocaleString() : '--'}
+            </span>
+            <span className="text-[9px] text-zinc-500 font-bold block">
+              BAR VOLUME: {displayData.volume.toLocaleString()}
+            </span>
           </div>
         )}
         {showRsiStudy && (
