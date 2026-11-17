@@ -102,6 +102,7 @@ export default function App() {
   const [currentCommand, setCurrentCommand] = useState<string>('');
   const [pendingAiQuery, setPendingAiQuery] = useState<{ id: number; text: string } | null>(null);
   const [focusAskQuorixSignal, setFocusAskQuorixSignal] = useState<number>(0);
+  const [tickTime, setTickTime] = useState<string>('');
 
   const fetchLiveQuote = useCallback(async (ticker: string, isBatch = false, force = false) => {
     try {
@@ -400,6 +401,7 @@ export default function App() {
         onCommandChange={setCurrentCommand}
         onCommandSubmit={handleCommandSubmit}
         activeScreen={activeScreen}
+        tickTime={tickTime}
       />
 
       {/* Main dashboard space structure */}
@@ -440,6 +442,7 @@ export default function App() {
           pendingAiQuery={pendingAiQuery}
           onClearPendingAiQuery={() => setPendingAiQuery(null)}
           focusAskQuorixSignal={focusAskQuorixSignal}
+          onTickTimeChange={setTickTime}
         />
       </div>
 

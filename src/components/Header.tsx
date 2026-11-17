@@ -6,13 +6,15 @@ interface HeaderProps {
   onCommandChange: (val: string) => void;
   onCommandSubmit: (e: React.FormEvent) => void;
   activeScreen: string;
+  tickTime?: string;
 }
 
 export default function Header({
   currentCommand,
   onCommandChange,
   onCommandSubmit,
-  activeScreen
+  activeScreen,
+  tickTime
 }: HeaderProps) {
   const [time, setTime] = useState(new Date());
 
@@ -39,6 +41,10 @@ export default function Header({
           <span className="text-[#00ff00] font-bold flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[#00ff00]"></span>
             CONNECTED
+          </span>
+          <span className="inline-flex items-center gap-1.5 tabular-nums">
+            <span className="text-zinc-300 font-bold">TICK/TIME</span>
+            <span className="text-white font-black">{tickTime || '--'}</span>
           </span>
           <span className="hidden sm:inline">GMT {formatZoneTime('UTC')}</span>
           <span className="hidden md:inline"><span className="text-[#ff9900]">NY</span> {formatZoneTime('America/New_York')}</span>

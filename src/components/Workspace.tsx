@@ -28,6 +28,7 @@ interface WorkspaceProps {
   pendingAiQuery?: { id: number; text: string } | null;
   onClearPendingAiQuery?: () => void;
   focusAskQuorixSignal?: number;
+  onTickTimeChange?: (val: string) => void;
 }
 
 function getMarketTimeDetails(): { isPreMarket: boolean; isCoreHours: boolean; isAfterHours: boolean; isWeekend: boolean } {
@@ -230,7 +231,8 @@ export default function Workspace({
   onSelectTicker,
   pendingAiQuery,
   onClearPendingAiQuery,
-  focusAskQuorixSignal = 0
+  focusAskQuorixSignal = 0,
+  onTickTimeChange
 }: WorkspaceProps) {
   // AI assistant conversational state (BWRITE)
   const [messages, setMessages] = useState<Array<{ sender: 'user' | 'terminal'; text: string; links?: any[] }>>([]);
@@ -455,6 +457,14 @@ export default function Workspace({
     return () => clearInterval(interval);
   }, [activeScreen, lastRefreshed, selectedTicker]);
 
+  useEffect(() => {
+    const handleForceNewsRefresh = () => {
+      fetchAggregatedNews(selectedTicker, true);
+    };
+    window.addEventListener('quorix-news-refresh', handleForceNewsRefresh);
+    return () => window.removeEventListener('quorix-news-refresh', handleForceNewsRefresh);
+  }, [selectedTicker]);
+
   const fetchScreenData = async (
     screenKey: string,
     ticker: string,
@@ -485,12 +495,15 @@ export default function Workspace({
     }
   };
 
-  const fetchAggregatedNews = async (targetTicker = selectedTicker) => {
+  const fetchAggregatedNews = async (targetTicker = selectedTicker, force = false) => {
     lastNewsTickerRef.current = targetTicker;
     setNewsLoading(true);
     try {
-      const tickerQuery = targetTicker ? `?ticker=${encodeURIComponent(targetTicker)}` : '';
-      const response = await fetch(`/api/news/ticker${tickerQuery}`);
+      const params = new URLSearchParams();
+      if (targetTicker) params.set('ticker', targetTicker);
+      if (force) params.set('force', 'true');
+      const query = params.toString() ? `?${params.toString()}` : '';
+      const response = await fetch(`/api/news/ticker${query}`, { cache: 'no-store' });
       const data = await response.json();
       if (data.success && Array.isArray(data.data)) {
         // Map missing fields and ensure ISO publishedAt timestamp exists
@@ -696,7 +709,7 @@ export default function Workspace({
       {/* 1. GP: CHART GRAPH SCREEN */}
       {activeScreen === 'GP' && (
         <div className="space-y-4 animate-fade-in">
-          <ChartWidget stock={currentStock} />
+          <ChartWidget stock={currentStock} onTickTimeChange={onTickTimeChange} />
 
           {/* Ticker Headlines */}
           <div className="bg-[#050505] border border-[#333] p-3 rounded">
@@ -909,7 +922,7 @@ export default function Workspace({
                 LAST REFRESHED: {lastRefreshed > 0 ? new Date(lastRefreshed).toLocaleTimeString() : 'NEVER'}
               </span>
               <button 
-                onClick={() => fetchAggregatedNews(selectedTicker)} 
+                onClick={() => fetchAggregatedNews(selectedTicker, true)} 
                 disabled={newsLoading}
                 className="text-zinc-500 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
                 title="Refresh news"

@@ -32,11 +32,12 @@ export default function NewsTicker() {
     return cleaned === 'NEW YORK TIMES' ? 'NYT' : cleaned;
   };
 
-  const fetchNews = async () => {
+  const fetchNews = async (force = false) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/news/ticker');
+      const url = force ? '/api/news/ticker?force=true' : '/api/news/ticker';
+      const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -66,11 +67,11 @@ export default function NewsTicker() {
   };
 
   useEffect(() => {
-    fetchNews();
+    fetchNews(false);
     // Poll for fresh stock market headlines every 60 seconds
-    const interval = setInterval(fetchNews, 60000);
+    const interval = setInterval(() => fetchNews(false), 60000);
     const handleSettingsUpdate = () => {
-      fetchNews();
+      fetchNews(true);
     };
     window.addEventListener('quorix-settings-updated', handleSettingsUpdate);
     return () => {
@@ -141,8 +142,12 @@ export default function NewsTicker() {
         </div>
 
         {/* Sync trigger */}
-        <button 
-          onClick={fetchNews} 
+        <button
+          type="button"
+          onClick={() => {
+            fetchNews(true);
+            window.dispatchEvent(new Event('quorix-news-refresh'));
+          }}
           disabled={loading}
           className="text-zinc-500 hover:text-[#00ff00] active:text-[#00ff00] disabled:text-zinc-700 transition-colors ml-1 cursor-pointer"
           title="Manual news refresh"

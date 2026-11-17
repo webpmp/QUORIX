@@ -2198,6 +2198,7 @@ app.get("/api/news/ticker", async (req, res) => {
   const newsApiKey = customKeys.NEWS_API_KEY;
   const newsdataKey = customKeys.NEWSDATA_API_KEY;
   const requestedTicker = ((req.query.ticker as string) || "").toUpperCase().trim();
+  const forceRefresh = req.query.force === "true";
 
   const hasNytKey = Boolean(nytKey && nytKey !== "MY_NYT_API_KEY" && nytKey.trim() !== "");
   const hasNewsApiKey = Boolean(newsApiKey && newsApiKey !== "MY_NEWS_API_KEY" && newsApiKey.trim() !== "");
@@ -2340,7 +2341,7 @@ app.get("/api/news/ticker", async (req, res) => {
   if (nytKey && nytKey !== "MY_NYT_API_KEY" && nytKey.trim() !== "") {
     activeSources.push("NYT Business");
     const nytAge = Date.now() - newsProviderCache.nyt.timestamp;
-    if (newsProviderCache.nyt.items.length > 0 && (nytAge < NEWS_CACHE_TTL_MS || Date.now() < apiCooldowns.nyt)) {
+    if (newsProviderCache.nyt.items.length > 0 && ((!forceRefresh && nytAge < NEWS_CACHE_TTL_MS) || Date.now() < apiCooldowns.nyt)) {
       fetchPromises.push(Promise.resolve(newsProviderCache.nyt.items));
     } else if (Date.now() < apiCooldowns.nyt) {
       console.log("NYT Business is in cooldown. Skipping fetch.");
@@ -2386,7 +2387,7 @@ app.get("/api/news/ticker", async (req, res) => {
   if (newsApiKey && newsApiKey !== "MY_NEWS_API_KEY" && newsApiKey.trim() !== "") {
     activeSources.push("News API");
     const newsApiAge = Date.now() - newsProviderCache.newsapi.timestamp;
-    if (newsProviderCache.newsapi.items.length > 0 && (newsApiAge < NEWS_CACHE_TTL_MS || Date.now() < apiCooldowns.newsapi)) {
+    if (newsProviderCache.newsapi.items.length > 0 && ((!forceRefresh && newsApiAge < NEWS_CACHE_TTL_MS) || Date.now() < apiCooldowns.newsapi)) {
       fetchPromises.push(Promise.resolve(newsProviderCache.newsapi.items));
     } else if (Date.now() < apiCooldowns.newsapi) {
       console.log("News API is in cooldown. Skipping fetch.");
@@ -2432,7 +2433,7 @@ app.get("/api/news/ticker", async (req, res) => {
   if (newsdataKey && newsdataKey !== "MY_NEWSDATA_API_KEY" && newsdataKey.trim() !== "") {
     activeSources.push("Newsdata.io");
     const newsdataAge = Date.now() - newsProviderCache.newsdata.timestamp;
-    if (newsProviderCache.newsdata.items.length > 0 && (newsdataAge < NEWS_CACHE_TTL_MS || Date.now() < apiCooldowns.newsdata)) {
+    if (newsProviderCache.newsdata.items.length > 0 && ((!forceRefresh && newsdataAge < NEWS_CACHE_TTL_MS) || Date.now() < apiCooldowns.newsdata)) {
       fetchPromises.push(Promise.resolve(newsProviderCache.newsdata.items));
     } else if (Date.now() < apiCooldowns.newsdata) {
       console.log("Newsdata.io is in cooldown. Skipping fetch.");

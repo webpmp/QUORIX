@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { StockData } from '../types';
-import { Activity, RefreshCw, SlidersHorizontal, X } from 'lucide-react';
+import { Activity, RefreshCw, X } from 'lucide-react';
 import StudiesModal from './StudiesModal';
 import {
   DEFAULT_STUDY_IDS,
@@ -12,6 +12,7 @@ import {
 
 interface ChartWidgetProps {
   stock: StockData;
+  onTickTimeChange?: (val: string) => void;
 }
 
 type ChartType = 'candle' | 'line' | 'area';
@@ -38,7 +39,7 @@ function loadSavedStudies(): StudyId[] {
   return [...DEFAULT_STUDY_IDS];
 }
 
-export default function ChartWidget({ stock }: ChartWidgetProps) {
+export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProps) {
   const [chartType, setChartType] = useState<ChartType>('candle');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [activeStudies, setActiveStudies] = useState<StudyId[]>(loadSavedStudies);
@@ -182,7 +183,43 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
   const showAdxStudy = hasStudy('adx');
   const showRocStudy = hasStudy('roc');
 
-  if (!stock || activeBars.length === 0) {
+  const hasTimestamps = activeBars.every((b) => typeof b.timestamp === 'number');
+  const history = activeBars.length > 0
+    ? (hasTimestamps
+        ? [...activeBars].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
+        : [...activeBars].reverse())
+    : [];
+
+  const firstTs = history[0]?.timestamp;
+  const lastTs = history[history.length - 1]?.timestamp;
+  const spansMultipleDays =
+    typeof firstTs === 'number' &&
+    typeof lastTs === 'number' &&
+    new Date(firstTs * 1000).toLocaleDateString() !== new Date(lastTs * 1000).toLocaleDateString();
+
+  const formatBarLabel = (bar: HistoryBar, includeDateForIntraday = spansMultipleDays): string => {
+    if (typeof bar.timestamp !== 'number') return bar.date;
+    const d = new Date(bar.timestamp * 1000);
+    if (['5m', '15m', '30m', '1h', '1D', '1W'].includes(interval)) {
+      const hm = d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
+      if (includeDateForIntraday || interval === '1W') {
+        const md = d.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
+        return `${md} ${hm}`;
+      }
+      return hm;
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  const activeIndex = history.length > 0 ? (hoverIndex !== null ? hoverIndex : history.length - 1) : -1;
+  const hoveredData = activeIndex >= 0 ? history[activeIndex] : undefined;
+  const formattedHoveredDate = hoveredData ? formatBarLabel(hoveredData, true) : '';
+
+  useEffect(() => {
+    onTickTimeChange?.(formattedHoveredDate);
+  }, [formattedHoveredDate, onTickTimeChange]);
+
+  if (!stock || activeBars.length === 0 || !hoveredData) {
     return (
       <>
         <div className="bg-[#010101] border border-[#333] rounded p-6 text-center text-zinc-500 font-mono select-none">
@@ -213,12 +250,7 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
     );
   }
 
-  // Chronological order: earliest on left (index 0), latest/current on right
-  const hasTimestamps = activeBars.every((b) => typeof b.timestamp === 'number');
-  const history = hasTimestamps
-    ? [...activeBars].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
-    : [...activeBars].reverse();
-
+  // Chronological order & formatting already computed above for header tick sync
   const fallbackRsiList = computeWilderRSIArray(
     history.map((b) => b.close),
     14
@@ -226,27 +258,6 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
   const rsiList = history.map((b, i) =>
     typeof b.rsi === 'number' && !isNaN(b.rsi) ? b.rsi : fallbackRsiList[i]
   );
-
-  const firstTs = history[0]?.timestamp;
-  const lastTs = history[history.length - 1]?.timestamp;
-  const spansMultipleDays =
-    typeof firstTs === 'number' &&
-    typeof lastTs === 'number' &&
-    new Date(firstTs * 1000).toLocaleDateString() !== new Date(lastTs * 1000).toLocaleDateString();
-
-  const formatBarLabel = (bar: HistoryBar, includeDateForIntraday = spansMultipleDays): string => {
-    if (typeof bar.timestamp !== 'number') return bar.date;
-    const d = new Date(bar.timestamp * 1000);
-    if (['5m', '15m', '30m', '1h', '1D', '1W'].includes(interval)) {
-      const hm = d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
-      if (includeDateForIntraday || interval === '1W') {
-        const md = d.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
-        return `${md} ${hm}`;
-      }
-      return hm;
-    }
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
 
   // Layout & Coordinate constants
   const width = Math.max(320, chartWidth);
@@ -396,9 +407,6 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
     return `${topStr} ${botStr} Z`;
   };
 
-  const activeIndex = hoverIndex !== null ? hoverIndex : history.length - 1;
-  const hoveredData = history[activeIndex];
-  const formattedHoveredDate = formatBarLabel(hoveredData, true);
   const displayData =
     hoverIndex !== null
       ? {
@@ -421,10 +429,10 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
 
   const statsColClass =
     showVolumeStudy && showRsiStudy
-      ? 'grid-cols-2 sm:grid-cols-4 lg:grid-cols-7'
-      : showVolumeStudy || showRsiStudy
       ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
-      : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5';
+      : showVolumeStudy || showRsiStudy
+      ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+      : 'grid-cols-2 sm:grid-cols-4';
 
   // Active overlay readout legend items
   const activeOverlayItems = [
@@ -521,7 +529,6 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
       {/* Chart Headers */}
       <div className="flex flex-col sm:flex-row items-baseline sm:items-center justify-between border-b border-[#333] pb-2 mb-3">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
-          <Activity size={14} className="text-[#00ff00] shrink-0" />
           <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm font-extrabold uppercase tracking-wider leading-tight min-w-0">
             <span className="text-[#ff9900]">{stock.symbol}</span>
             <span className="text-zinc-600 font-normal">|</span>
@@ -612,21 +619,16 @@ export default function ChartWidget({ stock }: ChartWidgetProps) {
           <button
             type="button"
             onClick={() => setIsStudiesModalOpen(true)}
-            className="px-3 py-1 rounded border border-[#3498db] bg-[#0a1931]/60 hover:bg-[#3498db] text-[#3498db] hover:text-black text-[11px] sm:text-xs font-extrabold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+            className="px-3 py-1 rounded border border-[#3498db] bg-[#0a1931]/60 hover:bg-[#3498db] text-[#3498db] hover:text-black text-[11px] sm:text-xs font-extrabold transition-colors cursor-pointer whitespace-nowrap shrink-0"
             title="Choose overlays, momentum oscillators, and volatility studies"
           >
-            <SlidersHorizontal size={12} />
-            <span>STUDIES ({activeStudies.length})</span>
+            STUDIES ({activeStudies.length})
           </button>
         </div>
       </div>
 
       {/* Top statistics summary (Interactive hover feedback) */}
       <div className={`grid gap-2 bg-[#050505] border border-[#333] p-2 rounded mb-3 text-[10px] tabular-nums ${statsColClass}`}>
-        <div>
-          <span className="text-zinc-300 font-bold block">TICK/TIME</span>
-          <span className="text-white font-black">{displayData.date}</span>
-        </div>
         <div className="bg-[#0a1931] border border-[#3498db]/50 p-1 px-2 rounded -my-1 flex flex-col justify-center shadow-lg shadow-[#3498db]/10 min-w-0 overflow-hidden">
           <span className="text-[#3498db] block text-[8px] font-extrabold tracking-wider truncate">
             {hoverIndex !== null
