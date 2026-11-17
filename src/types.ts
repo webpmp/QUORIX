@@ -49,8 +49,12 @@ export interface StockData {
   isRealTime?: boolean;
   isPreMarket?: boolean;
   isAfterHours?: boolean;
-  preMarketPrice?: number;
-  afterHoursPrice?: number;
+  preMarketPrice?: number | null;
+  afterHoursPrice?: number | null;
+  extHoursPrice?: number | null;
+  extHoursChange?: number | null;
+  extHoursChangePercent?: number | null;
+  extHoursSession?: 'PRE' | 'POST' | null;
   isCoreHours?: boolean;
   lastTickTime?: number;
   lastTickDirection?: 'up' | 'down';

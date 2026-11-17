@@ -319,11 +319,6 @@ export default function CommandPanel({
                                 PRE
                               </span>
                             )}
-                            {stock.isAfterHours && (
-                              <span className="text-[7px] bg-indigo-500/20 text-indigo-400 px-1.5 rounded font-bold border border-indigo-500/30">
-                                AFT
-                              </span>
-                            )}
                           </div>
                           <div className={`text-[10px] font-semibold ${!hasPrice ? 'text-zinc-600' : isPositive ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
                             {hasPrice ? `${isPositive ? '▲' : '▼'} ${Math.abs(stock.changePercent).toFixed(2)}%` : '--'}

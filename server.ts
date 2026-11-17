@@ -1278,21 +1278,45 @@ function adjustQuoteForTradingHours(quoteObj: any) {
   
   let preMarketPrice: number | null = null;
   let afterHoursPrice: number | null = null;
+  let extHoursPrice: number | null = null;
+  let extHoursChange: number | null = null;
+  let extHoursChangePercent: number | null = null;
+  let extHoursSession: 'PRE' | 'POST' | null = null;
 
-  // Only apply real pre-market or after-hours prices when provided by Yahoo Finance
   const decimals = cacheKey === 'TNX' ? 3 : 2;
-  if (et.isPreMarket && cloned.isRealYF && typeof cloned.preMarketPriceYF === 'number' && cloned.preMarketPriceYF > 0) {
-    isPreMarket = true;
-    preMarketPrice = cloned.preMarketPriceYF;
-    cloned.price = preMarketPrice;
-    cloned.change = parseFloat((preMarketPrice - cloned.prevClose).toFixed(decimals));
-    cloned.changePercent = cloned.prevClose > 0 ? parseFloat(((cloned.change / cloned.prevClose) * 100).toFixed(2)) : 0;
-  } else if (et.isAfterHours && cloned.isRealYF && typeof cloned.postMarketPriceYF === 'number' && cloned.postMarketPriceYF > 0) {
-    isAfterHours = true;
-    afterHoursPrice = cloned.postMarketPriceYF;
-    cloned.price = afterHoursPrice;
-    cloned.change = parseFloat((afterHoursPrice - cloned.prevClose).toFixed(decimals));
-    cloned.changePercent = cloned.prevClose > 0 ? parseFloat(((cloned.change / cloned.prevClose) * 100).toFixed(2)) : 0;
+  const candidateExt =
+    typeof cloned.fulldayPriceYF === 'number' && cloned.fulldayPriceYF > 0
+      ? cloned.fulldayPriceYF
+      : et.isPreMarket && typeof cloned.preMarketPriceYF === 'number' && cloned.preMarketPriceYF > 0
+      ? cloned.preMarketPriceYF
+      : et.isAfterHours && typeof cloned.postMarketPriceYF === 'number' && cloned.postMarketPriceYF > 0
+      ? cloned.postMarketPriceYF
+      : null;
+
+  const supportsPrePost = Boolean(cloned.hasPrePostMarketData || cloned.preMarketPriceYF || cloned.postMarketPriceYF);
+
+  if (cloned.isRealYF && supportsPrePost && !et.isCoreHours && typeof candidateExt === 'number' && candidateExt > 0) {
+    if (et.isPreMarket) {
+      isPreMarket = true;
+      preMarketPrice = parseFloat(candidateExt.toFixed(decimals));
+      extHoursPrice = preMarketPrice;
+      extHoursSession = 'PRE';
+    } else if (et.isAfterHours) {
+      isAfterHours = true;
+      afterHoursPrice = parseFloat(candidateExt.toFixed(decimals));
+      extHoursPrice = afterHoursPrice;
+      extHoursSession = 'POST';
+    } else if (Math.abs(candidateExt - basePrice) > 0.0001) {
+      // Overnight / post-close outside 4:00-8:00 PM ET window: retain last post-market quote
+      afterHoursPrice = parseFloat(candidateExt.toFixed(decimals));
+      extHoursPrice = afterHoursPrice;
+      extHoursSession = 'POST';
+    }
+
+    if (typeof extHoursPrice === 'number' && basePrice > 0) {
+      extHoursChange = parseFloat((extHoursPrice - basePrice).toFixed(decimals));
+      extHoursChangePercent = parseFloat(((extHoursChange / basePrice) * 100).toFixed(2));
+    }
   }
 
   return {
@@ -1302,6 +1326,10 @@ function adjustQuoteForTradingHours(quoteObj: any) {
     isCoreHours,
     preMarketPrice,
     afterHoursPrice,
+    extHoursPrice,
+    extHoursChange,
+    extHoursChangePercent,
+    extHoursSession,
     originalPrice: basePrice
   };
 }
@@ -1566,6 +1594,8 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
             exchange: formatExchangeName(meta),
             history,
             isRealYF: true,
+            hasPrePostMarketData: Boolean(meta.hasPrePostMarketData),
+            fulldayPriceYF: typeof meta.fulldayPrice === 'number' && meta.fulldayPrice > 0 ? meta.fulldayPrice : null,
             preMarketPriceYF: meta.preMarketPrice || null,
             postMarketPriceYF: meta.postMarketPrice || meta.extendedMarketPrice || null
           };

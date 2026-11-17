@@ -439,10 +439,10 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
 
   const statsColClass =
     showVolumeStudy && showRsiStudy
-      ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+      ? 'grid-cols-2 sm:grid-cols-4 lg:grid-cols-7'
       : showVolumeStudy || showRsiStudy
-      ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
-      : 'grid-cols-2 sm:grid-cols-4';
+      ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+      : 'grid-cols-2 sm:grid-cols-5';
 
   // Active overlay readout legend items
   const activeOverlayItems = [
@@ -551,16 +551,6 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 <span className="text-zinc-400 text-[11px] sm:text-xs font-bold">{stock.exchange}</span>
               </>
             )}
-            {stock.isPreMarket && (
-              <span className="text-[9px] bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-extrabold border border-amber-500/30 ml-1">
-                PRE-MARKET ACTIVE
-              </span>
-            )}
-            {stock.isAfterHours && (
-              <span className="text-[9px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-extrabold border border-indigo-500/30 ml-1">
-                AFTER HOURS ACTIVE
-              </span>
-            )}
           </div>
         </div>
 
@@ -641,48 +631,83 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
 
       {/* Top statistics summary (Interactive hover feedback) */}
       <div className={`grid gap-2 bg-[#050505] border border-[#333] p-2 rounded mb-3 text-[10px] tabular-nums ${statsColClass}`}>
-        <div className="bg-[#0a1931] border border-[#3498db]/50 p-1 px-2 rounded -my-1 flex flex-col justify-center shadow-lg shadow-[#3498db]/10 min-w-0 overflow-hidden">
-          <span className="text-[#3498db] block text-[8px] font-extrabold tracking-wider truncate">
-            {hoverIndex !== null
-              ? 'LAST PRICE'
-              : stock.isPreMarket
-              ? 'PRE-MARKET'
-              : stock.isAfterHours
-              ? 'AFTER-HOURS'
-              : 'LAST PRICE'}
+        <div className="min-w-0">
+          <span className="text-zinc-300 font-bold block truncate">
+            LAST PRICE
           </span>
           <span className="text-[#3498db] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
             ${displayData.close.toFixed(2)}
           </span>
         </div>
-        <div>
-          <span className="text-zinc-300 font-bold block">OPEN</span>
-          <span className="text-[#ff9900] font-black">${displayData.open.toFixed(2)}</span>
+        <div className="min-w-0">
+          <span className="text-zinc-300 font-bold block truncate">
+            EXT HOURS
+          </span>
+          {typeof stock.extHoursPrice === 'number' && stock.extHoursPrice > 0 ? (
+            <>
+              <span className="text-white text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
+                ${stock.extHoursPrice.toFixed(2)}
+              </span>
+              {typeof stock.extHoursChange === 'number' &&
+                typeof stock.extHoursChangePercent === 'number' && (
+                  <span
+                    className={`text-[10px] font-bold block truncate ${
+                      stock.extHoursChange > 0
+                        ? 'text-[#00ff00]'
+                        : stock.extHoursChange < 0
+                        ? 'text-[#ff4444]'
+                        : 'text-zinc-400'
+                    }`}
+                  >
+                    {stock.extHoursChange > 0 ? '+' : ''}
+                    {stock.extHoursChange.toFixed(2)} ({stock.extHoursChangePercent > 0 ? '+' : ''}
+                    {stock.extHoursChangePercent.toFixed(2)}%)
+                  </span>
+                )}
+            </>
+          ) : (
+            <>
+              <span className="text-zinc-500 text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5">--</span>
+              <span className="text-[10px] text-zinc-600 font-bold block">
+                {stock.isCoreHours ? 'CORE HOURS' : 'UNAVAILABLE'}
+              </span>
+            </>
+          )}
         </div>
-        <div>
-          <span className="text-zinc-300 font-bold block">HIGH</span>
-          <span className="text-[#00ff00] font-black">${displayData.high.toFixed(2)}</span>
+        <div className="min-w-0">
+          <span className="text-zinc-300 font-bold block truncate">OPEN</span>
+          <span className="text-[#ff9900] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
+            ${displayData.open.toFixed(2)}
+          </span>
         </div>
-        <div>
-          <span className="text-zinc-300 font-bold block">LOW</span>
-          <span className="text-[#ff4444] font-black">${displayData.low.toFixed(2)}</span>
+        <div className="min-w-0">
+          <span className="text-zinc-300 font-bold block truncate">HIGH</span>
+          <span className="text-[#00ff00] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
+            ${displayData.high.toFixed(2)}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <span className="text-zinc-300 font-bold block truncate">LOW</span>
+          <span className="text-[#ff4444] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
+            ${displayData.low.toFixed(2)}
+          </span>
         </div>
         {showVolumeStudy && (
-          <div>
-            <span className="text-zinc-300 font-bold block">DAY TOTAL</span>
-            <span className="text-white font-black">
+          <div className="min-w-0">
+            <span className="text-zinc-300 font-bold block truncate">DAY TOTAL</span>
+            <span className="text-white text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
               {typeof stock.volume === 'number' && stock.volume > 0 ? stock.volume.toLocaleString() : '--'}
             </span>
-            <span className="text-[9px] text-zinc-500 font-bold block">
+            <span className="text-[10px] text-zinc-500 font-bold block truncate">
               BAR VOLUME: {displayData.volume.toLocaleString()}
             </span>
           </div>
         )}
         {showRsiStudy && (
-          <div>
-            <span className="text-zinc-300 font-bold block">RSI (14)</span>
+          <div className="min-w-0">
+            <span className="text-zinc-300 font-bold block truncate">RSI (14)</span>
             <span
-              className={`font-black ${
+              className={`text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate ${
                 currentRsi >= 70 ? 'text-[#ff4444]' : currentRsi <= 30 ? 'text-[#00ff00]' : 'text-[#9b59b6]'
               }`}
             >
