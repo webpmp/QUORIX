@@ -202,9 +202,11 @@ export default function CommandPanel({
               >
                 {isEditingEquities ? 'DONE' : 'EDIT'}
               </button>
-              <span className="text-[#3498db] font-mono text-[9px]">
-                {trackedTickers.length} TICKERS
-              </span>
+              {!isEditingEquities && (
+                <span className="text-[#3498db] font-mono text-[9px]">
+                  {trackedTickers.length} TICKERS
+                </span>
+              )}
             </div>
           </div>
 
@@ -329,50 +331,48 @@ export default function CommandPanel({
                         </div>
                       )}
 
-                      <div
-                        className={`items-center gap-0.5 ${
-                          isEditingEquities ? 'flex' : 'hidden group-hover:flex'
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onReorderTicker(idx, idx - 1);
-                          }}
-                          disabled={idx === 0}
-                          title={`Move ${stock.symbol} up`}
-                          aria-label={`Move ${stock.symbol} up`}
-                          className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-25 disabled:hover:text-zinc-400 disabled:hover:border-[#333] cursor-pointer disabled:cursor-not-allowed"
-                        >
-                          <ChevronUp size={11} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onReorderTicker(idx, idx + 1);
-                          }}
-                          disabled={idx === trackedTickers.length - 1}
-                          title={`Move ${stock.symbol} down`}
-                          aria-label={`Move ${stock.symbol} down`}
-                          className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-25 disabled:hover:text-zinc-400 disabled:hover:border-[#333] cursor-pointer disabled:cursor-not-allowed"
-                        >
-                          <ChevronDown size={11} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveTicker(stock.symbol);
-                          }}
-                          title={`Remove ${stock.symbol} from list`}
-                          aria-label={`Remove ${stock.symbol} from list`}
-                          className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff4444] hover:border-[#ff4444] cursor-pointer"
-                        >
-                          <X size={11} />
-                        </button>
-                      </div>
+                      {isEditingEquities && (
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onReorderTicker(idx, idx - 1);
+                            }}
+                            disabled={idx === 0}
+                            title={`Move ${stock.symbol} up`}
+                            aria-label={`Move ${stock.symbol} up`}
+                            className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-25 disabled:hover:text-zinc-400 disabled:hover:border-[#333] cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            <ChevronUp size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onReorderTicker(idx, idx + 1);
+                            }}
+                            disabled={idx === trackedTickers.length - 1}
+                            title={`Move ${stock.symbol} down`}
+                            aria-label={`Move ${stock.symbol} down`}
+                            className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-25 disabled:hover:text-zinc-400 disabled:hover:border-[#333] cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            <ChevronDown size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRemoveTicker(stock.symbol);
+                            }}
+                            title={`Remove ${stock.symbol} from list`}
+                            aria-label={`Remove ${stock.symbol} from list`}
+                            className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff4444] hover:border-[#ff4444] cursor-pointer"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
