@@ -106,6 +106,8 @@ export interface CurrencyPair {
 export interface PolymarketMarket {
   id: string;
   question: string;
+  slug?: string;
+  resolutionSource?: string;
   outcomes: string[];
   outcomePrices: string[];
   clobTokenIds?: string[];
@@ -121,4 +123,5 @@ export interface PolymarketEvent {
   markets: PolymarketMarket[];
   image?: string;
   slug?: string;
+  resolutionSource?: string;
 }

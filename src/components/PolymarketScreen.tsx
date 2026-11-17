@@ -30,6 +30,29 @@ function formatUsdVolume(vol?: number): string {
   return `$${Math.round(vol)}`;
 }
 
+function getSafeHttpUrl(raw?: string): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+      return parsed.toString();
+    }
+  } catch {
+    // not a valid URL
+  }
+  return null;
+}
+
+function formatSourceHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./i, '').toUpperCase();
+  } catch {
+    return 'SOURCE';
+  }
+}
+
 export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
   const [events, setEvents] = useState<PolymarketEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -68,9 +91,12 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
           category: item.category || 'Stocks',
           volume: typeof item.volume === 'number' ? item.volume : Number(item.volume || 0),
           slug: item.slug || '',
+          resolutionSource: typeof item.resolutionSource === 'string' ? item.resolutionSource.trim() : '',
           markets: (item.markets || []).map((m: any) => ({
             id: String(m.id || m.question),
             question: m.question || m.title || 'Will event occur?',
+            slug: typeof m.slug === 'string' ? m.slug : '',
+            resolutionSource: typeof m.resolutionSource === 'string' ? m.resolutionSource.trim() : '',
             outcomes:
               typeof m.outcomes === 'string'
                 ? JSON.parse(m.outcomes)
@@ -439,6 +465,39 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                     <span className="tabular-nums">VOLUME: {formatUsdVolume(activeEvent.volume)}</span>
                     <span className="text-zinc-600">·</span>
                     <span className="tabular-nums">{activeEvent.markets.length} CONTRACTS</span>
+                    {(() => {
+                      const rawEventSource =
+                        activeEvent.resolutionSource ||
+                        activeEvent.markets.find((m) => m.resolutionSource)?.resolutionSource ||
+                        '';
+                      const eventSourceUrl = getSafeHttpUrl(rawEventSource);
+                      if (eventSourceUrl) {
+                        return (
+                          <>
+                            <span className="text-zinc-600">·</span>
+                            <a
+                              href={eventSourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#3498db] hover:text-[#00ff00] hover:underline inline-flex items-center gap-1 font-bold"
+                              title={`Resolution source: ${eventSourceUrl}`}
+                            >
+                              <span>SOURCE: {formatSourceHost(eventSourceUrl)}</span>
+                              <ExternalLink size={9} />
+                            </a>
+                          </>
+                        );
+                      }
+                      if (rawEventSource) {
+                        return (
+                          <>
+                            <span className="text-zinc-600">·</span>
+                            <span className="text-zinc-400">SOURCE: {rawEventSource}</span>
+                          </>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
 
@@ -453,13 +512,34 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                     const noVal = parseFloat(market.outcomePrices[1] || '0.50');
                     const yesPct = Math.round(yesVal * 100);
                     const noPct = Math.round(noVal * 100);
+                    const contractUrl =
+                      activeEvent.slug && market.slug && activeEvent.slug !== market.slug
+                        ? `https://polymarket.com/event/${activeEvent.slug}/${market.slug}`
+                        : activeEvent.slug
+                        ? `https://polymarket.com/event/${activeEvent.slug}`
+                        : market.slug
+                        ? `https://polymarket.com/market/${market.slug}`
+                        : '';
+                    const marketResolutionUrl = getSafeHttpUrl(market.resolutionSource);
 
                     return (
                       <div key={market.id || idx} className="bg-[#050505] border border-[#222] rounded p-2.5">
-                        <div className="flex items-start gap-1 justify-between mb-2 select-text">
+                        <div className="flex items-start gap-2 justify-between mb-2 select-text">
                           <span className="text-zinc-200 font-bold text-xs leading-snug">
                             {idx + 1}. {market.question}
                           </span>
+                          {contractUrl && (
+                            <a
+                              href={contractUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 text-[10px] font-bold text-[#ff9900] hover:text-amber-400 hover:underline inline-flex items-center gap-1 select-none"
+                              title="Open contract on Polymarket"
+                            >
+                              <span>POLYMARKET</span>
+                              <ExternalLink size={10} />
+                            </a>
+                          )}
                         </div>
 
                         {/* Implied Probabilities dual Dial bar display */}
@@ -487,12 +567,32 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                           </div>
                         </div>
 
-                        {market.clobTokenIds && market.clobTokenIds.length > 0 && (
-                          <div className="mt-2 text-[9px] text-zinc-500 font-mono flex gap-3">
-                            <span>YES_TOKEN: {market.clobTokenIds[0].slice(0, 10)}...</span>
-                            <span>
-                              NO_TOKEN: {market.clobTokenIds[1] ? market.clobTokenIds[1].slice(0, 10) : 'N/A'}...
-                            </span>
+                        {( (market.clobTokenIds && market.clobTokenIds.length > 0) || marketResolutionUrl || market.resolutionSource ) && (
+                          <div className="mt-2 text-[9px] text-zinc-500 font-mono flex flex-wrap items-center justify-between gap-2">
+                            {market.clobTokenIds && market.clobTokenIds.length > 0 && (
+                              <div className="flex gap-3">
+                                <span>YES_TOKEN: {market.clobTokenIds[0].slice(0, 10)}...</span>
+                                <span>
+                                  NO_TOKEN: {market.clobTokenIds[1] ? market.clobTokenIds[1].slice(0, 10) : 'N/A'}...
+                                </span>
+                              </div>
+                            )}
+                            {marketResolutionUrl ? (
+                              <a
+                                href={marketResolutionUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#3498db] hover:text-[#00ff00] hover:underline inline-flex items-center gap-1 ml-auto"
+                                title={`Resolution source: ${marketResolutionUrl}`}
+                              >
+                                <span>SOURCE: {formatSourceHost(marketResolutionUrl)}</span>
+                                <ExternalLink size={9} />
+                              </a>
+                            ) : market.resolutionSource ? (
+                              <span className="text-zinc-400 ml-auto truncate max-w-[220px]" title={market.resolutionSource}>
+                                SOURCE: {market.resolutionSource}
+                              </span>
+                            ) : null}
                           </div>
                         )}
                       </div>

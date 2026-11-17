@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShieldCheck } from 'lucide-react';
 
 interface HeaderProps {
   currentCommand: string;
@@ -170,12 +169,6 @@ export default function Header({
           <span className="hidden md:inline"><span className="text-[#ff9900]">NY</span> {formatZoneTime('America/New_York')}</span>
           <span className="hidden md:inline"><span className="text-[#ff9900]">LDN</span> {formatZoneTime('Europe/London')}</span>
           <span className="hidden lg:inline"><span className="text-[#ff9900]">TYO</span> {formatZoneTime('Asia/Tokyo')}</span>
-        </div>
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center gap-1 text-[10px] text-[#3498db]">
-            <ShieldCheck size={12} />
-            <span>AI GROUNDING: ACTIVE</span>
-          </div>
         </div>
       </div>
 
