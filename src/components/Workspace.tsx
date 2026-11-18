@@ -538,8 +538,16 @@ export default function Workspace({
       if (targetTicker) params.set('ticker', targetTicker);
       if (force) params.set('force', 'true');
       const query = params.toString() ? `?${params.toString()}` : '';
-      const response = await fetch(`/api/news/ticker${query}`, { cache: 'no-store' });
-      const data = await response.json();
+      const response = await fetch(`/api/news/ticker${query}`, {
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      });
+      const contentType = (response.headers.get('content-type') || '').toLowerCase();
+      const rawText = await response.text();
+      if (!response.ok || !contentType.includes('application/json') || rawText.trimStart().startsWith('<')) {
+        throw new Error(!response.ok ? `HTTP ${response.status}` : 'Non-JSON response from news endpoint');
+      }
+      const data = JSON.parse(rawText);
       if (data.success && Array.isArray(data.data)) {
         // Map missing fields and ensure ISO publishedAt timestamp exists
         const processed = data.data.map((item: any, idx: number) => {

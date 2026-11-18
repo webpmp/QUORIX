@@ -40,6 +40,9 @@ export default function NewsTicker() {
   const [feedVersion, setFeedVersion] = useState<number>(0);
   const lastSlotRef = React.useRef<number>(getCurrentRotationSlot());
   const lastFeedSigRef = React.useRef<string>('');
+  const newsCountRef = React.useRef<number>(0);
+  const retryTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = React.useRef<boolean>(true);
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const firstSequenceRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -48,9 +51,15 @@ export default function NewsTicker() {
     return cleaned === 'NEW YORK TIMES' ? 'NYT' : cleaned;
   };
 
-  const fetchNews = async (force = false, slot = getCurrentRotationSlot()) => {
+  const fetchNews = async (force = false, slot = getCurrentRotationSlot(), attempt = 0) => {
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
     setLoading(true);
-    setError(null);
+    if (attempt === 0 && newsCountRef.current === 0) {
+      setError(null);
+    }
     lastSlotRef.current = slot;
     try {
       const params = new URLSearchParams({
@@ -58,16 +67,41 @@ export default function NewsTicker() {
         slot: String(slot),
       });
       if (force) params.set('force', 'true');
-      const response = await fetch(`/api/news/ticker?${params.toString()}`, { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const response = await fetch(`/api/news/ticker?${params.toString()}`, {
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      });
+      const contentType = (response.headers.get('content-type') || '').toLowerCase();
+      const rawText = await response.text();
+      const trimmedText = rawText.trimStart();
+
+      if (!response.ok || !contentType.includes('application/json') || trimmedText.startsWith('<')) {
+        if (attempt < 2 && isMountedRef.current) {
+          retryTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              fetchNews(force, slot, attempt + 1);
+            }
+          }, 1200 * (attempt + 1));
+          return;
+        }
+        if (newsCountRef.current > 0) {
+          return;
+        }
+        throw new Error(
+          !response.ok
+            ? `HTTP error! status: ${response.status}`
+            : 'News service temporarily unavailable'
+        );
       }
-      const result: NewsTickerResponse = await response.json();
+
+      const result: NewsTickerResponse = JSON.parse(rawText);
       if (result.success && Array.isArray(result.data)) {
+        setError(null);
         const nextSource = result.activeSource ?? null;
         const nextSig = `${nextSource || ''}|${result.data.map((item) => `${item.id}:${item.title}`).join('|')}`;
         if (nextSig !== lastFeedSigRef.current) {
           lastFeedSigRef.current = nextSig;
+          newsCountRef.current = result.data.length;
           setRepeatCount(1);
           setNews(result.data);
           setFeedVersion((v) => v + 1);
@@ -88,14 +122,19 @@ export default function NewsTicker() {
         throw new Error(result.error || 'Failed to parse news payload');
       }
     } catch (err: any) {
-      console.error('Failed to load news headlines:', err);
-      setError(err.message || 'Connection error');
+      if (newsCountRef.current === 0) {
+        console.warn('News headlines fetch notice:', err?.message || err);
+        setError(err?.message || 'Connection error');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     fetchNews(false, getCurrentRotationSlot());
     // Check every 30s; force-refresh immediately whenever the 10-minute source slot rolls over
     const interval = setInterval(() => {
@@ -108,6 +147,11 @@ export default function NewsTicker() {
     };
     window.addEventListener('quorix-settings-updated', handleSettingsUpdate);
     return () => {
+      isMountedRef.current = false;
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       clearInterval(interval);
       window.removeEventListener('quorix-settings-updated', handleSettingsUpdate);
     };

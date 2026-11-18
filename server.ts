@@ -2586,32 +2586,32 @@ app.get("/api/news/ticker", async (req, res) => {
     yahoo: { label: "Yahoo Finance", fn: fetchYahooMarketItems },
   };
 
-  if (rotateMode && !requestedTicker) {
-    const rotationCandidates: RotationSourceId[] = [...availableApiSources, "yahoo"];
-    const results = await Promise.all(
-      rotationCandidates.map(async (id) => ({
-        id,
-        items: await providerFetchers[id].fn(),
-      }))
-    );
-    const workingPool = results.filter((entry) => entry.items.length > 0);
-    if (workingPool.length > 0) {
-      const slot = Number.isFinite(parsedSlot)
-        ? Math.abs(parsedSlot)
-        : Math.floor(Date.now() / (10 * 60 * 1000));
-      const picked = workingPool[slot % workingPool.length];
-      chosenRotationSource = picked.id;
-      activeSources.push(providerFetchers[picked.id].label);
-      newsItems.push(...picked.items);
-    }
-  } else {
-    for (const srcId of availableApiSources) {
-      activeSources.push(providerFetchers[srcId].label);
-      fetchPromises.push(providerFetchers[srcId].fn());
-    }
-  }
-
   try {
+    if (rotateMode && !requestedTicker) {
+      const rotationCandidates: RotationSourceId[] = [...availableApiSources, "yahoo"];
+      const results = await Promise.all(
+        rotationCandidates.map(async (id) => ({
+          id,
+          items: await providerFetchers[id].fn(),
+        }))
+      );
+      const workingPool = results.filter((entry) => entry.items.length > 0);
+      if (workingPool.length > 0) {
+        const slot = Number.isFinite(parsedSlot)
+          ? Math.abs(parsedSlot)
+          : Math.floor(Date.now() / (10 * 60 * 1000));
+        const picked = workingPool[slot % workingPool.length];
+        chosenRotationSource = picked.id;
+        activeSources.push(providerFetchers[picked.id].label);
+        newsItems.push(...picked.items);
+      }
+    } else {
+      for (const srcId of availableApiSources) {
+        activeSources.push(providerFetchers[srcId].label);
+        fetchPromises.push(providerFetchers[srcId].fn());
+      }
+    }
+
     if (fetchPromises.length > 0) {
       const results = await Promise.all(fetchPromises);
       results.forEach(items => {
@@ -2708,6 +2708,25 @@ app.get("/api/news/ticker", async (req, res) => {
 // Configure Vite integration for develop and static assets for build
 
 async function startServer() {
+  // Prevent unmatched or errored /api/* requests from falling through to SPA HTML
+  app.use("/api", (_req, res) => {
+    return res.status(404).json({
+      success: false,
+      error: "API route not found",
+    });
+  });
+
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.path.startsWith("/api")) {
+      console.error("Unhandled API error:", err);
+      return res.status(err?.status || 500).json({
+        success: false,
+        error: err?.message || "Internal server error",
+      });
+    }
+    return next(err);
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
