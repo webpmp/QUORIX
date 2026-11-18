@@ -60,7 +60,6 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Stocks');
   const [selectedEventId, setSelectedEventId] = useState<string>('');
-  const [wsStatus, setWsStatus] = useState<'CONNECTED' | 'REST PROXY' | 'DISCONNECTED'>('REST PROXY');
   const [lastUpdated, setLastUpdated] = useState<string>('');
 
   const quickTickers = useMemo(() => {
@@ -148,8 +147,6 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
       socket = new WebSocket(wsUrl);
 
       socket.onopen = () => {
-        setWsStatus('CONNECTED');
-
         const tokensToSubscribe: string[] = [];
         events.forEach((ev) => {
           ev.markets.forEach((m) => {
@@ -202,15 +199,8 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
         }
       };
 
-      socket.onerror = () => {
-        setWsStatus('REST PROXY');
-      };
-
-      socket.onclose = () => {
-        setWsStatus('REST PROXY');
-      };
     } catch {
-      setWsStatus('REST PROXY');
+      // ignore WebSocket initialization errors
     }
 
     return () => {
@@ -243,30 +233,72 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
       {/* 1. HEADER SECTION */}
       <div className="border-b border-[#333] pb-3 mb-3 flex flex-col md:flex-row justify-between items-start md:items-center select-none gap-2 shrink-0">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[#ff9900] text-sm font-extrabold uppercase tracking-wider block">
-              PMKT - EQUITY PREDICTION SCREENER
-            </span>
-            <span
-              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                wsStatus === 'CONNECTED'
-                  ? 'bg-emerald-950 border border-emerald-500 text-emerald-400'
-                  : 'bg-amber-950 border border-amber-600 text-amber-400 font-medium'
-              }`}
-            >
-              WS FEED: {wsStatus}
-            </span>
-          </div>
+          <span className="text-[#ff9900] text-sm font-extrabold uppercase tracking-wider block">
+            PMKT - EQUITY PREDICTION SCREENER
+          </span>
           <span className="text-[10px] text-zinc-500 block">
             LIVE INDIVIDUAL STOCK TARGETS, EARNINGS BEATS &amp; CORPORATE CATALYSTS
           </span>
         </div>
         <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono">
-          <Database size={10} className="text-[#3498db]" />
-          <span>GAMMA EQUITIES FEED</span>
+          <Database size={10} className="text-[#3498db] self-center align-middle shrink-0" />
+          <span className="relative group/gamma-tip inline-flex items-center">
+            <span
+              tabIndex={0}
+              aria-describedby="polymarket-gamma-tooltip"
+              className="cursor-help hover:text-zinc-200 focus:text-zinc-200 focus:outline-none transition-colors"
+            >
+              GAMMA EQUITIES FEED
+            </span>
+            <div
+              id="polymarket-gamma-tooltip"
+              role="tooltip"
+              className="hidden group-hover/gamma-tip:block group-focus-within/gamma-tip:block absolute left-0 md:left-auto md:right-0 top-full mt-2 w-[260px] md:w-[360px] max-w-[calc(100vw-2.5rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-[11px] leading-relaxed text-zinc-300 select-text text-left"
+            >
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#3498db] border-b border-[#222] pb-1 mb-2">
+                Gamma Equities Feed
+              </div>
+              <div className="space-y-1.5">
+                <p>
+                  Proxies <span className="text-zinc-100 font-bold">Polymarket&apos;s Gamma Markets API</span> to discover active, open prediction events filtered for stocks, earnings, tech, IPOs/M&amp;A, and macro catalysts.
+                </p>
+                <p>
+                  Provides event titles, categories, USD volume, contract questions, initial outcome prices, CLOB token IDs, and resolution sources displayed in the markets list and strike breakdown.
+                </p>
+                <p>
+                  <span className="text-zinc-100 font-bold">Cadence:</span> Retrieved on demand when loading this screen, switching Focus tabs, picking a ticker filter, searching, or clicking Reset.
+                </p>
+              </div>
+            </div>
+          </span>
           <span className="text-zinc-600 font-bold">|</span>
-          <ShieldCheck size={10} className="text-[#00ff00]" />
-          <span>CLOB LIVE ODDS</span>
+          <ShieldCheck size={10} className="text-[#00ff00] self-center align-middle shrink-0" />
+          <span className="relative group/clob-tip inline-flex items-center">
+            <span
+              tabIndex={0}
+              aria-describedby="polymarket-clob-tooltip"
+              className="cursor-help hover:text-zinc-200 focus:text-zinc-200 focus:outline-none transition-colors"
+            >
+              CLOB LIVE ODDS
+            </span>
+            <div
+              id="polymarket-clob-tooltip"
+              role="tooltip"
+              className="hidden group-hover/clob-tip:block group-focus-within/clob-tip:block absolute right-0 top-full mt-2 w-[250px] md:w-[360px] max-w-[calc(100vw-2.5rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-[11px] leading-relaxed text-zinc-300 select-text text-left"
+            >
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#00ff00] border-b border-[#222] pb-1 mb-2">
+                CLOB Live Odds (Central Limit Order Book)
+              </div>
+              <div className="space-y-1.5">
+                <p>
+                  Streams live trade updates from <span className="text-zinc-100 font-bold">Polymarket&apos;s Central Limit Order Book</span> WebSocket for the loaded contracts&apos; YES tokens, updating YES/NO prices in real time (retaining the latest Gamma snapshot if disconnected).
+                </p>
+                <p>
+                  <span className="text-zinc-100 font-bold">How to read:</span> Figures represent actual Polymarket contract share prices ($0.00–$1.00) alongside implied market probabilities (e.g., $0.65 = 65% YES probability, with NO as 1 − YES).
+                </p>
+              </div>
+            </div>
+          </span>
         </div>
       </div>
 
@@ -392,10 +424,10 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                     onClick={() => {
                       setSelectedEventId(ev.id);
                     }}
-                    className={`w-full text-left p-2.5 transition-all block cursor-pointer ${
+                    className={`w-full text-left p-2.5 transition-all block cursor-pointer border-l-2 border-t border-r border-b ${
                       isSelected
-                        ? 'bg-[#1a1308] text-white border-l-2 border-[#ff9900]'
-                        : 'hover:bg-[#070707] text-zinc-400 border-l-2 border-transparent'
+                        ? 'bg-[#1a1308] text-white border-[#ff9900]'
+                        : 'hover:bg-[#070707] text-zinc-400 border-transparent'
                     }`}
                   >
                     <div className="flex justify-between items-baseline mb-1 gap-2">

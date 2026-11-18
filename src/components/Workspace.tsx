@@ -271,6 +271,37 @@ export default function Workspace({
   ] as const;
   const activeBwriteFont = BWRITE_FONT_SCALES[bwriteFontIdx] || BWRITE_FONT_SCALES[1];
 
+  const renderTextSizeControl = () => (
+    <div className="flex items-center gap-1.5 font-mono select-none shrink-0">
+      <span className="text-[10px] text-zinc-500 uppercase tracking-wider hidden sm:inline mr-0.5">
+        TEXT SIZE
+      </span>
+      <button
+        type="button"
+        onClick={() => setBwriteFontIdx((prev) => Math.max(0, prev - 1))}
+        disabled={bwriteFontIdx === 0}
+        title="Decrease text size"
+        aria-label="Decrease text size"
+        className="px-2 py-0.5 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] font-bold transition-colors cursor-pointer"
+      >
+        A-
+      </button>
+      <span className="text-[10px] text-[#ff9900] font-bold min-w-[34px] text-center">
+        {activeBwriteFont.label}
+      </span>
+      <button
+        type="button"
+        onClick={() => setBwriteFontIdx((prev) => Math.min(BWRITE_FONT_SCALES.length - 1, prev + 1))}
+        disabled={bwriteFontIdx === BWRITE_FONT_SCALES.length - 1}
+        title="Increase text size"
+        aria-label="Increase text size"
+        className="px-2 py-0.5 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] font-bold transition-colors cursor-pointer"
+      >
+        A+
+      </button>
+    </div>
+  );
+
   useEffect(() => {
     try {
       localStorage.setItem('quorix_bwrite_font_size_idx', String(bwriteFontIdx));
@@ -841,11 +872,14 @@ export default function Workspace({
       {/* 3. DES: INTEL BIOGRAPHY AND DESCRIPTION OVERVIEWS */}
       {activeScreen === 'DES' && (
         <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl">
-          <div className="border-b border-[#333] pb-2 mb-4 flex justify-between items-center">
+          <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2">
             <span className="text-white text-md font-bold uppercase tracking-wider">
               {currentStock.symbol} Description summary (SEC-DES)
             </span>
-            <span className="text-[10px] text-zinc-500 font-mono">DES SYSTEM DISPATCH</span>
+            <div className="flex flex-wrap items-center gap-3 ml-auto">
+              <span className="text-[10px] text-zinc-500 font-mono">DES SYSTEM DISPATCH</span>
+              {renderTextSizeControl()}
+            </div>
           </div>
 
           {desLoading ? (
@@ -855,7 +889,7 @@ export default function Workspace({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-black border border-[#333] p-4 rounded text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed text-xs">
+              <div className={`bg-black border border-[#333] p-4 rounded text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed ${activeBwriteFont.body}`}>
                 {desData}
               </div>
 
@@ -902,15 +936,18 @@ export default function Workspace({
             <span className="text-white text-md font-bold uppercase tracking-wider">
               {currentStock.symbol} ANR Consensus Rating
             </span>
-            {anrLoading ? (
-              <span className="text-sm text-zinc-500 font-bold uppercase font-mono shrink-0">
-                ...
-              </span>
-            ) : anrConsensus.label ? (
-              <span className={`text-sm sm:text-base font-bold uppercase font-mono tracking-wider shrink-0 ${anrConsensus.colorClass}`}>
-                {anrConsensus.label}
-              </span>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-3 ml-auto">
+              {anrLoading ? (
+                <span className="text-sm text-zinc-500 font-bold uppercase font-mono shrink-0">
+                  ...
+                </span>
+              ) : anrConsensus.label ? (
+                <span className={`text-sm sm:text-base font-bold uppercase font-mono tracking-wider shrink-0 ${anrConsensus.colorClass}`}>
+                  {anrConsensus.label}
+                </span>
+              ) : null}
+              {renderTextSizeControl()}
+            </div>
           </div>
 
           {anrLoading ? (
@@ -920,7 +957,7 @@ export default function Workspace({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-black border border-[#333] p-4 rounded text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed text-xs">
+              <div className={`bg-black border border-[#333] p-4 rounded text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed ${activeBwriteFont.body}`}>
                 {anrData}
               </div>
             </div>
@@ -1397,34 +1434,7 @@ export default function Workspace({
               <Sparkles size={14} className="text-[#3498db]" />
               QUORIX INTELLIGENCE
             </span>
-            <div className="flex items-center gap-1.5 font-mono">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider hidden sm:inline mr-0.5">
-                TEXT SIZE
-              </span>
-              <button
-                type="button"
-                onClick={() => setBwriteFontIdx((prev) => Math.max(0, prev - 1))}
-                disabled={bwriteFontIdx === 0}
-                title="Decrease chat text size"
-                aria-label="Decrease chat text size"
-                className="px-2 py-0.5 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] font-bold transition-colors cursor-pointer"
-              >
-                A-
-              </button>
-              <span className="text-[10px] text-[#ff9900] font-bold min-w-[34px] text-center">
-                {activeBwriteFont.label}
-              </span>
-              <button
-                type="button"
-                onClick={() => setBwriteFontIdx((prev) => Math.min(BWRITE_FONT_SCALES.length - 1, prev + 1))}
-                disabled={bwriteFontIdx === BWRITE_FONT_SCALES.length - 1}
-                title="Increase chat text size"
-                aria-label="Increase chat text size"
-                className="px-2 py-0.5 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] font-bold transition-colors cursor-pointer"
-              >
-                A+
-              </button>
-            </div>
+            {renderTextSizeControl()}
           </div>
 
           {/* Messages window area */}
