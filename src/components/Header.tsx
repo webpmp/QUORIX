@@ -173,15 +173,15 @@ export default function Header({
       </div>
 
       {/* Primary Input Commad Bar */}
-      <div className="p-2.5 bg-[#0a0a0a] flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+      <div className="p-2.5 bg-[#0a0a0a] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
         {/* Terminal Indicator */}
-        <div className="flex items-center space-x-2 text-[#ff9900] font-extrabold pr-2 sm:border-r border-[#333]">
+        <div className="flex items-center space-x-2 text-[#ff9900] font-extrabold pr-2 shrink-0">
           <span className="text-2xl leading-none tracking-wider uppercase">QUORIX</span>
           <span className="text-zinc-500 text-[10px] font-normal">v1.0</span>
         </div>
 
         {/* Input area */}
-        <div ref={historyContainerRef} className="relative flex-1">
+        <div ref={historyContainerRef} className="relative w-full sm:w-[47rem] max-w-full min-w-0 shrink">
           <form
             ref={formRef}
             onSubmit={handleFormSubmit}
@@ -219,7 +219,7 @@ export default function Header({
                 });
               }}
               placeholder="Enter command code (e.g., AAPL GP, CRNC, WEAT, or describe stock/query...)"
-              className="w-full bg-transparent text-[#00ff00] font-mono text-sm uppercase placeholder:normal-case outline-none placeholder-zinc-700 caret-[#00ff00]"
+              className="flex-1 min-w-0 bg-transparent text-[#00ff00] font-mono text-sm uppercase placeholder:normal-case outline-none placeholder-zinc-700 caret-[#00ff00]"
               id="terminal-input"
               autoFocus
               autoComplete="off"
@@ -227,7 +227,7 @@ export default function Header({
             />
             <button
               type="submit"
-              className="ml-2 px-3 py-0.5 rounded bg-[#ff9900] text-black font-extrabold text-[10px] uppercase hover:bg-amber-500 transition-colors cursor-pointer"
+              className="ml-2 px-3 py-0.5 rounded bg-[#ff9900] text-black font-extrabold text-[10px] uppercase hover:bg-amber-500 transition-colors cursor-pointer shrink-0"
             >
               EXEC
             </button>
@@ -281,7 +281,7 @@ export default function Header({
         </div>
 
         {/* Active command display */}
-        <div className="flex items-center space-x-2 text-[10px] self-end sm:self-auto">
+        <div className="flex items-center space-x-2 text-[10px] self-end sm:self-auto shrink-0">
           <span className="text-zinc-500">ACTIVE SCREEN:</span>
           <span className="bg-black border border-[#333] px-2 py-0.5 text-[#ff9900] font-bold rounded uppercase tracking-wider min-w-[42px] text-center">
             {activeScreen || 'GP COMMAND'}
