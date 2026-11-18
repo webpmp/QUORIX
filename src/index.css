@@ -43,6 +43,15 @@
   background: #444444;
 }
 
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes flash-green {
   0%, 100% { background-color: rgba(0, 255, 0, 0); }
   50% { background-color: rgba(0, 255, 0, 0.25); }

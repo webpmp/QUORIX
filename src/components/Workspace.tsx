@@ -68,6 +68,40 @@ function getMarketTimeDetails(): { isPreMarket: boolean; isCoreHours: boolean; i
   }
 }
 
+function getAnrConsensusRating(reportText: string): { label: string; colorClass: string } {
+  if (!reportText) {
+    return { label: '', colorClass: 'text-zinc-500' };
+  }
+
+  let raw = '';
+  const recLineMatch = reportText.match(/RECOMMENDATION\s*:\s*([A-Z_ -]+?)(?:\s*\||\r?\n|$)/i);
+  if (recLineMatch?.[1]) {
+    raw = recLineMatch[1].replace(/_/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+  } else {
+    const fallbackMatch = reportText.match(
+      /\b(STRONG[\s_]+BUY|STRONG[\s_]+SELL|OUTPERFORM|UNDERPERFORM|BUY|HOLD|SELL)\b/i
+    );
+    if (fallbackMatch?.[1]) {
+      raw = fallbackMatch[1].replace(/_/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+    }
+  }
+
+  if (!raw || raw === 'NONE' || raw === 'N/A') {
+    return { label: 'N/A', colorClass: 'text-zinc-500' };
+  }
+
+  let colorClass = 'text-zinc-300';
+  if (raw.includes('BUY') || raw === 'OUTPERFORM') {
+    colorClass = 'text-[#00ff00]';
+  } else if (raw.includes('SELL') || raw === 'UNDERPERFORM') {
+    colorClass = 'text-[#ff4444]';
+  } else if (raw === 'HOLD' || raw === 'NEUTRAL') {
+    colorClass = 'text-[#ff9900]';
+  }
+
+  return { label: raw, colorClass };
+}
+
 function findMentionedTickers(title: string, stocks: Record<string, any>): string[] {
   const text = title.toUpperCase();
   const tickerList = Object.keys(stocks);
@@ -890,13 +924,23 @@ export default function Workspace({
       )}
 
       {/* 4. ANR: RECOMMENDATIONS CONSENSUS REPORT VIEW */}
-      {activeScreen === 'ANR' && (
+      {activeScreen === 'ANR' && (() => {
+        const anrConsensus = getAnrConsensusRating(anrData);
+        return (
         <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl">
-          <div className="border-b border-[#333] pb-2 mb-4 flex justify-between items-center">
+          <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2">
             <span className="text-white text-md font-bold uppercase tracking-wider">
               {currentStock.symbol} ANR Consensus Rating
             </span>
-            <span className="text-[10px] text-zinc-500 font-mono">ANR INTELLIGENCE ENGINE</span>
+            {anrLoading ? (
+              <span className="text-sm text-zinc-500 font-bold uppercase font-mono shrink-0">
+                ...
+              </span>
+            ) : anrConsensus.label ? (
+              <span className={`text-sm sm:text-base font-bold uppercase font-mono tracking-wider shrink-0 ${anrConsensus.colorClass}`}>
+                {anrConsensus.label}
+              </span>
+            ) : null}
           </div>
 
           {anrLoading ? (
@@ -912,7 +956,8 @@ export default function Workspace({
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* 5. NEWS: CENTRAL SECURITIES NEWS GROUND-TRUTH FEED */}
       {activeScreen === 'NEWS' && (

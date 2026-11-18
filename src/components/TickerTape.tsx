@@ -98,8 +98,8 @@ export default function TickerTape({ stocks, onSelectTicker }: TickerTapeProps) 
   }, []);
 
   return (
-    <div className="bg-[#1a1a1a] border-b border-[#333] select-none text-xs font-mono py-1 px-3 whitespace-nowrap overflow-x-auto overflow-y-hidden flex items-center space-x-6 text-[#d4d4d4] shadow-inner">
-      <div className="flex items-center space-x-2 shrink-0">
+    <div className="bg-[#1a1a1a] border-b border-[#333] select-none text-xs font-mono py-1 px-3 whitespace-nowrap overflow-hidden flex items-center gap-6 text-[#d4d4d4] shadow-inner">
+      <div className="flex items-center space-x-2 shrink-0 bg-[#1a1a1a]">
         {marketDetails.isCoreHours ? (
           <span className="text-[9px] bg-[#ff9900] text-black px-1.5 py-0.5 font-extrabold uppercase rounded-sm">
             INDEX TAPE
@@ -118,7 +118,7 @@ export default function TickerTape({ stocks, onSelectTicker }: TickerTapeProps) 
           </span>
         )}
       </div>
-      <div className="flex space-x-6 items-center flex-1">
+      <div className="flex space-x-6 items-center flex-1 min-w-0 overflow-x-auto overflow-y-hidden scrollbar-none">
         {TAPE_ITEMS.map((item) => {
           const stock = stocks[item.symbol];
           if (!stock) return null;
@@ -160,7 +160,7 @@ export default function TickerTape({ stocks, onSelectTicker }: TickerTapeProps) 
             <div
               key={item.symbol}
               onClick={() => onSelectTicker?.(item.symbol)}
-              className={`flex items-center space-x-1.5 px-2 py-0.5 rounded cursor-pointer transition-all duration-300 hover:bg-[#333]/50 hover:scale-[1.03] active:scale-[0.97] ${flashClass}`}
+              className={`flex items-center space-x-1.5 px-2 py-0.5 rounded cursor-pointer transition-all duration-300 hover:bg-[#333]/50 hover:scale-[1.03] active:scale-[0.97] shrink-0 ${flashClass}`}
               title={`Click to open ${item.name} (${item.symbol}) in GRAPH PRICE`}
               id={`ticker-tape-${item.symbol}`}
             >

@@ -773,7 +773,7 @@ function formatAnalystReport(sym: string, summary: any, chart: any) {
     : null;
 
   const lines: string[] = [];
-  lines.push(`${name.toUpperCase()} (${sym}) — WALL STREET ANALYST CONSENSUS (ANR)`);
+  lines.push(`${name.toUpperCase()} (${sym})`);
   lines.push(`${"=".repeat(72)}`);
   lines.push(
     `RECOMMENDATION : ${(fin.recommendationKey || "N/A").toUpperCase()}  |  ANALYST COUNT: ${fin.numberOfAnalystOpinions?.raw ?? "N/A"}`
