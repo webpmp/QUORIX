@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
 import { StockData } from '../types';
 import { Activity, Info, RefreshCw, X } from 'lucide-react';
 import StudiesModal from './StudiesModal';
@@ -52,7 +52,18 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
   } | null>(null);
   const [historyLoading, setHistoryLoading] = useState<boolean>(false);
   const chartPanelRef = useRef<HTMLDivElement | null>(null);
+  const yAxisHitRef = useRef<SVGRectElement | null>(null);
   const [chartWidth, setChartWidth] = useState<number>(600);
+  const [customYRange, setCustomYRange] = useState<{ min: number; max: number } | null>(null);
+  const [isYAxisHovered, setIsYAxisHovered] = useState<boolean>(false);
+  const [isYAxisDragging, setIsYAxisDragging] = useState<boolean>(false);
+  const dragStateRef = useRef<{ startY: number; startMin: number; startMax: number } | null>(null);
+  const scaleContextRef = useRef<{
+    minPrice: number;
+    maxPrice: number;
+    computeScaledYRange: (baseMin: number, baseMax: number, factor: number) => { min: number; max: number };
+    isModalOpen: boolean;
+  } | null>(null);
 
   useEffect(() => {
     try {
@@ -92,6 +103,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     const activeInt = interval;
     let cancelled = false;
     setHoverIndex(null);
+    setCustomYRange(null);
 
     const loadHistory = async () => {
       setHistoryLoading(true);
@@ -219,6 +231,110 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     onTickTimeChange?.(formattedHoveredDate);
   }, [formattedHoveredDate, onTickTimeChange]);
 
+  const hasChartData = Boolean(stock && activeBars.length > 0 && hoveredData);
+
+  // Attach non-passive wheel listener on left Y-axis area to zoom without scrolling page
+  useEffect(() => {
+    if (!hasChartData) return;
+    const hitEl = yAxisHitRef.current;
+    if (!hitEl) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const ctx = scaleContextRef.current;
+      if (!ctx) return;
+
+      // Wheel up (deltaY < 0) => zoom in; wheel down (deltaY > 0) => zoom out
+      const clampedDelta = Math.max(-180, Math.min(180, e.deltaY));
+      const factor = Math.exp(-clampedDelta * 0.0022);
+      setCustomYRange((prev) => {
+        const curMin = prev ? prev.min : ctx.minPrice;
+        const curMax = prev ? prev.max : ctx.maxPrice;
+        return ctx.computeScaledYRange(curMin, curMax, factor);
+      });
+    };
+
+    hitEl.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      hitEl.removeEventListener('wheel', handleWheel);
+    };
+  }, [hasChartData]);
+
+  // Smooth vertical Y-axis drag handling
+  useEffect(() => {
+    if (!isYAxisDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const drag = dragStateRef.current;
+      const ctx = scaleContextRef.current;
+      if (!drag || !ctx) return;
+      const dy = e.clientY - drag.startY;
+      // Dragging up (dy < 0) expands vertical scale (zoom in); dragging down zooms out
+      const factor = Math.exp(-dy * 0.0085);
+      setCustomYRange(ctx.computeScaledYRange(drag.startMin, drag.startMax, factor));
+    };
+
+    const handleMouseUp = () => {
+      dragStateRef.current = null;
+      setIsYAxisDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isYAxisDragging]);
+
+  // Keyboard zoom shortcuts (+ / =, - / _, 0) when GRAPH PRICE chart is active and no input is focused
+  useEffect(() => {
+    if (!hasChartData) return;
+
+    const isEditableElement = (el: EventTarget | null): boolean => {
+      if (!el || !(el instanceof HTMLElement)) return false;
+      const tag = el.tagName;
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        el.isContentEditable
+      );
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const ctx = scaleContextRef.current;
+      if (!ctx || ctx.isModalOpen) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (isEditableElement(e.target) || isEditableElement(document.activeElement)) return;
+
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        setCustomYRange((prev) => {
+          const curMin = prev ? prev.min : ctx.minPrice;
+          const curMax = prev ? prev.max : ctx.maxPrice;
+          return ctx.computeScaledYRange(curMin, curMax, 1.2);
+        });
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        setCustomYRange((prev) => {
+          const curMin = prev ? prev.min : ctx.minPrice;
+          const curMax = prev ? prev.max : ctx.maxPrice;
+          return ctx.computeScaledYRange(curMin, curMax, 1 / 1.2);
+        });
+      } else if (e.key === '0') {
+        e.preventDefault();
+        setCustomYRange(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [hasChartData]);
+
   if (!stock || activeBars.length === 0 || !hoveredData) {
     return (
       <>
@@ -265,10 +381,10 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
   const paddingRight = 32;
   const adjWidth = Math.max(100, width - paddingLeft - paddingRight);
 
-  const priceHeight = 184;
+  const BASE_PRICE_HEIGHT = 184;
+  const MAX_PRICE_EXPANSION_PX = 50;
   const pricePaddingTop = 18;
   const pricePaddingBottom = 18;
-  const priceAdjHeight = priceHeight - pricePaddingTop - pricePaddingBottom;
 
   const barStep = adjWidth / Math.max(history.length, 1);
   const candleWidth = Math.max(4, Math.min(14, Math.floor(barStep * 0.55)));
@@ -278,9 +394,6 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
   const maxLabels = Math.max(3, Math.floor(adjWidth / minLabelGapPx));
   const labelStep = Math.max(1, Math.ceil(history.length / maxLabels));
   const lastIdx = history.length - 1;
-
-  const formatAxisPrice = (val: number) =>
-    val >= 1000 ? val.toFixed(1) : val >= 10 ? val.toFixed(2) : val.toFixed(3);
 
   const formatAxisSigned = (val: number) => {
     if (Math.abs(val) >= 1_000_000_000) return `${(val / 1_000_000_000).toFixed(1)}B`;
@@ -338,9 +451,105 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     ...history.flatMap((h) => [h.high, h.low, h.close, h.open]),
     ...overlayValues,
   ];
-  const maxPrice = Math.max(...prices) * 1.008;
-  const minPrice = Math.min(...prices) * 0.992;
+  const autoMaxPrice = Math.max(...prices) * 1.008;
+  const autoMinPrice = Math.min(...prices) * 0.992;
+  const autoPriceRange = Math.max(autoMaxPrice - autoMinPrice, 0.0001);
+  const autoMid = (autoMinPrice + autoMaxPrice) / 2;
+
+  const latestBarClose = history[history.length - 1]?.close ?? autoMid;
+  const anchorPrice =
+    typeof stock.price === 'number' &&
+    stock.price > 0 &&
+    stock.price >= autoMinPrice * 0.5 &&
+    stock.price <= autoMaxPrice * 1.5
+      ? stock.price
+      : latestBarClose;
+
+  const minVisibleRange = Math.max(autoPriceRange * 0.15, Math.abs(autoMid) * 0.002, 0.02);
+  const maxVisibleRange = Math.max(autoPriceRange * 4, Math.abs(autoMid) * 0.4, minVisibleRange * 2);
+
+  const computeScaledYRange = (
+    baseMin: number,
+    baseMax: number,
+    factor: number
+  ): { min: number; max: number } => {
+    const curRange = Math.max(baseMax - baseMin, minVisibleRange);
+    const safeFactor = Math.max(0.05, Math.min(20, factor));
+    const nextRange = Math.max(minVisibleRange, Math.min(maxVisibleRange, curRange / safeFactor));
+    const mid = (baseMin + baseMax) / 2;
+    const half = nextRange / 2;
+    let nextMin = mid - half;
+    let nextMax = mid + half;
+
+    // Keep live/anchor price inside the visible plotting area when zooming in
+    const edgePad = nextRange * 0.04;
+    if (anchorPrice > nextMax - edgePad) {
+      const shift = anchorPrice + edgePad - nextMax;
+      nextMin += shift;
+      nextMax += shift;
+    } else if (anchorPrice < nextMin + edgePad) {
+      const shift = nextMin + edgePad - anchorPrice;
+      nextMin -= shift;
+      nextMax -= shift;
+    }
+
+    // Prevent negative Y-axis values for non-negative price instruments
+    if (autoMinPrice >= 0 && nextMin < 0) {
+      const shiftUp = -nextMin;
+      nextMin = 0;
+      nextMax = Math.max(nextMax + shiftUp, minVisibleRange);
+    }
+
+    if (nextMax <= nextMin) {
+      nextMax = nextMin + minVisibleRange;
+    }
+
+    return { min: nextMin, max: nextMax };
+  };
+
+  const minPrice = customYRange ? customYRange.min : autoMinPrice;
+  const maxPrice = customYRange ? customYRange.max : autoMaxPrice;
   const priceRange = Math.max(maxPrice - minPrice, 0.0001);
+  const isYZoomed = customYRange !== null;
+  const yZoomFactor = autoPriceRange / priceRange;
+  const priceExtraHeight =
+    isYZoomed && yZoomFactor > 1
+      ? Math.min(
+          MAX_PRICE_EXPANSION_PX,
+          Math.max(0, Math.round((Math.log(yZoomFactor) / Math.log(4)) * MAX_PRICE_EXPANSION_PX))
+        )
+      : 0;
+  const priceHeight = BASE_PRICE_HEIGHT + priceExtraHeight;
+  const priceAdjHeight = priceHeight - pricePaddingTop - pricePaddingBottom;
+
+  scaleContextRef.current = {
+    minPrice,
+    maxPrice,
+    computeScaledYRange,
+    isModalOpen: isStudiesModalOpen,
+  };
+
+  const handleYAxisMouseDown = (e: ReactMouseEvent<SVGRectElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setHoverIndex(null);
+    dragStateRef.current = {
+      startY: e.clientY,
+      startMin: minPrice,
+      startMax: maxPrice,
+    };
+    setIsYAxisDragging(true);
+  };
+
+  const priceTickStep = priceRange / 4;
+  const formatAxisPrice = (val: number) => {
+    if (priceTickStep < 0.01) return val.toFixed(4);
+    if (priceTickStep < 0.1) return val.toFixed(3);
+    if (val >= 1000 && priceTickStep >= 0.5) return val.toFixed(1);
+    if (val >= 10) return val.toFixed(2);
+    return val.toFixed(3);
+  };
 
   // Volume boundaries (include volMa if active)
   const volSeries = history.map((h) => h.volume);
@@ -537,7 +746,10 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     .join(' ');
 
   return (
-    <div className="bg-[#010101] border border-[#333] rounded p-3.5 text-xs font-mono select-none">
+    <div
+      tabIndex={0}
+      className="bg-[#010101] border border-[#333] rounded p-3.5 text-xs font-mono select-none focus:outline-none"
+    >
       {/* Chart Headers */}
       <div className="flex flex-col sm:flex-row items-baseline sm:items-center justify-between border-b border-[#333] pb-2 mb-3">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -723,6 +935,11 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 {item.label}: {typeof item.val === 'number' ? item.val.toFixed(2) : '--'}
               </span>
             ))}
+            {(isYZoomed || isYAxisDragging) && (
+              <span className="ml-auto text-[#ff9900] font-bold tabular-nums">
+                Y-SCALE: {yZoomFactor.toFixed(2)}× (DBL-CLICK / 0 RESET)
+              </span>
+            )}
           </div>
           <svg
             width={width}
@@ -731,6 +948,30 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             className="block w-full overflow-visible"
             onMouseLeave={() => setHoverIndex(null)}
           >
+            {/* Subtle interactive backdrop for left Y-axis scale */}
+            <rect
+              x={2}
+              y={pricePaddingTop - 6}
+              width={paddingLeft - 6}
+              height={priceAdjHeight + 12}
+              rx="2"
+              fill={
+                isYAxisDragging
+                  ? 'rgba(255, 153, 0, 0.12)'
+                  : isYAxisHovered
+                  ? 'rgba(255, 153, 0, 0.06)'
+                  : 'transparent'
+              }
+              stroke={
+                isYAxisDragging
+                  ? 'rgba(255, 153, 0, 0.45)'
+                  : isYAxisHovered || isYZoomed
+                  ? 'rgba(255, 153, 0, 0.22)'
+                  : 'transparent'
+              }
+              strokeWidth="1"
+            />
+
             {/* Horizontal Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
               const hVal = pricePaddingTop + pct * priceAdjHeight;
@@ -750,10 +991,11 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                     x={paddingLeft - 6}
                     y={hVal + 3}
                     textAnchor="end"
-                    fill="#e4e4e7"
+                    fill={isYAxisHovered || isYAxisDragging ? '#ff9900' : '#e4e4e7'}
                     fontSize="9.5"
                     fontFamily="monospace"
                     fontWeight="bold"
+                    className="pointer-events-none"
                   >
                     {formatAxisPrice(priceVal)}
                   </text>
@@ -764,69 +1006,84 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             {/* Support / Resistance Levels Overlay */}
             {showLevels && (
               <g>
-                <line
-                  x1={paddingLeft}
-                  y1={getY(windowHigh)}
-                  x2={width - paddingRight}
-                  y2={getY(windowHigh)}
-                  stroke="rgba(0, 255, 0, 0.45)"
-                  strokeWidth="1"
-                  strokeDasharray="3,3"
-                />
-                <text
-                  x={width - paddingRight + 3}
-                  y={getY(windowHigh) + 3}
-                  fill="#00ff00"
-                  fontSize="8"
-                  fontFamily="monospace"
-                  fontWeight="bold"
-                >
-                  HI
-                </text>
-                <line
-                  x1={paddingLeft}
-                  y1={getY(windowLow)}
-                  x2={width - paddingRight}
-                  y2={getY(windowLow)}
-                  stroke="rgba(255, 68, 68, 0.45)"
-                  strokeWidth="1"
-                  strokeDasharray="3,3"
-                />
-                <text
-                  x={width - paddingRight + 3}
-                  y={getY(windowLow) + 3}
-                  fill="#ff4444"
-                  fontSize="8"
-                  fontFamily="monospace"
-                  fontWeight="bold"
-                >
-                  LO
-                </text>
-                {prevCloseRef !== null && (
-                  <>
-                    <line
-                      x1={paddingLeft}
-                      y1={getY(prevCloseRef)}
-                      x2={width - paddingRight}
-                      y2={getY(prevCloseRef)}
-                      stroke="rgba(52, 152, 219, 0.65)"
-                      strokeWidth="1"
-                      strokeDasharray="4,3"
-                    />
-                    <text
-                      x={width - paddingRight + 3}
-                      y={getY(prevCloseRef) + 3}
-                      fill="#3498db"
-                      fontSize="8"
-                      fontFamily="monospace"
-                      fontWeight="bold"
-                    >
-                      PC
-                    </text>
-                  </>
-                )}
+                {getY(windowHigh) >= pricePaddingTop - 2 &&
+                  getY(windowHigh) <= pricePaddingTop + priceAdjHeight + 2 && (
+                    <>
+                      <line
+                        x1={paddingLeft}
+                        y1={getY(windowHigh)}
+                        x2={width - paddingRight}
+                        y2={getY(windowHigh)}
+                        stroke="rgba(0, 255, 0, 0.45)"
+                        strokeWidth="1"
+                        strokeDasharray="3,3"
+                      />
+                      <text
+                        x={width - paddingRight + 3}
+                        y={getY(windowHigh) + 3}
+                        fill="#00ff00"
+                        fontSize="8"
+                        fontFamily="monospace"
+                        fontWeight="bold"
+                      >
+                        HI
+                      </text>
+                    </>
+                  )}
+                {getY(windowLow) >= pricePaddingTop - 2 &&
+                  getY(windowLow) <= pricePaddingTop + priceAdjHeight + 2 && (
+                    <>
+                      <line
+                        x1={paddingLeft}
+                        y1={getY(windowLow)}
+                        x2={width - paddingRight}
+                        y2={getY(windowLow)}
+                        stroke="rgba(255, 68, 68, 0.45)"
+                        strokeWidth="1"
+                        strokeDasharray="3,3"
+                      />
+                      <text
+                        x={width - paddingRight + 3}
+                        y={getY(windowLow) + 3}
+                        fill="#ff4444"
+                        fontSize="8"
+                        fontFamily="monospace"
+                        fontWeight="bold"
+                      >
+                        LO
+                      </text>
+                    </>
+                  )}
+                {prevCloseRef !== null &&
+                  getY(prevCloseRef) >= pricePaddingTop - 2 &&
+                  getY(prevCloseRef) <= pricePaddingTop + priceAdjHeight + 2 && (
+                    <>
+                      <line
+                        x1={paddingLeft}
+                        y1={getY(prevCloseRef)}
+                        x2={width - paddingRight}
+                        y2={getY(prevCloseRef)}
+                        stroke="rgba(52, 152, 219, 0.65)"
+                        strokeWidth="1"
+                        strokeDasharray="4,3"
+                      />
+                      <text
+                        x={width - paddingRight + 3}
+                        y={getY(prevCloseRef) + 3}
+                        fill="#3498db"
+                        fontSize="8"
+                        fontFamily="monospace"
+                        fontWeight="bold"
+                      >
+                        PC
+                      </text>
+                    </>
+                  )}
               </g>
             )}
+
+            {/* Clipped Price Plot Series (Candles, Line/Area, Overlays, Crosshair Dot) */}
+            <g clipPath="url(#gp-price-plot-clip)">
 
             {/* Bollinger Bands Envelope */}
             {showBb && (
@@ -974,6 +1231,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                   />
                 );
               })}
+            </g>
 
             {/* Vertical Time Axis ticks */}
             {history.map((h, i) => {
@@ -1036,18 +1294,53 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                   strokeWidth="0.8"
                   strokeDasharray="2,2"
                 />
-                <circle
-                  cx={getX(hoverIndex)}
-                  cy={getY(history[hoverIndex].close)}
-                  r="4"
-                  fill="#ff9900"
-                  stroke="black"
-                  strokeWidth="1.5"
-                />
+                {getY(history[hoverIndex].close) >= pricePaddingTop - 3 &&
+                  getY(history[hoverIndex].close) <= pricePaddingTop + priceAdjHeight + 3 && (
+                    <circle
+                      cx={getX(hoverIndex)}
+                      cy={getY(history[hoverIndex].close)}
+                      r="4"
+                      fill="#ff9900"
+                      stroke="black"
+                      strokeWidth="1.5"
+                    />
+                  )}
               </g>
             )}
 
+            {/* Interactive Left Y-Axis Scale Hit Area */}
+            <rect
+              ref={yAxisHitRef}
+              x={0}
+              y={0}
+              width={paddingLeft}
+              height={priceHeight}
+              fill="transparent"
+              className="cursor-ns-resize"
+              onMouseEnter={() => {
+                setIsYAxisHovered(true);
+                setHoverIndex(null);
+              }}
+              onMouseLeave={() => setIsYAxisHovered(false)}
+              onMouseDown={handleYAxisMouseDown}
+              onDoubleClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCustomYRange(null);
+              }}
+            >
+              <title>Scroll or drag vertically to zoom price scale (Double-click or press 0 to reset)</title>
+            </rect>
+
             <defs>
+              <clipPath id="gp-price-plot-clip">
+                <rect
+                  x={paddingLeft - 8}
+                  y={pricePaddingTop - 3}
+                  width={adjWidth + 16}
+                  height={priceAdjHeight + 6}
+                />
+              </clipPath>
               <linearGradient id="grad-chart" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#00ff00" stopOpacity="0.2" />
                 <stop offset="100%" stopColor="#000000" stopOpacity="0.0" />
