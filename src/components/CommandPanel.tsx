@@ -108,15 +108,15 @@ export default function CommandPanel({
       <div ref={splitContainerRef} className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {/* Standard Terminal CLI codes list */}
         <div
-          className="p-3 overflow-y-auto min-h-0"
+          className="flex flex-col min-h-0"
           style={{ height: `${100 - equitiesHeightPct}%` }}
         >
-          <div className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-2 flex items-center justify-between">
+          <div className="px-3 pt-3 pb-2 shrink-0 text-[10px] text-zinc-500 font-bold tracking-widest uppercase flex items-center justify-between">
             <span>Terminal Commands</span>
             <span className="text-zinc-600 font-mono text-[9px]">{commands.length} ACTIVE</span>
           </div>
           
-          <div className="space-y-1.5">
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 space-y-1.5">
             {commands.map((cmd) => {
               const isSelected = activeScreen === cmd.code || (cmd.code === 'SETT' && activeScreen === 'SETTINGS');
               return (
@@ -173,10 +173,10 @@ export default function CommandPanel({
 
         {/* Tracked equity list */}
         <div
-          className="p-3 overflow-y-auto min-h-0 border-b border-[#333]"
+          className="flex flex-col min-h-0 border-b border-[#333]"
           style={{ height: `${equitiesHeightPct}%` }}
         >
-          <div className="flex items-center justify-between text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-2">
+          <div className="px-3 pt-3 pb-2 shrink-0 flex items-center justify-between text-[10px] text-zinc-500 font-bold tracking-widest uppercase">
             <span>Tracked Equities</span>
             <div className="flex items-center gap-1.5">
               {isEditingEquities && (
@@ -210,7 +210,7 @@ export default function CommandPanel({
             </div>
           </div>
 
-          <div className="space-y-1">
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 space-y-1">
             {trackedTickers.length === 0 ? (
               <div className="text-center py-6 px-2 border border-dashed border-[#222] rounded text-[10px] text-zinc-500 space-y-2">
                 <div>NO TRACKED EQUITIES IN LIST.</div>
@@ -376,11 +376,13 @@ export default function CommandPanel({
           </div>
 
           {/* Ticker status */}
-          <div
-            className="mt-2 text-[8px] text-zinc-500 font-mono text-center border border-[#1a1a1a] bg-[#050505] p-1.5 rounded uppercase select-none"
-            title="Equity prices poll via HTTP every 60 seconds (1 min). There is no live WebSocket tick stream."
-          >
-            QUOTES MODE: <span className="text-[#00ff00] font-extrabold">DELAYED 1 MIN</span>
+          <div className="px-3 pt-2 pb-3 shrink-0">
+            <div
+              className="text-[8px] text-zinc-500 font-mono text-center border border-[#1a1a1a] bg-[#050505] p-1.5 rounded uppercase select-none"
+              title="Equity prices poll via HTTP every 60 seconds (1 min). There is no live WebSocket tick stream."
+            >
+              QUOTES MODE: <span className="text-[#00ff00] font-extrabold">DELAYED 1 MIN</span>
+            </div>
           </div>
         </div>
       </div>
