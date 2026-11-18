@@ -1856,7 +1856,7 @@ export default function Workspace({
                     <span>TESTING CORE PIPELINE...</span>
                   </>
                 ) : (
-                  <span>EXECUTE DIAGNOSTIC LINK</span>
+                  <span>TEST CONNECTION</span>
                 )}
               </button>
             </div>
