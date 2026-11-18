@@ -776,7 +776,7 @@ function formatAnalystReport(sym: string, summary: any, chart: any) {
   lines.push(`${name.toUpperCase()} (${sym})`);
   lines.push(`${"=".repeat(72)}`);
   lines.push(
-    `RECOMMENDATION : ${(fin.recommendationKey || "N/A").toUpperCase()}  |  ANALYST COUNT: ${fin.numberOfAnalystOpinions?.raw ?? "N/A"}`
+    `RECOMMENDATION : ${(fin.recommendationKey || "N/A").replace(/_/g, " ").toUpperCase()}  |  ANALYST COUNT: ${fin.numberOfAnalystOpinions?.raw ?? "N/A"}`
   );
   lines.push(
     `CURRENT PRICE  : ${currentPrice > 0 ? `$${currentPrice.toFixed(2)}` : "N/A"}`

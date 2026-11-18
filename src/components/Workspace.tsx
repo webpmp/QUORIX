@@ -943,18 +943,7 @@ export default function Workspace({
             <span className="text-white text-md font-bold uppercase tracking-wider">
               {currentStock.symbol} ANR Consensus Rating
             </span>
-            <div className="flex flex-wrap items-center gap-3 ml-auto">
-              {anrLoading ? (
-                <span className="text-sm text-zinc-500 font-bold uppercase font-mono shrink-0">
-                  ...
-                </span>
-              ) : anrConsensus.label ? (
-                <span className={`text-sm sm:text-base font-bold uppercase font-mono tracking-wider shrink-0 ${anrConsensus.colorClass}`}>
-                  {anrConsensus.label}
-                </span>
-              ) : null}
-              {renderTextSizeControl()}
-            </div>
+            {renderTextSizeControl()}
           </div>
 
           {anrLoading ? (
@@ -965,7 +954,25 @@ export default function Workspace({
           ) : (
             <div className="space-y-4">
               <div className={`bg-black border border-[#333] p-4 rounded text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed ${activeBwriteFont.body}`}>
-                {anrData}
+                {anrData.split('\n').map((line, lineIdx, arr) => {
+                  const recMatch = line.match(/^(RECOMMENDATION\s*:\s*)([A-Z0-9_/ -]+?)(\s*\|\s*.*|$)/i);
+                  return (
+                    <React.Fragment key={lineIdx}>
+                      {recMatch && anrConsensus.label ? (
+                        <>
+                          {recMatch[1]}
+                          <span className={`font-bold uppercase font-mono tracking-wider ${anrConsensus.colorClass}`}>
+                            {anrConsensus.label}
+                          </span>
+                          {recMatch[3]}
+                        </>
+                      ) : (
+                        line
+                      )}
+                      {lineIdx < arr.length - 1 ? '\n' : ''}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </div>
           )}
