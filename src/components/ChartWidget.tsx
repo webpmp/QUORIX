@@ -666,12 +666,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 )}
             </>
           ) : (
-            <>
-              <span className="text-zinc-500 text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5">--</span>
-              <span className="text-[10px] text-zinc-600 font-bold block">
-                {stock.isCoreHours ? 'CORE HOURS' : 'UNAVAILABLE'}
-              </span>
-            </>
+            <span className="text-zinc-500 text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5">--</span>
           )}
         </div>
         <div className="min-w-0">
