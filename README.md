@@ -1,3 +1,5 @@
+![QUORIX Terminal](./assets/quorix-gp.png)
+
 # QUORIX Terminal
 
 A retro CRT-styled financial market terminal built with React, TypeScript, Tailwind CSS, and an Express backend proxy. QUORIX integrates live equity/index market data, Federal Reserve Economic Data (FRED), Polymarket prediction markets, multi-source financial news, and AI-assisted research grounded with live market context.
