@@ -126,36 +126,6 @@ function formatDisplayTime(dateStr?: string) {
   }
 }
 
-function renderHeadlineWithTickers(text: string, stocks: Record<string, any>, onSelectTicker?: (ticker: string) => void) {
-  if (!text) return null;
-  const tickerList = Object.keys(stocks);
-  if (tickerList.length === 0) return text;
-
-  const regex = new RegExp(`\\b(${tickerList.join('|')})\\b`, 'gi');
-  const parts = text.split(regex);
-  return parts.map((part, index) => {
-    const upperPart = part.toUpperCase();
-    if (tickerList.includes(upperPart)) {
-      return (
-        <span
-          key={index}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (onSelectTicker) {
-              onSelectTicker(upperPart);
-            }
-          }}
-          className="bg-[#ff9900]/20 text-[#ff9900] hover:bg-[#ff9900] hover:text-black px-1.5 py-0.5 rounded font-extrabold cursor-pointer transition-all mx-1 text-[11px] inline-block font-mono border border-[#ff9900]/30"
-        >
-          {upperPart}
-        </span>
-      );
-    }
-    return part;
-  });
-}
-
 function cleanHeadline(title: string): string {
   if (!title) return '';
   // Clean off trailing sources like: " - Al Jazeera", " - Reuters", " - WSJ", " | Associated Press", etc.
@@ -1002,19 +972,36 @@ export default function Workspace({
                   return (
                     <div key={item.id || idx} className="bg-black border border-[#151515] hover:border-[#333] p-4 rounded transition-all flex flex-col justify-between font-mono">
                       <div>
-                        {/* Linked headline with time */}
-                        <a 
-                          href={item.url || 'https://www.reuters.com'} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-white hover:text-[#00ff00] text-sm md:text-base font-bold leading-snug hover:underline block mb-2"
-                        >
-                          {displayTime && `${displayTime} - `}
-                          {renderHeadlineWithTickers(cleanedTitle, stocks, onSelectTicker)}
-                          <span className="text-[11px] text-[#ff9900] font-extrabold uppercase ml-2 select-none inline-block">
-                            — [{item.source.replace(' Business', '').toUpperCase()}]
-                          </span>
-                        </a>
+                        {/* Linked headline and source attribution on first line, timestamp on second line */}
+                        <div className="mb-2 leading-snug break-words">
+                          <a 
+                            href={item.url || 'https://www.reuters.com'} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-white hover:text-[#00ff00] text-sm md:text-base font-bold leading-snug hover:underline break-words"
+                          >
+                            {cleanedTitle}
+                          </a>
+                          {item.source && (
+                            <>
+                              {' '}
+                              <span className="text-[11px] text-[#ff9900] font-extrabold uppercase ml-1.5 select-none">—{' '}</span>
+                              <a 
+                                href={item.url || 'https://www.reuters.com'} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-[#ff9900] font-extrabold uppercase hover:text-[#00ff00] hover:underline select-none"
+                              >
+                                [{item.source.replace(' Business', '').toUpperCase()}]
+                              </a>
+                            </>
+                          )}
+                          {displayTime && (
+                            <div className="text-[11px] text-zinc-400 font-mono mt-1">
+                              {displayTime}
+                            </div>
+                          )}
+                        </div>
                         {item.content && (
                           <p className="text-xs md:text-sm text-zinc-400 font-normal font-sans mb-3 line-clamp-3">
                             {item.content}
