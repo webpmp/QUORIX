@@ -793,6 +793,7 @@ export default function Workspace({
                           </a>
                         </div>
                         <div className="flex justify-between items-center mt-2.5 pt-1.5 border-t border-[#151515]">
+                          {/* Sentiment temporarily disabled until accuracy is improved
                           <span className={`text-[8px] font-extrabold px-1 rounded ${
                             item.sentiment === 'positive' 
                               ? 'bg-[#00ff00]/10 text-[#00ff00]' 
@@ -802,7 +803,8 @@ export default function Workspace({
                           }`}>
                             {(item.sentiment || 'NEUTRAL').toUpperCase()}
                           </span>
-                          <span className="text-[7.5px] text-zinc-600 font-mono">ID: {item.id ? item.id.substring(0, 8) : `N-${idx}`}</span>
+                          */}
+                          <span className="text-[7.5px] text-zinc-600 font-mono ml-auto">ID: {item.id ? item.id.substring(0, 8) : `N-${idx}`}</span>
                         </div>
                       </div>
                     );
@@ -1069,10 +1071,11 @@ export default function Workspace({
                           ))}
                         </div>
 
-                        {/* Sentiment */}
+                        {/* Sentiment temporarily disabled until accuracy is improved
                         <div className={item.sentiment === 'positive' ? 'text-[#00ff00] font-bold' : item.sentiment === 'negative' ? 'text-[#ff4444] font-bold' : 'text-zinc-500 font-bold'}>
                           {item.sentiment ? item.sentiment.toUpperCase() : 'NEUTRAL'}
                         </div>
+                        */}
                       </div>
                     </div>
                   );

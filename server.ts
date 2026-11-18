@@ -2227,8 +2227,10 @@ async function fetchYahooTickerRssIntros(
   return { byGuid, byTitle, items };
 }
 
-function analyzeNewsSentiment(text: string): "positive" | "negative" | "neutral" {
-  const lower = text.toLowerCase();
+function analyzeNewsSentiment(_text: string): "positive" | "negative" | "neutral" {
+  // News sentiment scoring temporarily disabled until accuracy is improved
+  /*
+  const lower = _text.toLowerCase();
   const positiveWords = ["rally", "surge", "gain", "rise", "beat", "positive", "bullish", "record", "growth", "high", "success", "won", "boost", "exceed", "upgrade", "acquisition", "merger", "expansion"];
   const negativeWords = ["fall", "plummet", "drop", "loss", "decline", "negative", "bearish", "miss", "low", "failure", "risk", "retreat", "slump", "cooldown", "downgrade", "scarcity", "cut", "inflation", "tariff", "lawsuit"];
 
@@ -2244,6 +2246,7 @@ function analyzeNewsSentiment(text: string): "positive" | "negative" | "neutral"
 
   if (positiveScore > negativeScore) return "positive";
   if (negativeScore > positiveScore) return "negative";
+  */
   return "neutral";
 }
 

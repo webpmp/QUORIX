@@ -270,12 +270,14 @@ export default function NewsTicker() {
             {/* First sequence */}
             <div ref={firstSequenceRef} className="flex items-center gap-12 pr-12">
               {repeatedNews.map((item, index) => {
+                /* Sentiment temporarily disabled until accuracy is improved
                 const sentimentColor = 
                   item.sentiment === 'positive' ? 'text-[#00ff00]' : 
                   item.sentiment === 'negative' ? 'text-[#ff4444]' : 'text-zinc-400';
                 const sentimentSymbol = 
                   item.sentiment === 'positive' ? '▲' : 
                   item.sentiment === 'negative' ? '▼' : '●';
+                */
 
                 return (
                   <a
@@ -295,9 +297,11 @@ export default function NewsTicker() {
                     <span className="text-[9px] text-zinc-500 shrink-0 font-mono">
                       {item.time}
                     </span>
+                    {/* Sentiment temporarily disabled until accuracy is improved
                     <span className={`inline-flex items-center justify-center leading-none self-center text-[10px] font-bold shrink-0 ${sentimentColor}`} title={`Sentiment: ${item.sentiment}`}>
                       {sentimentSymbol}
                     </span>
+                    */}
                     <ExternalLink size={8} className="text-zinc-600 group-hover:text-[#00ff00] opacity-0 group-hover:opacity-100 transition-all ml-0.5" />
                   </a>
                 );
@@ -307,12 +311,14 @@ export default function NewsTicker() {
             {/* Identical cloned second sequence for seamless loop */}
             <div className="flex items-center gap-12 pr-12">
               {repeatedNews.map((item, index) => {
+                /* Sentiment temporarily disabled until accuracy is improved
                 const sentimentColor = 
                   item.sentiment === 'positive' ? 'text-[#00ff00]' : 
                   item.sentiment === 'negative' ? 'text-[#ff4444]' : 'text-zinc-400';
                 const sentimentSymbol = 
                   item.sentiment === 'positive' ? '▲' : 
                   item.sentiment === 'negative' ? '▼' : '●';
+                */
 
                 return (
                   <a
@@ -332,9 +338,11 @@ export default function NewsTicker() {
                     <span className="text-[9px] text-zinc-500 shrink-0 font-mono">
                       {item.time}
                     </span>
+                    {/* Sentiment temporarily disabled until accuracy is improved
                     <span className={`inline-flex items-center justify-center leading-none self-center text-[10px] font-bold shrink-0 ${sentimentColor}`} title={`Sentiment: ${item.sentiment}`}>
                       {sentimentSymbol}
                     </span>
+                    */}
                     <ExternalLink size={8} className="text-zinc-600 group-hover:text-[#00ff00] opacity-0 group-hover:opacity-100 transition-all ml-0.5" />
                   </a>
                 );
