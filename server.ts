@@ -663,7 +663,7 @@ function formatDescribeReport(sym: string, summary: any, chart: any, newsItems: 
   const sign = chg >= 0 ? "+" : "";
 
   const lines: string[] = [];
-  lines.push(`${name.toUpperCase()} (${sym}) — SECURITY DESCRIPTION & LIVE FUNDAMENTALS`);
+  lines.push(`${name.toUpperCase()} (${sym})`);
   lines.push(`${"=".repeat(72)}`);
 
   if (profile.sector || profile.industry || profile.fullTimeEmployees) {

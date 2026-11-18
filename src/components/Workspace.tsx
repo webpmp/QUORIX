@@ -886,10 +886,7 @@ export default function Workspace({
             <span className="text-white text-md font-bold uppercase tracking-wider">
               {currentStock.symbol} Description summary (SEC-DES)
             </span>
-            <div className="flex flex-wrap items-center gap-3 ml-auto">
-              <span className="text-[10px] text-zinc-500 font-mono">DES SYSTEM DISPATCH</span>
-              {renderTextSizeControl()}
-            </div>
+            {renderTextSizeControl()}
           </div>
 
           {desLoading ? (
@@ -1726,7 +1723,6 @@ export default function Workspace({
               <span className="w-2.5 h-2.5 rounded-full bg-[#ff9900]"></span>
               SETT - Secure Api Config Control Panel
             </span>
-            <span className="text-[10px] text-zinc-500 font-mono">ENCRYPTED COUPLING NODE</span>
           </div>
 
           <p className="mb-4 leading-relaxed text-zinc-400">
