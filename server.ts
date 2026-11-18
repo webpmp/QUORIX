@@ -1619,8 +1619,23 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
     }
 
     // --- STEP 2: Fallback to Alpha Vantage ---
-    const apiKey = customKeys.ALPHA_VANTAGE_API_KEY || process.env.ALPHA_VANTAGE_API_KEY || "8GMTSP7LH2AGTJH4";
-    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(cacheKey)}&apikey=${apiKey}`;
+    const apiKey = (customKeys.ALPHA_VANTAGE_API_KEY || process.env.ALPHA_VANTAGE_API_KEY || "").trim();
+    if (!apiKey || apiKey === "MY_ALPHA_VANTAGE_API_KEY") {
+      if (cached) {
+        return res.json({
+          success: true,
+          quote: adjustQuoteForTradingHours(cached.quote),
+          cachedAt: new Date(cached.timestamp).toLocaleTimeString(),
+          isCached: true,
+          warning: "Yahoo Finance unavailable and ALPHA_VANTAGE_API_KEY is not configured. Serving cached quote."
+        });
+      }
+      return res.json({
+        success: false,
+        error: "Alpha Vantage API key is not configured. Add ALPHA_VANTAGE_API_KEY to .env or System Settings (SETT)."
+      });
+    }
+    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(cacheKey)}&apikey=${encodeURIComponent(apiKey)}`;
     
     console.log(`Querying Alpha Vantage proxy for symbol: ${cacheKey}`);
     const response = await fetch(url);
@@ -2034,23 +2049,26 @@ app.get("/api/polymarket/events", async (req, res) => {
   }
 });
 
-// GET current keys status (masked values for privacy and security)
-app.get("/api/settings/keys", (req, res) => {
+// GET current keys status (masked values only — never expose raw server keys to the client)
+app.get("/api/settings/keys", (_req, res) => {
   const mask = (val?: string) => {
-    if (!val || val.trim() === "" || val === "MY_NYT_API_KEY" || val === "MY_NEWS_API_KEY" || val === "MY_NEWSDATA_API_KEY") return "";
+    if (
+      !val ||
+      val.trim() === "" ||
+      val === "MY_ALPHA_VANTAGE_API_KEY" ||
+      val === "MY_NYT_API_KEY" ||
+      val === "MY_NEWS_API_KEY" ||
+      val === "MY_NEWSDATA_API_KEY" ||
+      val === "MY_FRED_API_KEY"
+    ) {
+      return "";
+    }
     if (val.length <= 6) return "●●●●●●";
     return `${val.substring(0, 3)}●●●●●●${val.substring(val.length - 3)}`;
   };
 
   res.json({
     success: true,
-    keys: {
-      ALPHA_VANTAGE_API_KEY: customKeys.ALPHA_VANTAGE_API_KEY,
-      NYT_API_KEY: customKeys.NYT_API_KEY,
-      NEWS_API_KEY: customKeys.NEWS_API_KEY,
-      NEWSDATA_API_KEY: customKeys.NEWSDATA_API_KEY,
-      FRED_API_KEY: customKeys.FRED_API_KEY,
-    },
     maskedKeys: {
       ALPHA_VANTAGE_API_KEY: mask(customKeys.ALPHA_VANTAGE_API_KEY),
       NYT_API_KEY: mask(customKeys.NYT_API_KEY),
@@ -2063,25 +2081,29 @@ app.get("/api/settings/keys", (req, res) => {
 
 // POST to update keys in-memory
 app.post("/api/settings/keys", (req, res) => {
-  const { ALPHA_VANTAGE_API_KEY, NYT_API_KEY, NEWS_API_KEY, NEWSDATA_API_KEY, FRED_API_KEY } = req.body;
+  const { ALPHA_VANTAGE_API_KEY, NYT_API_KEY, NEWS_API_KEY, NEWSDATA_API_KEY, FRED_API_KEY } = req.body || {};
+  const isUnmaskedUpdate = (val: unknown): val is string =>
+    typeof val === "string" && !val.includes("●●●●●●");
 
-  if (ALPHA_VANTAGE_API_KEY !== undefined) customKeys.ALPHA_VANTAGE_API_KEY = ALPHA_VANTAGE_API_KEY;
-  if (NYT_API_KEY !== undefined) {
+  if (isUnmaskedUpdate(ALPHA_VANTAGE_API_KEY)) {
+    customKeys.ALPHA_VANTAGE_API_KEY = ALPHA_VANTAGE_API_KEY;
+  }
+  if (isUnmaskedUpdate(NYT_API_KEY)) {
     customKeys.NYT_API_KEY = NYT_API_KEY;
     newsProviderCache.nyt = { timestamp: 0, items: [] };
     apiCooldowns.nyt = 0;
   }
-  if (NEWS_API_KEY !== undefined) {
+  if (isUnmaskedUpdate(NEWS_API_KEY)) {
     customKeys.NEWS_API_KEY = NEWS_API_KEY;
     newsProviderCache.newsapi = { timestamp: 0, items: [] };
     apiCooldowns.newsapi = 0;
   }
-  if (NEWSDATA_API_KEY !== undefined) {
+  if (isUnmaskedUpdate(NEWSDATA_API_KEY)) {
     customKeys.NEWSDATA_API_KEY = NEWSDATA_API_KEY;
     newsProviderCache.newsdata = { timestamp: 0, items: [] };
     apiCooldowns.newsdata = 0;
   }
-  if (FRED_API_KEY !== undefined) {
+  if (isUnmaskedUpdate(FRED_API_KEY)) {
     customKeys.FRED_API_KEY = FRED_API_KEY;
     fredEconomicsCache = null;
     fredCurrenciesCache = null;

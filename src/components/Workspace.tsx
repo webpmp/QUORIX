@@ -345,13 +345,14 @@ export default function Workspace({
     try {
       const response = await fetch('/api/settings/keys');
       const data = await response.json();
-      if (data.success && data.keys) {
+      const keySource = data.maskedKeys || data.keys;
+      if (data.success && keySource) {
         const snapshot = {
-          ALPHA_VANTAGE_API_KEY: data.keys.ALPHA_VANTAGE_API_KEY || '',
-          NYT_API_KEY: data.keys.NYT_API_KEY || '',
-          NEWS_API_KEY: data.keys.NEWS_API_KEY || '',
-          NEWSDATA_API_KEY: data.keys.NEWSDATA_API_KEY || '',
-          FRED_API_KEY: data.keys.FRED_API_KEY || '',
+          ALPHA_VANTAGE_API_KEY: keySource.ALPHA_VANTAGE_API_KEY || '',
+          NYT_API_KEY: keySource.NYT_API_KEY || '',
+          NEWS_API_KEY: keySource.NEWS_API_KEY || '',
+          NEWSDATA_API_KEY: keySource.NEWSDATA_API_KEY || '',
+          FRED_API_KEY: keySource.FRED_API_KEY || '',
         };
         setAlphaVantageKey(snapshot.ALPHA_VANTAGE_API_KEY);
         setNytKey(snapshot.NYT_API_KEY);
@@ -1746,7 +1747,7 @@ export default function Workspace({
                   type="password"
                   value={alphaVantageKey}
                   onChange={(e) => setAlphaVantageKey(e.target.value)}
-                  placeholder="Enter Alpha Vantage key (e.g., 8GMTSP...)"
+                  placeholder="Enter Alpha Vantage API Key"
                   className="w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db]"
                 />
               </div>
