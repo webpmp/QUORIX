@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
 import { StockData } from '../types';
-import { Activity, Info, RefreshCw, X } from 'lucide-react';
+import { Info, RefreshCw, X } from 'lucide-react';
 import StudiesModal from './StudiesModal';
 import {
   DEFAULT_STUDY_IDS,
@@ -339,19 +339,20 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     return (
       <>
         <div className="bg-[#010101] border border-[#333] rounded p-6 text-center text-zinc-500 font-mono select-none">
-          <div className="text-[#ff9900] font-bold text-sm mb-2 flex items-center justify-center gap-2">
+          <div className="text-[#ff9900] font-bold text-sm mb-3 flex items-center justify-center gap-2">
             {historyLoading && <RefreshCw size={13} className="animate-spin text-[#ff9900]" />}
-            <span>GRAPH PRICE (GP) COUPLING...</span>
+            <span>GRAPH PRICE</span>
           </div>
-          <p className="text-xs text-zinc-400 mb-4">
+          <p className="text-xs text-zinc-400">
             {historyLoading
-              ? 'LOADING LIVE MARKET OHLCV BARS FOR '
-              : 'NO HISTORICAL OHLCV BARS AVAILABLE FOR '}
-            <span className="text-white font-extrabold">{stock ? stock.symbol : 'UNKNOWN'}</span> (
-            {interval.toUpperCase()})
+              ? 'LOADING LIVE MARKET DATA FOR'
+              : 'NO HISTORICAL DATA AVAILABLE FOR'}
           </p>
+          <div className="text-white font-extrabold text-2xl sm:text-3xl tracking-wider mt-2 mb-4">
+            {stock ? stock.symbol : 'UNKNOWN'}
+          </div>
           <div className="text-[10px] text-zinc-600">
-            LIVE YAHOO FINANCE / ALPHA VANTAGE STREAM
+            DATA PROVIDERS: LIVE YAHOO FINANCE / ALPHA VANTAGE
           </div>
         </div>
         <StudiesModal
@@ -419,9 +420,9 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
   const volPaddingBottom = 10;
   const volAdjHeight = volHeight - volPaddingTop - volPaddingBottom;
 
-  const rsiHeight = 65;
-  const rsiPaddingTop = 10;
-  const rsiPaddingBottom = 10;
+  const rsiHeight = 116;
+  const rsiPaddingTop = 22;
+  const rsiPaddingBottom = 12;
   const rsiAdjHeight = rsiHeight - rsiPaddingTop - rsiPaddingBottom;
 
   const windowHigh = Math.max(...history.map((h) => h.high));
@@ -745,6 +746,9 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     .map((id) => STUDY_CATALOG.find((s) => s.id === id)?.code || id.toUpperCase())
     .join(' ');
 
+  const CHART_PANEL_HEADER_CLASS =
+    'absolute top-1 left-[64px] right-2 flex items-center justify-between gap-2 text-[11px] leading-tight font-bold uppercase select-none pointer-events-none';
+
   return (
     <div
       tabIndex={0}
@@ -927,20 +931,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
       {/* Primary SVG Stack Wrapper */}
       <div className="flex flex-col gap-2 relative bg-black rounded p-1.5 border border-[#222]">
         {/* PANEL 1: Main Price Chart */}
-        <div ref={chartPanelRef} className="relative">
-          <div className="px-1.5 pb-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[8px] font-bold uppercase select-none">
-            <span className="text-zinc-500">PRICE CHART</span>
-            {activeOverlayItems.map((item) => (
-              <span key={item.id} className={`${item.colorClass} tabular-nums`}>
-                {item.label}: {typeof item.val === 'number' ? item.val.toFixed(2) : '--'}
-              </span>
-            ))}
-            {(isYZoomed || isYAxisDragging) && (
-              <span className="ml-auto text-[#ff9900] font-bold tabular-nums">
-                Y-SCALE: {yZoomFactor.toFixed(2)}× (DBL-CLICK / 0 RESET)
-              </span>
-            )}
-          </div>
+        <div ref={chartPanelRef} className="relative pt-[6px]">
           <svg
             width={width}
             height={priceHeight}
@@ -988,7 +979,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                     strokeDasharray="2,2"
                   />
                   <text
-                    x={paddingLeft - 6}
+                    x={paddingLeft - 12}
                     y={hVal + 3}
                     textAnchor="end"
                     fill={isYAxisHovered || isYAxisDragging ? '#ff9900' : '#e4e4e7'}
@@ -1347,6 +1338,21 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               </linearGradient>
             </defs>
           </svg>
+          <div className={CHART_PANEL_HEADER_CLASS}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 min-w-0">
+              <span className="text-zinc-500">PRICE CHART</span>
+              {activeOverlayItems.map((item) => (
+                <span key={item.id} className={`${item.colorClass} tabular-nums`}>
+                  {item.label}: {typeof item.val === 'number' ? item.val.toFixed(2) : '--'}
+                </span>
+              ))}
+            </div>
+            {(isYZoomed || isYAxisDragging) && (
+              <span className="text-[#ff9900] font-bold tabular-nums shrink-0">
+                Y-SCALE: {yZoomFactor.toFixed(2)}× (DBL-CLICK / 0 RESET)
+              </span>
+            )}
+          </div>
         </div>
 
         {/* PANEL 2: Volume Study (+ Optional Vol MA 20) */}
@@ -1457,9 +1463,9 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 />
               )}
             </svg>
-            <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
-              <div className="flex items-center gap-1.5">
-                <span className="text-zinc-500 flex items-center gap-2">
+            <div className={CHART_PANEL_HEADER_CLASS}>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
+                <span className="text-zinc-500 inline-flex items-center gap-2">
                   <span>VOLUME STUDY</span>
                   <span className="text-zinc-300 tabular-nums">
                     BAR: {formatAxisVolume(hoveredData.volume)}
@@ -1469,9 +1475,9 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                   <button
                     type="button"
                     aria-label="How to read Volume Study"
-                    className="text-zinc-500 hover:text-[#ff9900] focus:text-[#ff9900] focus:outline-none cursor-help p-0.5 flex items-center"
+                    className="text-zinc-500 hover:text-[#ff9900] focus:text-[#ff9900] focus:outline-none cursor-help p-0.5 inline-flex items-center justify-center"
                   >
-                    <Info size={10} />
+                    <Info size={12} />
                   </button>
                   <div
                     role="tooltip"
@@ -1494,7 +1500,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                   </div>
                 </div>
                 {showVolMaStudy && (
-                  <span className="text-[#ff9900] tabular-nums ml-1">
+                  <span className="text-[#ff9900] tabular-nums">
                     MA(20): {typeof hoveredData.volMa === 'number' ? formatAxisVolume(hoveredData.volMa) : '--'}
                   </span>
                 )}
@@ -1504,9 +1510,9 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 onClick={() => toggleStudy('volume')}
                 title="Hide Volume study"
                 aria-label="Hide Volume study"
-                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer"
+                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
               >
-                <X size={10} />
+                <X size={11} />
               </button>
             </div>
           </div>
@@ -1559,7 +1565,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                       y={yVal + 3}
                       textAnchor="end"
                       fill={textColor}
-                      fontSize="8.5"
+                      fontSize="9.5"
                       fontFamily="monospace"
                       fontWeight="bold"
                     >
@@ -1570,7 +1576,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                       y={yVal + 3}
                       textAnchor="start"
                       fill={textColor}
-                      fontSize="8.5"
+                      fontSize="9.5"
                       fontFamily="monospace"
                       fontWeight="bold"
                     >
@@ -1626,19 +1632,19 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 </g>
               )}
             </svg>
-            <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
-              <div className="flex items-center gap-1.5">
-                <span className="text-zinc-500">
-                  RSI OSCILLATOR (14){' '}
-                  <span className="text-[#9b59b6] tabular-nums ml-1">{currentRsi.toFixed(1)}</span>
+            <div className={CHART_PANEL_HEADER_CLASS}>
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
+                <span className="text-zinc-500 inline-flex items-center gap-1.5">
+                  <span>RSI OSCILLATOR (14)</span>
+                  <span className="text-[#9b59b6] tabular-nums">{currentRsi.toFixed(1)}</span>
                 </span>
                 <div className="relative group/rsi-tip pointer-events-auto inline-flex items-center">
                   <button
                     type="button"
                     aria-label="How to read RSI Oscillator (14)"
-                    className="text-zinc-500 hover:text-[#9b59b6] focus:text-[#9b59b6] focus:outline-none cursor-help p-0.5 flex items-center"
+                    className="text-zinc-500 hover:text-[#9b59b6] focus:text-[#9b59b6] focus:outline-none cursor-help p-0.5 inline-flex items-center justify-center"
                   >
-                    <Info size={10} />
+                    <Info size={12} />
                   </button>
                   <div
                     role="tooltip"
@@ -1669,9 +1675,9 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 onClick={() => toggleStudy('rsi')}
                 title="Hide RSI study"
                 aria-label="Hide RSI study"
-                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer"
+                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
               >
-                <X size={10} />
+                <X size={11} />
               </button>
             </div>
           </div>
@@ -2190,12 +2196,8 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
       </div>
 
       <div className="flex flex-wrap justify-between items-center gap-2 text-[9px] text-[#ff9900] mt-3 font-semibold select-none border-t border-[#333] pt-2">
-        <span className="flex items-center gap-1.5">
-          {historyLoading ? (
-            <RefreshCw size={10} className="animate-spin text-[#ff9900]" />
-          ) : (
-            <Activity size={10} className="text-[#00ff00]" />
-          )}
+        <span className={historyLoading ? 'flex items-center gap-1.5' : undefined}>
+          {historyLoading && <RefreshCw size={10} className="animate-spin text-[#ff9900]" />}
           <span>
             RANGE:{' '}
             {interval === '5m'
