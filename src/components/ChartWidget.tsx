@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
 import { StockData } from '../types';
-import { Info, RefreshCw, X } from 'lucide-react';
+import { Info, X } from 'lucide-react';
 import StudiesModal from './StudiesModal';
 import {
   DEFAULT_STUDY_IDS,
@@ -9,6 +9,24 @@ import {
   StudyId,
   computeWilderRSIArray,
 } from '../utils/technicalStudies';
+import {
+  deriveChartDataPhase,
+  getCachedMarketHistory,
+  getHistoryCacheKey,
+  isCachedHistoryFresh,
+  setCachedMarketHistory,
+} from '../utils/marketHistoryCache';
+import {
+  RSI_NATURAL_MAX,
+  RSI_NATURAL_MIN,
+  computeScaledBoundedRange,
+  computeScaledRsiRange,
+  computeScaledVolumeMax,
+  computeVolumePanelLayout,
+  dragDeltaToZoomFactor,
+  wheelDeltaToZoomFactor,
+  type YRange,
+} from '../utils/yAxisZoom';
 
 interface ChartWidgetProps {
   stock: StockData;
@@ -39,31 +57,64 @@ function loadSavedStudies(): StudyId[] {
   return [...DEFAULT_STUDY_IDS];
 }
 
-export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProps) {
+export default function ChartWidget({
+  stock,
+  onTickTimeChange,
+}: ChartWidgetProps) {
   const [chartType, setChartType] = useState<ChartType>('candle');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [activeStudies, setActiveStudies] = useState<StudyId[]>(loadSavedStudies);
   const [isStudiesModalOpen, setIsStudiesModalOpen] = useState<boolean>(false);
   const [interval, setInterval] = useState<IntervalType>('1h');
-  const [fetchedHistory, setFetchedHistory] = useState<{
-    symbol: string;
-    interval: IntervalType;
+  const [historyState, setHistoryState] = useState<{
+    key: string;
     bars: HistoryBar[];
   } | null>(null);
-  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+  const [resolvedEmptyKey, setResolvedEmptyKey] = useState<string | null>(null);
+  const [historyLoadingKey, setHistoryLoadingKey] = useState<string | null>(null);
   const chartPanelRef = useRef<HTMLDivElement | null>(null);
   const yAxisHitRef = useRef<SVGRectElement | null>(null);
+  const volYAxisHitRef = useRef<SVGRectElement | null>(null);
+  const rsiYAxisHitRef = useRef<SVGRectElement | null>(null);
   const [chartWidth, setChartWidth] = useState<number>(600);
-  const [customYRange, setCustomYRange] = useState<{ min: number; max: number } | null>(null);
+  const [customYRange, setCustomYRange] = useState<YRange | null>(null);
   const [isYAxisHovered, setIsYAxisHovered] = useState<boolean>(false);
   const [isYAxisDragging, setIsYAxisDragging] = useState<boolean>(false);
   const dragStateRef = useRef<{ startY: number; startMin: number; startMax: number } | null>(null);
   const scaleContextRef = useRef<{
     minPrice: number;
     maxPrice: number;
-    computeScaledYRange: (baseMin: number, baseMax: number, factor: number) => { min: number; max: number };
+    computeScaledYRange: (baseMin: number, baseMax: number, factor: number) => YRange;
     isModalOpen: boolean;
   } | null>(null);
+
+  // Independent Volume Study Y-axis zoom state
+  const [customVolMax, setCustomVolMax] = useState<number | null>(null);
+  const [isVolYAxisHovered, setIsVolYAxisHovered] = useState<boolean>(false);
+  const [isVolYAxisDragging, setIsVolYAxisDragging] = useState<boolean>(false);
+  const volDragStateRef = useRef<{ startY: number; startMax: number } | null>(null);
+  const volScaleContextRef = useRef<{
+    visibleMaxVolume: number;
+    computeScaledVolMax: (baseMax: number, factor: number) => number;
+    isModalOpen: boolean;
+  } | null>(null);
+
+  // Independent RSI Study Y-axis zoom state
+  const [customRsiRange, setCustomRsiRange] = useState<YRange | null>(null);
+  const [isRsiYAxisHovered, setIsRsiYAxisHovered] = useState<boolean>(false);
+  const [isRsiYAxisDragging, setIsRsiYAxisDragging] = useState<boolean>(false);
+  const rsiDragStateRef = useRef<{ startY: number; startMin: number; startMax: number } | null>(null);
+  const rsiScaleContextRef = useRef<{
+    minRsi: number;
+    maxRsi: number;
+    computeScaledRsiYRange: (baseMin: number, baseMax: number, factor: number) => YRange;
+    isModalOpen: boolean;
+  } | null>(null);
+
+  const isVolYAxisActiveRef = useRef<boolean>(false);
+  isVolYAxisActiveRef.current = isVolYAxisHovered || isVolYAxisDragging;
+  const isRsiYAxisActiveRef = useRef<boolean>(false);
+  isRsiYAxisActiveRef.current = isRsiYAxisHovered || isRsiYAxisDragging;
 
   useEffect(() => {
     try {
@@ -97,35 +148,64 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
 
   const hasStudy = (id: StudyId) => activeStudies.includes(id);
 
+  const sym = stock?.symbol ? stock.symbol.toUpperCase().trim() : '';
+  const currentKey = sym ? getHistoryCacheKey(sym, interval) : '';
+  const cachedEntry = sym ? getCachedMarketHistory(sym, interval) : null;
+
   useEffect(() => {
-    if (!stock?.symbol) return;
-    const sym = stock.symbol;
+    if (!sym) return;
     const activeInt = interval;
+    const key = getHistoryCacheKey(sym, activeInt);
     let cancelled = false;
     setHoverIndex(null);
     setCustomYRange(null);
+    setCustomVolMax(null);
+    setCustomRsiRange(null);
+
+    const existingCached = getCachedMarketHistory(sym, activeInt);
+    if (existingCached) {
+      setHistoryState({ key, bars: existingCached.bars });
+      setResolvedEmptyKey(null);
+      if (isCachedHistoryFresh(existingCached)) {
+        setHistoryLoadingKey((prev) => (prev === key ? null : prev));
+        return;
+      }
+    }
+
+    const controller = new AbortController();
 
     const loadHistory = async () => {
-      setHistoryLoading(true);
+      setHistoryLoadingKey(key);
       try {
         const res = await fetch(
-          `/api/market/history?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(activeInt)}`
+          `/api/market/history?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(activeInt)}`,
+          { signal: controller.signal }
         );
         const data = await res.json();
         if (!cancelled) {
-          if (data.success && Array.isArray(data.history)) {
-            setFetchedHistory({ symbol: sym, interval: activeInt, bars: data.history });
-          } else {
-            setFetchedHistory({ symbol: sym, interval: activeInt, bars: [] });
+          const bars: HistoryBar[] =
+            data.success && Array.isArray(data.history) ? data.history : [];
+          if (bars.length > 0) {
+            setCachedMarketHistory(sym, activeInt, bars);
+            setHistoryState({ key, bars });
+            setResolvedEmptyKey(null);
+          } else if (!existingCached) {
+            setCachedMarketHistory(sym, activeInt, []);
+            setHistoryState({ key, bars: [] });
+            setResolvedEmptyKey(key);
           }
         }
-      } catch {
-        if (!cancelled) {
-          setFetchedHistory({ symbol: sym, interval: activeInt, bars: [] });
+      } catch (err) {
+        if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
+          return;
+        }
+        if (!cancelled && !existingCached) {
+          setHistoryState({ key, bars: [] });
+          setResolvedEmptyKey(key);
         }
       } finally {
         if (!cancelled) {
-          setHistoryLoading(false);
+          setHistoryLoadingKey((prev) => (prev === key ? null : prev));
         }
       }
     };
@@ -133,17 +213,29 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     loadHistory();
     return () => {
       cancelled = true;
+      controller.abort();
+      setHistoryLoadingKey((prev) => (prev === key ? null : prev));
     };
-  }, [stock?.symbol, interval]);
+  }, [sym, interval]);
 
-  const matchingFetched =
-    fetchedHistory &&
-    fetchedHistory.symbol === stock?.symbol &&
-    fetchedHistory.interval === interval
-      ? fetchedHistory.bars
-      : [];
+  const activeBars =
+    historyState && historyState.key === currentKey
+      ? historyState.bars
+      : cachedEntry?.bars || [];
 
-  const activeBars = matchingFetched;
+  const hasUsableBars = activeBars.length > 0;
+  const hasResolvedHistoryAttempt =
+    hasUsableBars ||
+    (historyState !== null && historyState.key === currentKey) ||
+    resolvedEmptyKey === currentKey;
+  const isHistoryFetching = Boolean(currentKey) && historyLoadingKey === currentKey;
+
+  const chartDataPhase = deriveChartDataPhase({
+    hasStock: Boolean(stock),
+    hasUsableBars,
+    hasResolvedHistoryAttempt,
+    isHistoryFetching,
+  });
 
   useEffect(() => {
     const el = chartPanelRef.current;
@@ -173,7 +265,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
 
     window.addEventListener('resize', updateWidth);
     return () => window.removeEventListener('resize', updateWidth);
-  }, [activeBars.length]);
+  }, [sym, chartDataPhase, activeBars.length]);
 
   const showMa3 = hasStudy('ma3');
   const showEma9 = hasStudy('ema9');
@@ -227,13 +319,32 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
   const hoveredData = activeIndex >= 0 ? history[activeIndex] : undefined;
   const formattedHoveredDate = hoveredData ? formatBarLabel(hoveredData, true) : '';
 
+  const isChartReady = Boolean(stock && chartDataPhase === 'ready' && activeBars.length > 0 && hoveredData);
+
   useEffect(() => {
-    onTickTimeChange?.(formattedHoveredDate);
-  }, [formattedHoveredDate, onTickTimeChange]);
+    onTickTimeChange?.(isChartReady ? formattedHoveredDate : '');
+  }, [isChartReady, formattedHoveredDate, onTickTimeChange]);
 
-  const hasChartData = Boolean(stock && activeBars.length > 0 && hoveredData);
+  const hasChartData = isChartReady;
 
-  // Attach non-passive wheel listener on left Y-axis area to zoom without scrolling page
+  // Clear transient hover/drag flags if Volume or RSI study is hidden
+  useEffect(() => {
+    if (!showVolumeStudy) {
+      volDragStateRef.current = null;
+      setIsVolYAxisDragging(false);
+      setIsVolYAxisHovered(false);
+    }
+  }, [showVolumeStudy]);
+
+  useEffect(() => {
+    if (!showRsiStudy) {
+      rsiDragStateRef.current = null;
+      setIsRsiYAxisDragging(false);
+      setIsRsiYAxisHovered(false);
+    }
+  }, [showRsiStudy]);
+
+  // Attach non-passive wheel listener on Price Chart left Y-axis area to zoom without scrolling page
   useEffect(() => {
     if (!hasChartData) return;
     const hitEl = yAxisHitRef.current;
@@ -246,8 +357,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
       if (!ctx) return;
 
       // Wheel up (deltaY < 0) => zoom in; wheel down (deltaY > 0) => zoom out
-      const clampedDelta = Math.max(-180, Math.min(180, e.deltaY));
-      const factor = Math.exp(-clampedDelta * 0.0022);
+      const factor = wheelDeltaToZoomFactor(e.deltaY);
       setCustomYRange((prev) => {
         const curMin = prev ? prev.min : ctx.minPrice;
         const curMax = prev ? prev.max : ctx.maxPrice;
@@ -261,7 +371,58 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     };
   }, [hasChartData]);
 
-  // Smooth vertical Y-axis drag handling
+  // Attach non-passive wheel listener on Volume Study left Y-axis area
+  useEffect(() => {
+    if (!hasChartData || !showVolumeStudy) return;
+    const hitEl = volYAxisHitRef.current;
+    if (!hitEl) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const ctx = volScaleContextRef.current;
+      if (!ctx) return;
+
+      const factor = wheelDeltaToZoomFactor(e.deltaY);
+      setCustomVolMax((prev) => {
+        const curMax = prev !== null ? prev : ctx.visibleMaxVolume;
+        return ctx.computeScaledVolMax(curMax, factor);
+      });
+    };
+
+    hitEl.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      hitEl.removeEventListener('wheel', handleWheel);
+    };
+  }, [hasChartData, showVolumeStudy]);
+
+  // Attach non-passive wheel listener on RSI Oscillator left Y-axis area
+  useEffect(() => {
+    if (!hasChartData || !showRsiStudy) return;
+    const hitEl = rsiYAxisHitRef.current;
+    if (!hitEl) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const ctx = rsiScaleContextRef.current;
+      if (!ctx) return;
+
+      const factor = wheelDeltaToZoomFactor(e.deltaY);
+      setCustomRsiRange((prev) => {
+        const curMin = prev ? prev.min : ctx.minRsi;
+        const curMax = prev ? prev.max : ctx.maxRsi;
+        return ctx.computeScaledRsiYRange(curMin, curMax, factor);
+      });
+    };
+
+    hitEl.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      hitEl.removeEventListener('wheel', handleWheel);
+    };
+  }, [hasChartData, showRsiStudy]);
+
+  // Smooth vertical Y-axis drag handling for Price Chart
   useEffect(() => {
     if (!isYAxisDragging) return;
 
@@ -271,7 +432,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
       if (!drag || !ctx) return;
       const dy = e.clientY - drag.startY;
       // Dragging up (dy < 0) expands vertical scale (zoom in); dragging down zooms out
-      const factor = Math.exp(-dy * 0.0085);
+      const factor = dragDeltaToZoomFactor(dy);
       setCustomYRange(ctx.computeScaledYRange(drag.startMin, drag.startMax, factor));
     };
 
@@ -288,7 +449,59 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     };
   }, [isYAxisDragging]);
 
-  // Keyboard zoom shortcuts (+ / =, - / _, 0) when GRAPH PRICE chart is active and no input is focused
+  // Smooth vertical Y-axis drag handling for Volume Study
+  useEffect(() => {
+    if (!isVolYAxisDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const drag = volDragStateRef.current;
+      const ctx = volScaleContextRef.current;
+      if (!drag || !ctx) return;
+      const dy = e.clientY - drag.startY;
+      const factor = dragDeltaToZoomFactor(dy);
+      setCustomVolMax(ctx.computeScaledVolMax(drag.startMax, factor));
+    };
+
+    const handleMouseUp = () => {
+      volDragStateRef.current = null;
+      setIsVolYAxisDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isVolYAxisDragging]);
+
+  // Smooth vertical Y-axis drag handling for RSI Study
+  useEffect(() => {
+    if (!isRsiYAxisDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const drag = rsiDragStateRef.current;
+      const ctx = rsiScaleContextRef.current;
+      if (!drag || !ctx) return;
+      const dy = e.clientY - drag.startY;
+      const factor = dragDeltaToZoomFactor(dy);
+      setCustomRsiRange(ctx.computeScaledRsiYRange(drag.startMin, drag.startMax, factor));
+    };
+
+    const handleMouseUp = () => {
+      rsiDragStateRef.current = null;
+      setIsRsiYAxisDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isRsiYAxisDragging]);
+
+  // Keyboard zoom shortcuts (+ / =, - / _, 0) scoped to hovered/active study Y-axis or Price Chart by default
   useEffect(() => {
     if (!hasChartData) return;
 
@@ -304,26 +517,71 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const ctx = scaleContextRef.current;
-      if (!ctx || ctx.isModalOpen) return;
+      const priceCtx = scaleContextRef.current;
+      if (!priceCtx || priceCtx.isModalOpen) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (isEditableElement(e.target) || isEditableElement(document.activeElement)) return;
 
-      if (e.key === '+' || e.key === '=') {
+      const isZoomIn = e.key === '+' || e.key === '=';
+      const isZoomOut = e.key === '-' || e.key === '_';
+      const isReset = e.key === '0';
+      if (!isZoomIn && !isZoomOut && !isReset) return;
+
+      if (isVolYAxisActiveRef.current) {
+        const volCtx = volScaleContextRef.current;
+        if (!volCtx) return;
+        e.preventDefault();
+        if (isZoomIn) {
+          setCustomVolMax((prev) =>
+            volCtx.computeScaledVolMax(prev !== null ? prev : volCtx.visibleMaxVolume, 1.2)
+          );
+        } else if (isZoomOut) {
+          setCustomVolMax((prev) =>
+            volCtx.computeScaledVolMax(prev !== null ? prev : volCtx.visibleMaxVolume, 1 / 1.2)
+          );
+        } else if (isReset) {
+          setCustomVolMax(null);
+        }
+        return;
+      }
+
+      if (isRsiYAxisActiveRef.current) {
+        const rsiCtx = rsiScaleContextRef.current;
+        if (!rsiCtx) return;
+        e.preventDefault();
+        if (isZoomIn) {
+          setCustomRsiRange((prev) => {
+            const curMin = prev ? prev.min : rsiCtx.minRsi;
+            const curMax = prev ? prev.max : rsiCtx.maxRsi;
+            return rsiCtx.computeScaledRsiYRange(curMin, curMax, 1.2);
+          });
+        } else if (isZoomOut) {
+          setCustomRsiRange((prev) => {
+            const curMin = prev ? prev.min : rsiCtx.minRsi;
+            const curMax = prev ? prev.max : rsiCtx.maxRsi;
+            return rsiCtx.computeScaledRsiYRange(curMin, curMax, 1 / 1.2);
+          });
+        } else if (isReset) {
+          setCustomRsiRange(null);
+        }
+        return;
+      }
+
+      if (isZoomIn) {
         e.preventDefault();
         setCustomYRange((prev) => {
-          const curMin = prev ? prev.min : ctx.minPrice;
-          const curMax = prev ? prev.max : ctx.maxPrice;
-          return ctx.computeScaledYRange(curMin, curMax, 1.2);
+          const curMin = prev ? prev.min : priceCtx.minPrice;
+          const curMax = prev ? prev.max : priceCtx.maxPrice;
+          return priceCtx.computeScaledYRange(curMin, curMax, 1.2);
         });
-      } else if (e.key === '-' || e.key === '_') {
+      } else if (isZoomOut) {
         e.preventDefault();
         setCustomYRange((prev) => {
-          const curMin = prev ? prev.min : ctx.minPrice;
-          const curMax = prev ? prev.max : ctx.maxPrice;
-          return ctx.computeScaledYRange(curMin, curMax, 1 / 1.2);
+          const curMin = prev ? prev.min : priceCtx.minPrice;
+          const curMax = prev ? prev.max : priceCtx.maxPrice;
+          return priceCtx.computeScaledYRange(curMin, curMax, 1 / 1.2);
         });
-      } else if (e.key === '0') {
+      } else if (isReset) {
         e.preventDefault();
         setCustomYRange(null);
       }
@@ -335,36 +593,8 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     };
   }, [hasChartData]);
 
-  if (!stock || activeBars.length === 0 || !hoveredData) {
-    return (
-      <>
-        <div className="bg-[#010101] border border-[#333] rounded p-6 text-center text-zinc-500 font-mono select-none">
-          <div className="text-[#ff9900] font-bold text-sm mb-3 flex items-center justify-center gap-2">
-            {historyLoading && <RefreshCw size={13} className="animate-spin text-[#ff9900]" />}
-            <span>GRAPH PRICE</span>
-          </div>
-          <p className="text-xs text-zinc-400">
-            {historyLoading
-              ? 'LOADING LIVE MARKET DATA FOR'
-              : 'NO HISTORICAL DATA AVAILABLE FOR'}
-          </p>
-          <div className="text-white font-extrabold text-2xl sm:text-3xl tracking-wider mt-2 mb-4">
-            {stock ? stock.symbol : 'UNKNOWN'}
-          </div>
-          <div className="text-[10px] text-zinc-600">
-            DATA PROVIDERS: LIVE YAHOO FINANCE / ALPHA VANTAGE
-          </div>
-        </div>
-        <StudiesModal
-          isOpen={isStudiesModalOpen}
-          onClose={() => setIsStudiesModalOpen(false)}
-          activeStudies={activeStudies}
-          onToggleStudy={toggleStudy}
-          onResetDefaults={handleResetStudies}
-          onClearAll={handleClearStudies}
-        />
-      </>
-    );
+  if (!stock) {
+    return null;
   }
 
   // Chronological order & formatting already computed above for header tick sync
@@ -379,8 +609,11 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
   // Layout & Coordinate constants
   const width = Math.max(320, chartWidth);
   const paddingLeft = 58;
+  const PRICE_VOL_PLOT_GUTTER_GAP = 16;
+  const priceVolPaddingLeft = paddingLeft + PRICE_VOL_PLOT_GUTTER_GAP;
   const paddingRight = 32;
   const adjWidth = Math.max(100, width - paddingLeft - paddingRight);
+  const priceVolAdjWidth = Math.max(100, width - priceVolPaddingLeft - paddingRight);
 
   const BASE_PRICE_HEIGHT = 184;
   const MAX_PRICE_EXPANSION_PX = 50;
@@ -388,12 +621,16 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
   const pricePaddingBottom = 18;
 
   const barStep = adjWidth / Math.max(history.length, 1);
-  const candleWidth = Math.max(4, Math.min(14, Math.floor(barStep * 0.55)));
+  const priceVolBarStep = priceVolAdjWidth / Math.max(history.length, 1);
+  const candleWidth = Math.max(4, Math.min(14, Math.floor(priceVolBarStep * 0.55)));
   const volBarWidth = Math.max(3, Math.min(12, Math.floor(barStep * 0.5)));
+  const priceVolBarWidth = Math.max(3, Math.min(12, Math.floor(priceVolBarStep * 0.5)));
 
   const minLabelGapPx = (spansMultipleDays || interval === '1W') && interval !== '1M' ? 98 : 76;
   const maxLabels = Math.max(3, Math.floor(adjWidth / minLabelGapPx));
   const labelStep = Math.max(1, Math.ceil(history.length / maxLabels));
+  const priceVolMaxLabels = Math.max(3, Math.floor(priceVolAdjWidth / minLabelGapPx));
+  const priceVolLabelStep = Math.max(1, Math.ceil(history.length / priceVolMaxLabels));
   const lastIdx = history.length - 1;
 
   const formatAxisSigned = (val: number) => {
@@ -406,7 +643,8 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
   const formatAxisVolume = (vol: number) => {
     if (vol >= 1_000_000_000) return `${(vol / 1_000_000_000).toFixed(1)}B`;
     if (vol >= 1_000_000) return `${(vol / 1_000_000).toFixed(1)}M`;
-    if (vol >= 1_000) return `${(vol / 1_000).toFixed(0)}K`;
+    if (vol >= 10_000) return `${(vol / 1_000).toFixed(0)}K`;
+    if (vol >= 1_000) return `${(vol / 1_000).toFixed(1)}K`;
     return `${Math.round(vol)}`;
   };
 
@@ -415,18 +653,13 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
   const subPadBottom = 10;
   const subAdjHeight = subPanelHeight - subPadTop - subPadBottom;
 
-  const volHeight = 75;
-  const volPaddingTop = 20;
-  const volPaddingBottom = 10;
-  const volAdjHeight = volHeight - volPaddingTop - volPaddingBottom;
-
   const rsiHeight = 116;
   const rsiPaddingTop = 22;
   const rsiPaddingBottom = 12;
   const rsiAdjHeight = rsiHeight - rsiPaddingTop - rsiPaddingBottom;
 
-  const windowHigh = Math.max(...history.map((h) => h.high));
-  const windowLow = Math.min(...history.map((h) => h.low));
+  const windowHigh = history.length > 0 ? Math.max(...history.map((h) => h.high)) : 0;
+  const windowLow = history.length > 0 ? Math.min(...history.map((h) => h.low)) : 0;
   const prevCloseRef =
     typeof stock.prevClose === 'number' && stock.prevClose > 0 ? stock.prevClose : null;
 
@@ -448,10 +681,12 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     overlayValues.push(prevCloseRef);
   }
 
-  const prices = [
-    ...history.flatMap((h) => [h.high, h.low, h.close, h.open]),
-    ...overlayValues,
-  ];
+  const prices = history.length > 0
+    ? [
+        ...history.flatMap((h) => [h.high, h.low, h.close, h.open]),
+        ...overlayValues,
+      ]
+    : [1];
   const autoMaxPrice = Math.max(...prices) * 1.008;
   const autoMinPrice = Math.min(...prices) * 0.992;
   const autoPriceRange = Math.max(autoMaxPrice - autoMinPrice, 0.0001);
@@ -473,40 +708,16 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     baseMin: number,
     baseMax: number,
     factor: number
-  ): { min: number; max: number } => {
-    const curRange = Math.max(baseMax - baseMin, minVisibleRange);
-    const safeFactor = Math.max(0.05, Math.min(20, factor));
-    const nextRange = Math.max(minVisibleRange, Math.min(maxVisibleRange, curRange / safeFactor));
-    const mid = (baseMin + baseMax) / 2;
-    const half = nextRange / 2;
-    let nextMin = mid - half;
-    let nextMax = mid + half;
-
-    // Keep live/anchor price inside the visible plotting area when zooming in
-    const edgePad = nextRange * 0.04;
-    if (anchorPrice > nextMax - edgePad) {
-      const shift = anchorPrice + edgePad - nextMax;
-      nextMin += shift;
-      nextMax += shift;
-    } else if (anchorPrice < nextMin + edgePad) {
-      const shift = nextMin + edgePad - anchorPrice;
-      nextMin -= shift;
-      nextMax -= shift;
-    }
-
-    // Prevent negative Y-axis values for non-negative price instruments
-    if (autoMinPrice >= 0 && nextMin < 0) {
-      const shiftUp = -nextMin;
-      nextMin = 0;
-      nextMax = Math.max(nextMax + shiftUp, minVisibleRange);
-    }
-
-    if (nextMax <= nextMin) {
-      nextMax = nextMin + minVisibleRange;
-    }
-
-    return { min: nextMin, max: nextMax };
-  };
+  ): YRange =>
+    computeScaledBoundedRange({
+      baseMin,
+      baseMax,
+      factor,
+      minVisibleSpan: minVisibleRange,
+      maxVisibleSpan: maxVisibleRange,
+      anchorValue: anchorPrice,
+      boundMin: autoMinPrice >= 0 ? 0 : undefined,
+    });
 
   const minPrice = customYRange ? customYRange.min : autoMinPrice;
   const maxPrice = customYRange ? customYRange.max : autoMaxPrice;
@@ -552,16 +763,97 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     return val.toFixed(3);
   };
 
-  // Volume boundaries (include volMa if active)
+  // Volume boundaries (include volMa if active) & independent Y-axis zoom against [0, visibleMaxVolume]
+  // with capped 0..50px headroom above the plotting scale so taller bars stay visible where possible
   const volSeries = history.map((h) => h.volume);
   const volMaSeries = showVolMaStudy
     ? history.map((h) => h.volMa).filter((v): v is number => typeof v === 'number' && !isNaN(v))
     : [];
-  const maxVolume = Math.max(...volSeries, ...volMaSeries, 1);
+  const peakRenderedVolume = Math.max(...volSeries, ...volMaSeries, 0);
+  const autoMaxVolume = Math.max(peakRenderedVolume, 1);
+  const sortedPositiveVols = volSeries.filter((v) => v > 0).sort((a, b) => a - b);
+  const lowPositiveVolume =
+    sortedPositiveVols.length > 0
+      ? sortedPositiveVols[Math.floor(sortedPositiveVols.length * 0.1)]
+      : undefined;
+  const visibleMaxVolume = customVolMax !== null ? customVolMax : autoMaxVolume;
+  const isVolYZoomed = customVolMax !== null;
+  const volYZoomFactor = autoMaxVolume / Math.max(visibleMaxVolume, 1);
+  const {
+    volHeight,
+    volPaddingTop,
+    volScaleHeight,
+    volPlotHeight,
+    volBaselineY,
+    extraHeight: volExtraHeight,
+    topBoundaryVolume,
+  } = computeVolumePanelLayout({
+    visibleMaxVolume,
+    peakRenderedVolume,
+    isZoomed: isVolYZoomed,
+  });
+  const computeScaledVolMax = (baseMax: number, factor: number) =>
+    computeScaledVolumeMax(baseMax, autoMaxVolume, factor, lowPositiveVolume);
+
+  volScaleContextRef.current = {
+    visibleMaxVolume,
+    computeScaledVolMax,
+    isModalOpen: isStudiesModalOpen,
+  };
+
+  const handleVolYAxisMouseDown = (e: ReactMouseEvent<SVGRectElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setHoverIndex(null);
+    volDragStateRef.current = {
+      startY: e.clientY,
+      startMax: visibleMaxVolume,
+    };
+    setIsVolYAxisDragging(true);
+  };
+
+  // RSI independent Y-axis zoom bounded within [0, 100]
+  const latestRsiAnchor =
+    activeIndex >= 0 && typeof rsiList[activeIndex] === 'number' && !isNaN(rsiList[activeIndex])
+      ? rsiList[activeIndex]
+      : 50;
+  const minRsi = customRsiRange ? customRsiRange.min : RSI_NATURAL_MIN;
+  const maxRsi = customRsiRange ? customRsiRange.max : RSI_NATURAL_MAX;
+  const rsiRange = Math.max(maxRsi - minRsi, 1);
+  const isRsiYZoomed = customRsiRange !== null;
+  const rsiYZoomFactor = (RSI_NATURAL_MAX - RSI_NATURAL_MIN) / rsiRange;
+  const computeScaledRsiYRange = (baseMin: number, baseMax: number, factor: number) =>
+    computeScaledRsiRange(baseMin, baseMax, factor, latestRsiAnchor);
+
+  rsiScaleContextRef.current = {
+    minRsi,
+    maxRsi,
+    computeScaledRsiYRange,
+    isModalOpen: isStudiesModalOpen,
+  };
+
+  const handleRsiYAxisMouseDown = (e: ReactMouseEvent<SVGRectElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setHoverIndex(null);
+    rsiDragStateRef.current = {
+      startY: e.clientY,
+      startMin: minRsi,
+      startMax: maxRsi,
+    };
+    setIsRsiYAxisDragging(true);
+  };
 
   const getX = (index: number) => {
     if (history.length <= 1) return paddingLeft + adjWidth / 2;
     return paddingLeft + (index / (history.length - 1)) * adjWidth;
+  };
+
+  const getPriceVolX = (index: number) => {
+    if (history.length <= 1) return priceVolPaddingLeft + priceVolAdjWidth / 2;
+    return priceVolPaddingLeft + (index / (history.length - 1)) * priceVolAdjWidth;
   };
 
   const getHoverStripeBounds = (index: number) => {
@@ -574,14 +866,27 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     return { x: left, stripeWidth: Math.max(1, right - left) };
   };
 
+  const getPriceVolHoverStripeBounds = (index: number) => {
+    if (history.length <= 1) {
+      return { x: priceVolPaddingLeft, stripeWidth: priceVolAdjWidth };
+    }
+    const left = index === 0 ? priceVolPaddingLeft : (getPriceVolX(index - 1) + getPriceVolX(index)) / 2;
+    const right =
+      index === history.length - 1
+        ? priceVolPaddingLeft + priceVolAdjWidth
+        : (getPriceVolX(index) + getPriceVolX(index + 1)) / 2;
+    return { x: left, stripeWidth: Math.max(1, right - left) };
+  };
+
   const getY = (price: number) =>
     pricePaddingTop + priceAdjHeight - ((price - minPrice) / priceRange) * priceAdjHeight;
 
   const getVolY = (volume: number) =>
-    volPaddingTop + volAdjHeight - (volume / maxVolume) * volAdjHeight;
+    volBaselineY -
+    (Math.max(0, volume) / Math.max(visibleMaxVolume, 1)) * volScaleHeight;
 
   const getRsiY = (rsiVal: number) =>
-    rsiPaddingTop + rsiAdjHeight - (rsiVal / 100) * rsiAdjHeight;
+    rsiPaddingTop + rsiAdjHeight - ((rsiVal - minRsi) / rsiRange) * rsiAdjHeight;
 
   const generateSeriesPath = (getter: (bar: HistoryBar, idx: number) => number | undefined, yMapper: (val: number) => number) => {
     const pts: string[] = [];
@@ -594,12 +899,26 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     return pts.join(' ');
   };
 
+  const generatePriceVolSeriesPath = (
+    getter: (bar: HistoryBar, idx: number) => number | undefined,
+    yMapper: (val: number) => number
+  ) => {
+    const pts: string[] = [];
+    for (let i = 0; i < history.length; i++) {
+      const val = getter(history[i], i);
+      if (typeof val === 'number' && !isNaN(val)) {
+        pts.push(`${pts.length === 0 ? 'M' : 'L'}${getPriceVolX(i)},${yMapper(val)}`);
+      }
+    }
+    return pts.join(' ');
+  };
+
   const generateLinePath = () =>
-    history.map((h, i) => `${i === 0 ? 'M' : 'L'}${getX(i)},${getY(h.close)}`).join(' ');
+    history.map((h, i) => `${i === 0 ? 'M' : 'L'}${getPriceVolX(i)},${getY(h.close)}`).join(' ');
 
   const generateAreaPath = () => {
     const linePath = generateLinePath();
-    return `${linePath} L${getX(history.length - 1)},${getY(minPrice)} L${getX(0)},${getY(minPrice)} Z`;
+    return `${linePath} L${getPriceVolX(history.length - 1)},${getY(minPrice)} L${getPriceVolX(0)},${getY(minPrice)} Z`;
   };
 
   const getMA3 = (bar: HistoryBar, index: number): number | undefined => {
@@ -616,7 +935,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
       const u = history[i].bbUpper;
       const l = history[i].bbLower;
       if (typeof u === 'number' && typeof l === 'number') {
-        const x = getX(i);
+        const x = getPriceVolX(i);
         upperPts.push({ x, y: getY(u) });
         lowerPts.push({ x, y: getY(l) });
       }
@@ -627,8 +946,13 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
     return `${topStr} ${botStr} Z`;
   };
 
+  const liveOpen = typeof stock.open === 'number' && stock.open > 0 ? stock.open : undefined;
+  const liveHigh = typeof stock.high === 'number' && stock.high > 0 ? stock.high : undefined;
+  const liveLow = typeof stock.low === 'number' && stock.low > 0 ? stock.low : undefined;
+  const livePrice = typeof stock.price === 'number' && stock.price > 0 ? stock.price : undefined;
+
   const displayData =
-    hoverIndex !== null
+    hoverIndex !== null && hoveredData
       ? {
           date: formattedHoveredDate,
           open: hoveredData.open,
@@ -639,13 +963,13 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
         }
       : {
           date: formattedHoveredDate,
-          open: typeof stock.open === 'number' && stock.open > 0 ? stock.open : hoveredData.open,
-          high: typeof stock.high === 'number' && stock.high > 0 ? stock.high : hoveredData.high,
-          low: typeof stock.low === 'number' && stock.low > 0 ? stock.low : hoveredData.low,
-          close: typeof stock.price === 'number' && stock.price > 0 ? stock.price : hoveredData.close,
-          volume: hoveredData.volume,
+          open: liveOpen ?? hoveredData?.open,
+          high: liveHigh ?? hoveredData?.high,
+          low: liveLow ?? hoveredData?.low,
+          close: livePrice ?? hoveredData?.close,
+          volume: hoveredData?.volume,
         };
-  const currentRsi = rsiList[activeIndex];
+  const currentRsi = activeIndex >= 0 ? rsiList[activeIndex] : undefined;
 
   const statsColClass =
     showVolumeStudy && showRsiStudy
@@ -655,15 +979,17 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
       : 'grid-cols-2 sm:grid-cols-5';
 
   // Active overlay readout legend items
-  const activeOverlayItems = [
-    showMa3 && { id: 'ma3' as StudyId, label: '3MA', val: getMA3(hoveredData, activeIndex), colorClass: 'text-[#ff9900]' },
-    showEma9 && { id: 'ema9' as StudyId, label: '9EMA', val: hoveredData.ema9, colorClass: 'text-[#38bdf8]' },
-    showEma20 && { id: 'ema20' as StudyId, label: '20EMA', val: hoveredData.ema20, colorClass: 'text-[#f472b6]' },
-    showSma50 && { id: 'sma50' as StudyId, label: '50SMA', val: hoveredData.sma50, colorClass: 'text-[#eab308]' },
-    showVwap && { id: 'vwap' as StudyId, label: 'VWAP', val: hoveredData.vwap, colorClass: 'text-[#2dd4bf]' },
-    showBb && { id: 'bb' as StudyId, label: 'BB(20,2)', val: hoveredData.bbMid, colorClass: 'text-[#60a5fa]' },
-    showPsar && { id: 'psar' as StudyId, label: 'PSAR', val: hoveredData.psar, colorClass: 'text-[#fbbf24]' },
-  ].filter((x): x is { id: StudyId; label: string; val: number | undefined; colorClass: string } => Boolean(x));
+  const activeOverlayItems = hoveredData
+    ? [
+        showMa3 && { id: 'ma3' as StudyId, label: '3MA', val: getMA3(hoveredData, activeIndex), colorClass: 'text-[#ff9900]' },
+        showEma9 && { id: 'ema9' as StudyId, label: '9EMA', val: hoveredData.ema9, colorClass: 'text-[#38bdf8]' },
+        showEma20 && { id: 'ema20' as StudyId, label: '20EMA', val: hoveredData.ema20, colorClass: 'text-[#f472b6]' },
+        showSma50 && { id: 'sma50' as StudyId, label: '50SMA', val: hoveredData.sma50, colorClass: 'text-[#eab308]' },
+        showVwap && { id: 'vwap' as StudyId, label: 'VWAP', val: hoveredData.vwap, colorClass: 'text-[#2dd4bf]' },
+        showBb && { id: 'bb' as StudyId, label: 'BB(20,2)', val: hoveredData.bbMid, colorClass: 'text-[#60a5fa]' },
+        showPsar && { id: 'psar' as StudyId, label: 'PSAR', val: hoveredData.psar, colorClass: 'text-[#fbbf24]' },
+      ].filter((x): x is { id: StudyId; label: string; val: number | undefined; colorClass: string } => Boolean(x))
+    : [];
 
   const renderPanelHoverStripes = (keyPrefix: string) => (
     <>
@@ -748,6 +1074,8 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
 
   const CHART_PANEL_HEADER_CLASS =
     'absolute top-1 left-[64px] right-2 flex items-center justify-between gap-2 text-[11px] leading-tight font-bold uppercase select-none pointer-events-none';
+  const PRICE_VOL_PANEL_HEADER_CLASS =
+    'absolute top-1 left-[74px] right-2 flex items-center justify-between gap-2 text-[11px] leading-tight font-bold uppercase select-none pointer-events-none';
 
   return (
     <div
@@ -759,8 +1087,12 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm font-extrabold uppercase tracking-wider leading-tight min-w-0">
             <span className="text-[#ff9900]">{stock.symbol}</span>
-            <span className="text-zinc-600 font-normal">|</span>
-            <span className="text-white truncate max-w-[260px] sm:max-w-none">{stock.name}</span>
+            {stock.name && stock.name !== stock.symbol && (
+              <>
+                <span className="text-zinc-600 font-normal">|</span>
+                <span className="text-white truncate max-w-[260px] sm:max-w-none">{stock.name}</span>
+              </>
+            )}
             {stock.exchange && (
               <>
                 <span className="text-zinc-600 font-normal">|</span>
@@ -852,7 +1184,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             LAST PRICE
           </span>
           <span className="text-[#3498db] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
-            ${displayData.close.toFixed(2)}
+            {typeof displayData.close === 'number' ? `$${displayData.close.toFixed(2)}` : '--'}
           </span>
         </div>
         <div className="min-w-0">
@@ -888,19 +1220,19 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
         <div className="min-w-0">
           <span className="text-zinc-300 font-bold block truncate">OPEN</span>
           <span className="text-[#ff9900] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
-            ${displayData.open.toFixed(2)}
+            {typeof displayData.open === 'number' ? `$${displayData.open.toFixed(2)}` : '--'}
           </span>
         </div>
         <div className="min-w-0">
           <span className="text-zinc-300 font-bold block truncate">HIGH</span>
           <span className="text-[#00ff00] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
-            ${displayData.high.toFixed(2)}
+            {typeof displayData.high === 'number' ? `$${displayData.high.toFixed(2)}` : '--'}
           </span>
         </div>
         <div className="min-w-0">
           <span className="text-zinc-300 font-bold block truncate">LOW</span>
           <span className="text-[#ff4444] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
-            ${displayData.low.toFixed(2)}
+            {typeof displayData.low === 'number' ? `$${displayData.low.toFixed(2)}` : '--'}
           </span>
         </div>
         {showVolumeStudy && (
@@ -910,7 +1242,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               {typeof stock.volume === 'number' && stock.volume > 0 ? stock.volume.toLocaleString() : '--'}
             </span>
             <span className="text-[10px] text-zinc-500 font-bold block truncate">
-              BAR VOLUME: {displayData.volume.toLocaleString()}
+              BAR VOLUME: {typeof displayData.volume === 'number' ? displayData.volume.toLocaleString() : '--'}
             </span>
           </div>
         )}
@@ -919,10 +1251,18 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             <span className="text-zinc-300 font-bold block truncate">RSI (14)</span>
             <span
               className={`text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate ${
-                currentRsi >= 70 ? 'text-[#ff4444]' : currentRsi <= 30 ? 'text-[#00ff00]' : 'text-[#9b59b6]'
+                typeof currentRsi === 'number' && !isNaN(currentRsi)
+                  ? currentRsi >= 70
+                    ? 'text-[#ff4444]'
+                    : currentRsi <= 30
+                    ? 'text-[#00ff00]'
+                    : 'text-[#9b59b6]'
+                  : 'text-zinc-500'
               }`}
             >
-              {currentRsi.toFixed(1)} {currentRsi >= 70 ? 'OB' : currentRsi <= 30 ? 'OS' : ''}
+              {typeof currentRsi === 'number' && !isNaN(currentRsi)
+                ? `${currentRsi.toFixed(1)} ${currentRsi >= 70 ? 'OB' : currentRsi <= 30 ? 'OS' : ''}`
+                : '--'}
             </span>
           </div>
         )}
@@ -932,13 +1272,15 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
       <div className="flex flex-col gap-2 relative bg-black rounded p-1.5 border border-[#222]">
         {/* PANEL 1: Main Price Chart */}
         <div ref={chartPanelRef} className="relative pt-[6px]">
-          <svg
-            width={width}
-            height={priceHeight}
-            viewBox={`0 0 ${width} ${priceHeight}`}
-            className="block w-full overflow-visible"
-            onMouseLeave={() => setHoverIndex(null)}
-          >
+          {isChartReady && hoveredData ? (
+            <>
+              <svg
+                width={width}
+                height={priceHeight}
+                viewBox={`0 0 ${width} ${priceHeight}`}
+                className="block w-full overflow-visible"
+                onMouseLeave={() => setHoverIndex(null)}
+              >
             {/* Subtle interactive backdrop for left Y-axis scale */}
             <rect
               x={2}
@@ -970,7 +1312,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               return (
                 <g key={i}>
                   <line
-                    x1={paddingLeft}
+                    x1={priceVolPaddingLeft}
                     y1={hVal}
                     x2={width - paddingRight}
                     y2={hVal}
@@ -1001,7 +1343,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                   getY(windowHigh) <= pricePaddingTop + priceAdjHeight + 2 && (
                     <>
                       <line
-                        x1={paddingLeft}
+                        x1={priceVolPaddingLeft}
                         y1={getY(windowHigh)}
                         x2={width - paddingRight}
                         y2={getY(windowHigh)}
@@ -1025,7 +1367,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                   getY(windowLow) <= pricePaddingTop + priceAdjHeight + 2 && (
                     <>
                       <line
-                        x1={paddingLeft}
+                        x1={priceVolPaddingLeft}
                         y1={getY(windowLow)}
                         x2={width - paddingRight}
                         y2={getY(windowLow)}
@@ -1050,7 +1392,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                   getY(prevCloseRef) <= pricePaddingTop + priceAdjHeight + 2 && (
                     <>
                       <line
-                        x1={paddingLeft}
+                        x1={priceVolPaddingLeft}
                         y1={getY(prevCloseRef)}
                         x2={width - paddingRight}
                         y2={getY(prevCloseRef)}
@@ -1081,14 +1423,14 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               <g>
                 <path d={generateBollingerFillPath()} fill="rgba(96, 165, 250, 0.08)" />
                 <path
-                  d={generateSeriesPath((b) => b.bbUpper, getY)}
+                  d={generatePriceVolSeriesPath((b) => b.bbUpper, getY)}
                   fill="none"
                   stroke="#60a5fa"
                   strokeWidth="1.1"
                   opacity="0.85"
                 />
                 <path
-                  d={generateSeriesPath((b) => b.bbMid, getY)}
+                  d={generatePriceVolSeriesPath((b) => b.bbMid, getY)}
                   fill="none"
                   stroke="#60a5fa"
                   strokeWidth="1"
@@ -1096,7 +1438,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                   opacity="0.65"
                 />
                 <path
-                  d={generateSeriesPath((b) => b.bbLower, getY)}
+                  d={generatePriceVolSeriesPath((b) => b.bbLower, getY)}
                   fill="none"
                   stroke="#60a5fa"
                   strokeWidth="1.1"
@@ -1128,7 +1470,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             {/* Candlesticks layout */}
             {chartType === 'candle' &&
               history.map((h, i) => {
-                const xPos = getX(i);
+                const xPos = getPriceVolX(i);
                 const openY = getY(h.open);
                 const closeY = getY(h.close);
                 const highY = getY(h.high);
@@ -1161,7 +1503,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             {/* Moving Average & VWAP Overlays */}
             {showSma50 && (
               <path
-                d={generateSeriesPath((b) => b.sma50, getY)}
+                d={generatePriceVolSeriesPath((b) => b.sma50, getY)}
                 fill="none"
                 stroke="#eab308"
                 strokeWidth="1.4"
@@ -1170,7 +1512,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             )}
             {showEma20 && (
               <path
-                d={generateSeriesPath((b) => b.ema20, getY)}
+                d={generatePriceVolSeriesPath((b) => b.ema20, getY)}
                 fill="none"
                 stroke="#f472b6"
                 strokeWidth="1.4"
@@ -1179,7 +1521,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             )}
             {showEma9 && (
               <path
-                d={generateSeriesPath((b) => b.ema9, getY)}
+                d={generatePriceVolSeriesPath((b) => b.ema9, getY)}
                 fill="none"
                 stroke="#38bdf8"
                 strokeWidth="1.4"
@@ -1188,7 +1530,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             )}
             {showVwap && (
               <path
-                d={generateSeriesPath((b) => b.vwap, getY)}
+                d={generatePriceVolSeriesPath((b) => b.vwap, getY)}
                 fill="none"
                 stroke="#2dd4bf"
                 strokeWidth="1.5"
@@ -1198,7 +1540,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             )}
             {showMa3 && (
               <path
-                d={generateSeriesPath(getMA3, getY)}
+                d={generatePriceVolSeriesPath(getMA3, getY)}
                 fill="none"
                 stroke="#ff9900"
                 strokeWidth="1.5"
@@ -1214,7 +1556,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 return (
                   <circle
                     key={`psar-${i}`}
-                    cx={getX(i)}
+                    cx={getPriceVolX(i)}
                     cy={getY(h.psar)}
                     r="2"
                     fill={h.psarUp ? '#00ff00' : '#ff4444'}
@@ -1228,19 +1570,20 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             {history.map((h, i) => {
               const showTick =
                 i === lastIdx ||
-                (i % labelStep === 0 && getX(lastIdx) - getX(i) >= minLabelGapPx * 0.78);
+                (i % priceVolLabelStep === 0 &&
+                  getPriceVolX(lastIdx) - getPriceVolX(i) >= minLabelGapPx * 0.78);
               if (showTick) {
                 return (
                   <g key={`text-${i}`}>
                     <line
-                      x1={getX(i)}
+                      x1={getPriceVolX(i)}
                       y1={pricePaddingTop + priceAdjHeight}
-                      x2={getX(i)}
+                      x2={getPriceVolX(i)}
                       y2={pricePaddingTop + priceAdjHeight + 3}
                       stroke="#444"
                     />
                     <text
-                      x={getX(i)}
+                      x={getPriceVolX(i)}
                       y={pricePaddingTop + priceAdjHeight + 13}
                       textAnchor="middle"
                       fill="#e4e4e7"
@@ -1258,7 +1601,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
 
             {/* Interactive hover detection vertical stripes */}
             {history.map((_, i) => {
-              const { x, stripeWidth } = getHoverStripeBounds(i);
+              const { x, stripeWidth } = getPriceVolHoverStripeBounds(i);
               return (
                 <rect
                   key={`detect-${i}`}
@@ -1277,9 +1620,9 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             {hoverIndex !== null && (
               <g>
                 <line
-                  x1={getX(hoverIndex)}
+                  x1={getPriceVolX(hoverIndex)}
                   y1={pricePaddingTop}
-                  x2={getX(hoverIndex)}
+                  x2={getPriceVolX(hoverIndex)}
                   y2={pricePaddingTop + priceAdjHeight}
                   stroke="#ff9900"
                   strokeWidth="0.8"
@@ -1288,7 +1631,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 {getY(history[hoverIndex].close) >= pricePaddingTop - 3 &&
                   getY(history[hoverIndex].close) <= pricePaddingTop + priceAdjHeight + 3 && (
                     <circle
-                      cx={getX(hoverIndex)}
+                      cx={getPriceVolX(hoverIndex)}
                       cy={getY(history[hoverIndex].close)}
                       r="4"
                       fill="#ff9900"
@@ -1326,9 +1669,9 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
             <defs>
               <clipPath id="gp-price-plot-clip">
                 <rect
-                  x={paddingLeft - 8}
+                  x={priceVolPaddingLeft - 8}
                   y={pricePaddingTop - 3}
-                  width={adjWidth + 16}
+                  width={priceVolAdjWidth + 16}
                   height={priceAdjHeight + 6}
                 />
               </clipPath>
@@ -1338,7 +1681,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               </linearGradient>
             </defs>
           </svg>
-          <div className={CHART_PANEL_HEADER_CLASS}>
+          <div className={PRICE_VOL_PANEL_HEADER_CLASS}>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 min-w-0">
               <span className="text-zinc-500">PRICE CHART</span>
               {activeOverlayItems.map((item) => (
@@ -1348,15 +1691,46 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               ))}
             </div>
             {(isYZoomed || isYAxisDragging) && (
-              <span className="text-[#ff9900] font-bold tabular-nums shrink-0">
-                Y-SCALE: {yZoomFactor.toFixed(2)}× (DBL-CLICK / 0 RESET)
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[#ff9900] font-bold tabular-nums shrink-0">
+                  Y-SCALE: {yZoomFactor.toFixed(2)}×
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="p-0.5 shrink-0 inline-flex items-center justify-center invisible"
+                >
+                  <X size={11} />
+                </span>
+              </div>
             )}
           </div>
+            </>
+          ) : chartDataPhase === 'pending' ? (
+            <div style={{ height: BASE_PRICE_HEIGHT }} className="relative w-full">
+              <div className={CHART_PANEL_HEADER_CLASS}>
+                <span className="text-zinc-500">PRICE CHART</span>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{ height: BASE_PRICE_HEIGHT }}
+              className="flex flex-col items-center justify-center text-center text-zinc-500 font-mono select-none"
+            >
+              <p className="text-xs text-zinc-400">
+                NO HISTORICAL DATA AVAILABLE FOR
+              </p>
+              <div className="text-white font-extrabold text-xl sm:text-2xl tracking-wider mt-1.5 mb-2">
+                {stock.symbol}
+              </div>
+              <div className="text-[10px] text-zinc-600">
+                DATA PROVIDERS: LIVE YAHOO FINANCE / ALPHA VANTAGE
+              </div>
+            </div>
+          )}
         </div>
 
         {/* PANEL 2: Volume Study (+ Optional Vol MA 20) */}
-        {showVolumeStudy && (
+        {isChartReady && hoveredData && showVolumeStudy && (
           <div className="relative border-t border-[#161616] pt-1">
             <svg
               width={width}
@@ -1365,12 +1739,36 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               className="block w-full overflow-visible"
               onMouseLeave={() => setHoverIndex(null)}
             >
+              {/* Subtle interactive backdrop for left Volume Y-axis scale */}
+              <rect
+                x={2}
+                y={volPaddingTop - 6}
+                width={paddingLeft - 6}
+                height={volPlotHeight + 12}
+                rx="2"
+                fill={
+                  isVolYAxisDragging
+                    ? 'rgba(255, 153, 0, 0.12)'
+                    : isVolYAxisHovered
+                    ? 'rgba(255, 153, 0, 0.06)'
+                    : 'transparent'
+                }
+                stroke={
+                  isVolYAxisDragging
+                    ? 'rgba(255, 153, 0, 0.45)'
+                    : isVolYAxisHovered || isVolYZoomed
+                    ? 'rgba(255, 153, 0, 0.22)'
+                    : 'transparent'
+                }
+                strokeWidth="1"
+              />
+
               {[0.25, 0.5, 0.75].map((pct, idx) => {
-                const yVal = volPaddingTop + pct * volAdjHeight;
+                const yVal = getVolY(visibleMaxVolume * pct);
                 return (
                   <line
                     key={`vol-grid-${idx}`}
-                    x1={paddingLeft}
+                    x1={priceVolPaddingLeft}
                     y1={yVal}
                     x2={width - paddingRight}
                     y2={yVal}
@@ -1381,69 +1779,127 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                 );
               })}
 
+              {volExtraHeight > 0 && (
+                <line
+                  x1={priceVolPaddingLeft}
+                  y1={getVolY(visibleMaxVolume)}
+                  x2={width - paddingRight}
+                  y2={getVolY(visibleMaxVolume)}
+                  stroke="#2a2a2a"
+                  strokeWidth="1"
+                  strokeDasharray="2,2"
+                />
+              )}
+
+              {volExtraHeight >= 14 && (
+                <line
+                  x1={priceVolPaddingLeft}
+                  y1={volPaddingTop}
+                  x2={width - paddingRight}
+                  y2={volPaddingTop}
+                  stroke="#1c1c1c"
+                  strokeWidth="1"
+                  strokeDasharray="2,2"
+                />
+              )}
+
+              {volExtraHeight >= 16 && (
+                <text
+                  x={paddingLeft - 12}
+                  y={volPaddingTop + 6}
+                  textAnchor="end"
+                  fill={isVolYAxisHovered || isVolYAxisDragging ? '#ff9900' : '#a1a1aa'}
+                  fontSize="8.5"
+                  fontFamily="monospace"
+                  fontWeight="bold"
+                  className="pointer-events-none"
+                >
+                  {formatAxisVolume(topBoundaryVolume)}
+                </text>
+              )}
+
               <text
-                x={paddingLeft - 6}
-                y={volPaddingTop + 6}
+                x={paddingLeft - 12}
+                y={volExtraHeight === 0 ? volPaddingTop + 6 : getVolY(visibleMaxVolume) + 3}
                 textAnchor="end"
-                fill="#e4e4e7"
+                fill={isVolYAxisHovered || isVolYAxisDragging ? '#ff9900' : '#e4e4e7'}
                 fontSize="9.5"
                 fontFamily="monospace"
                 fontWeight="bold"
+                className="pointer-events-none"
               >
-                {formatAxisVolume(maxVolume)}
+                {formatAxisVolume(visibleMaxVolume)}
               </text>
+              {isVolYZoomed && (
+                <text
+                  x={paddingLeft - 12}
+                  y={getVolY(visibleMaxVolume * 0.5) + 3}
+                  textAnchor="end"
+                  fill={isVolYAxisHovered || isVolYAxisDragging ? '#ff9900' : '#a1a1aa'}
+                  fontSize="8.5"
+                  fontFamily="monospace"
+                  fontWeight="bold"
+                  className="pointer-events-none"
+                >
+                  {formatAxisVolume(visibleMaxVolume * 0.5)}
+                </text>
+              )}
               <text
-                x={paddingLeft - 6}
-                y={volPaddingTop + volAdjHeight + 3}
+                x={paddingLeft - 12}
+                y={volBaselineY + 3}
                 textAnchor="end"
-                fill="#e4e4e7"
+                fill={isVolYAxisHovered || isVolYAxisDragging ? '#ff9900' : '#e4e4e7'}
                 fontSize="9.5"
                 fontFamily="monospace"
                 fontWeight="bold"
+                className="pointer-events-none"
               >
                 0
               </text>
 
-              {history.map((h, i) => {
-                const barX = getX(i) - volBarWidth / 2;
-                const rawBarY = getVolY(h.volume);
-                const rawBarH = volPaddingTop + volAdjHeight - rawBarY;
-                const barH = h.volume > 0 ? Math.max(2, rawBarH) : 1;
-                const barY = volPaddingTop + volAdjHeight - barH;
-                const isGreen = h.close >= h.open;
-                return (
-                  <rect
-                    key={`vol-bar-${i}`}
-                    x={barX}
-                    y={barY}
-                    width={volBarWidth}
-                    height={barH}
-                    fill={isGreen ? 'rgba(0, 255, 0, 0.15)' : 'rgba(255, 68, 68, 0.15)'}
-                    stroke={isGreen ? '#00ff00' : '#ff4444'}
-                    strokeWidth="0.8"
-                  />
-                );
-              })}
+              <g clipPath="url(#gp-vol-plot-clip)">
+                {history.map((h, i) => {
+                  const barX = getPriceVolX(i) - priceVolBarWidth / 2;
+                  const safeVol = Math.max(0, h.volume);
+                  const rawBarY = getVolY(safeVol);
+                  const rawBarH = Math.max(0, volBaselineY - rawBarY);
+                  const barH = safeVol > 0 ? Math.max(2, rawBarH) : 1;
+                  const barY = volBaselineY - barH;
+                  const isGreen = h.close >= h.open;
+                  return (
+                    <rect
+                      key={`vol-bar-${i}`}
+                      x={barX}
+                      y={barY}
+                      width={priceVolBarWidth}
+                      height={barH}
+                      fill={isGreen ? 'rgba(0, 255, 0, 0.15)' : 'rgba(255, 68, 68, 0.15)'}
+                      stroke={isGreen ? '#00ff00' : '#ff4444'}
+                      strokeWidth="0.8"
+                    />
+                  );
+                })}
 
-              {showVolMaStudy && (
-                <path
-                  d={generateSeriesPath((b) => b.volMa, getVolY)}
-                  fill="none"
-                  stroke="#ff9900"
-                  strokeWidth="1.4"
-                  opacity="0.9"
-                />
-              )}
+                {showVolMaStudy && (
+                  <path
+                    d={generatePriceVolSeriesPath((b) => b.volMa, getVolY)}
+                    fill="none"
+                    stroke="#ff9900"
+                    strokeWidth="1.4"
+                    opacity="0.9"
+                  />
+                )}
+              </g>
 
               {history.map((_, i) => {
-                const { x, stripeWidth } = getHoverStripeBounds(i);
+                const { x, stripeWidth } = getPriceVolHoverStripeBounds(i);
                 return (
                   <rect
                     key={`vol-detect-${i}`}
                     x={x}
                     y={volPaddingTop}
                     width={stripeWidth}
-                    height={volAdjHeight}
+                    height={volPlotHeight}
                     fill="transparent"
                     className="cursor-crosshair"
                     onMouseEnter={() => setHoverIndex(i)}
@@ -1453,17 +1909,52 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
 
               {hoverIndex !== null && (
                 <line
-                  x1={getX(hoverIndex)}
+                  x1={getPriceVolX(hoverIndex)}
                   y1={volPaddingTop}
-                  x2={getX(hoverIndex)}
-                  y2={volPaddingTop + volAdjHeight}
+                  x2={getPriceVolX(hoverIndex)}
+                  y2={volBaselineY}
                   stroke="#ff9900"
                   strokeWidth="0.8"
                   strokeDasharray="2,2"
                 />
               )}
+
+              {/* Interactive Left Y-Axis Scale Hit Area for Volume */}
+              <rect
+                ref={volYAxisHitRef}
+                x={0}
+                y={0}
+                width={paddingLeft}
+                height={volHeight}
+                fill="transparent"
+                className="cursor-ns-resize"
+                onMouseEnter={() => {
+                  setIsVolYAxisHovered(true);
+                  setHoverIndex(null);
+                }}
+                onMouseLeave={() => setIsVolYAxisHovered(false)}
+                onMouseDown={handleVolYAxisMouseDown}
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCustomVolMax(null);
+                }}
+              >
+                <title>Scroll or drag vertically to zoom volume scale (Double-click or press 0 to reset)</title>
+              </rect>
+
+              <defs>
+                <clipPath id="gp-vol-plot-clip">
+                  <rect
+                    x={priceVolPaddingLeft - 8}
+                    y={volPaddingTop - 1}
+                    width={priceVolAdjWidth + 16}
+                    height={volPlotHeight + 2}
+                  />
+                </clipPath>
+              </defs>
             </svg>
-            <div className={CHART_PANEL_HEADER_CLASS}>
+            <div className={PRICE_VOL_PANEL_HEADER_CLASS}>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
                 <span className="text-zinc-500 inline-flex items-center gap-2">
                   <span>VOLUME STUDY</span>
@@ -1505,21 +1996,40 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                   </span>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => toggleStudy('volume')}
-                title="Hide Volume study"
-                aria-label="Hide Volume study"
-                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
-              >
-                <X size={11} />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {(isVolYZoomed || isVolYAxisDragging) && (
+                  <span className="text-[#ff9900] font-bold tabular-nums">
+                    Y-SCALE: {volYZoomFactor.toFixed(2)}×
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => toggleStudy('volume')}
+                  title="Hide Volume study"
+                  aria-label="Hide Volume study"
+                  className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                >
+                  <X size={11} />
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* PANEL 3: RSI Study */}
-        {showRsiStudy && (
+        {isChartReady && hoveredData && showRsiStudy && (() => {
+          const visibleRefLevels = [30, 50, 70].filter(
+            (lvl) => lvl >= minRsi - 0.001 && lvl <= maxRsi + 0.001
+          );
+          const rsiScaleTicks = isRsiYZoomed
+            ? [0, 0.25, 0.5, 0.75, 1].map((pct) => ({
+                pct,
+                val: maxRsi - pct * rsiRange,
+                yVal: rsiPaddingTop + pct * rsiAdjHeight,
+              }))
+            : [];
+
+          return (
           <div className="relative border-t border-[#161616] pt-1">
             <svg
               width={width}
@@ -1528,26 +2038,104 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               className="block w-full overflow-visible"
               onMouseLeave={() => setHoverIndex(null)}
             >
+              {/* Subtle interactive backdrop for left RSI Y-axis scale */}
               <rect
-                x={paddingLeft}
-                y={getRsiY(100)}
-                width={width - paddingLeft - paddingRight}
-                height={getRsiY(70) - getRsiY(100)}
-                fill="rgba(239, 68, 68, 0.08)"
-              />
-              <rect
-                x={paddingLeft}
-                y={getRsiY(30)}
-                width={width - paddingLeft - paddingRight}
-                height={getRsiY(0) - getRsiY(30)}
-                fill="rgba(34, 197, 94, 0.08)"
+                x={2}
+                y={rsiPaddingTop - 6}
+                width={paddingLeft - 6}
+                height={rsiAdjHeight + 12}
+                rx="2"
+                fill={
+                  isRsiYAxisDragging
+                    ? 'rgba(255, 153, 0, 0.12)'
+                    : isRsiYAxisHovered
+                    ? 'rgba(255, 153, 0, 0.06)'
+                    : 'transparent'
+                }
+                stroke={
+                  isRsiYAxisDragging
+                    ? 'rgba(255, 153, 0, 0.45)'
+                    : isRsiYAxisHovered || isRsiYZoomed
+                    ? 'rgba(255, 153, 0, 0.22)'
+                    : 'transparent'
+                }
+                strokeWidth="1"
               />
 
-              {[30, 50, 70].map((level) => {
+              <g clipPath="url(#gp-rsi-plot-clip)">
+                <rect
+                  x={paddingLeft}
+                  y={getRsiY(100)}
+                  width={width - paddingLeft - paddingRight}
+                  height={Math.max(0, getRsiY(70) - getRsiY(100))}
+                  fill="rgba(239, 68, 68, 0.08)"
+                />
+                <rect
+                  x={paddingLeft}
+                  y={getRsiY(30)}
+                  width={width - paddingLeft - paddingRight}
+                  height={Math.max(0, getRsiY(0) - getRsiY(30))}
+                  fill="rgba(34, 197, 94, 0.08)"
+                />
+              </g>
+
+              {/* Dynamic scale gridlines & labels when RSI Y-axis is zoomed */}
+              {rsiScaleTicks.map(({ pct, val, yVal }) => {
+                const nearRefLine = visibleRefLevels.some(
+                  (lvl) => Math.abs(getRsiY(lvl) - yVal) < 3
+                );
+                const nearRefLabel = visibleRefLevels.some(
+                  (lvl) => Math.abs(getRsiY(lvl) - yVal) < 13
+                );
+                const formattedVal =
+                  Math.abs(val - Math.round(val)) < 0.05 || rsiRange >= 25
+                    ? `${Math.round(val)}`
+                    : val.toFixed(1);
+
+                return (
+                  <g key={`rsi-scale-${pct}`}>
+                    {!nearRefLine && (
+                      <line
+                        x1={paddingLeft}
+                        y1={yVal}
+                        x2={width - paddingRight}
+                        y2={yVal}
+                        stroke="#1f1f1f"
+                        strokeWidth="1"
+                        strokeDasharray="2,2"
+                      />
+                    )}
+                    {!nearRefLabel && (
+                      <text
+                        x={paddingLeft - 6}
+                        y={yVal + 3}
+                        textAnchor="end"
+                        fill={isRsiYAxisHovered || isRsiYAxisDragging ? '#ff9900' : '#a1a1aa'}
+                        fontSize="9.5"
+                        fontFamily="monospace"
+                        fontWeight="bold"
+                        className="pointer-events-none"
+                      >
+                        {formattedVal}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+
+              {visibleRefLevels.map((level) => {
                 const yVal = getRsiY(level);
                 const strokeColor =
                   level === 50 ? '#333' : level === 70 ? 'rgba(239, 68, 68, 0.5)' : 'rgba(34, 197, 94, 0.5)';
-                const textColor = level === 50 ? '#a1a1aa' : level === 70 ? '#ef4444' : '#22c55e';
+                const textColor =
+                  isRsiYAxisHovered || isRsiYAxisDragging
+                    ? '#ff9900'
+                    : level === 50
+                    ? '#a1a1aa'
+                    : level === 70
+                    ? '#ef4444'
+                    : '#22c55e';
+                const rightTextColor = level === 50 ? '#a1a1aa' : level === 70 ? '#ef4444' : '#22c55e';
                 const labelText = level === 70 ? '70 OB' : level === 30 ? '30 OS' : '50';
                 return (
                   <g key={`rsi-lvl-${level}`}>
@@ -1568,31 +2156,37 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                       fontSize="9.5"
                       fontFamily="monospace"
                       fontWeight="bold"
+                      className="pointer-events-none"
                     >
                       {labelText}
                     </text>
-                    <text
-                      x={width - paddingRight + 4}
-                      y={yVal + 3}
-                      textAnchor="start"
-                      fill={textColor}
-                      fontSize="9.5"
-                      fontFamily="monospace"
-                      fontWeight="bold"
-                    >
-                      {labelText}
-                    </text>
+                    {yVal >= rsiPaddingTop + 8 && (
+                      <text
+                        x={width - paddingRight + 4}
+                        y={yVal + 3}
+                        textAnchor="start"
+                        fill={rightTextColor}
+                        fontSize="9.5"
+                        fontFamily="monospace"
+                        fontWeight="bold"
+                        className="pointer-events-none"
+                      >
+                        {labelText}
+                      </text>
+                    )}
                   </g>
                 );
               })}
 
-              <path
-                d={rsiList.map((val, i) => `${i === 0 ? 'M' : 'L'}${getX(i)},${getRsiY(val)}`).join(' ')}
-                fill="none"
-                stroke="#9b59b6"
-                strokeWidth="1.5"
-                strokeLinejoin="round"
-              />
+              <g clipPath="url(#gp-rsi-plot-clip)">
+                <path
+                  d={rsiList.map((val, i) => `${i === 0 ? 'M' : 'L'}${getX(i)},${getRsiY(val)}`).join(' ')}
+                  fill="none"
+                  stroke="#9b59b6"
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                />
+              </g>
 
               {history.map((_, i) => {
                 const { x, stripeWidth } = getHoverStripeBounds(i);
@@ -1621,16 +2215,53 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                     strokeWidth="0.8"
                     strokeDasharray="2,2"
                   />
-                  <circle
-                    cx={getX(hoverIndex)}
-                    cy={getRsiY(rsiList[hoverIndex])}
-                    r="3"
-                    fill="#ff9900"
-                    stroke="black"
-                    strokeWidth="1"
-                  />
+                  <g clipPath="url(#gp-rsi-plot-clip)">
+                    <circle
+                      cx={getX(hoverIndex)}
+                      cy={getRsiY(rsiList[hoverIndex])}
+                      r="3"
+                      fill="#ff9900"
+                      stroke="black"
+                      strokeWidth="1"
+                    />
+                  </g>
                 </g>
               )}
+
+              {/* Interactive Left Y-Axis Scale Hit Area for RSI */}
+              <rect
+                ref={rsiYAxisHitRef}
+                x={0}
+                y={0}
+                width={paddingLeft}
+                height={rsiHeight}
+                fill="transparent"
+                className="cursor-ns-resize"
+                onMouseEnter={() => {
+                  setIsRsiYAxisHovered(true);
+                  setHoverIndex(null);
+                }}
+                onMouseLeave={() => setIsRsiYAxisHovered(false)}
+                onMouseDown={handleRsiYAxisMouseDown}
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCustomRsiRange(null);
+                }}
+              >
+                <title>Scroll or drag vertically to zoom RSI scale (Double-click or press 0 to reset)</title>
+              </rect>
+
+              <defs>
+                <clipPath id="gp-rsi-plot-clip">
+                  <rect
+                    x={paddingLeft - 8}
+                    y={rsiPaddingTop - 3}
+                    width={adjWidth + 16}
+                    height={rsiAdjHeight + 6}
+                  />
+                </clipPath>
+              </defs>
             </svg>
             <div className={CHART_PANEL_HEADER_CLASS}>
               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
@@ -1670,21 +2301,29 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => toggleStudy('rsi')}
-                title="Hide RSI study"
-                aria-label="Hide RSI study"
-                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
-              >
-                <X size={11} />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {(isRsiYZoomed || isRsiYAxisDragging) && (
+                  <span className="text-[#ff9900] font-bold tabular-nums">
+                    Y-SCALE: {rsiYZoomFactor.toFixed(2)}×
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => toggleStudy('rsi')}
+                  title="Hide RSI study"
+                  aria-label="Hide RSI study"
+                  className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                >
+                  <X size={11} />
+                </button>
+              </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* PANEL 4: MACD (12, 26, 9) */}
-        {showMacdStudy && (
+        {isChartReady && hoveredData && showMacdStudy && (
           <div className="relative border-t border-[#161616] pt-1">
             <svg
               width={width}
@@ -1780,7 +2419,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
         )}
 
         {/* PANEL 5: Slow Stochastic (14, 3, 3) */}
-        {showStochStudy && (
+        {isChartReady && hoveredData && showStochStudy && (
           <div className="relative border-t border-[#161616] pt-1">
             <svg
               width={width}
@@ -1866,7 +2505,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
         )}
 
         {/* PANEL 6: CCI (20) */}
-        {showCciStudy && (
+        {isChartReady && hoveredData && showCciStudy && (
           <div className="relative border-t border-[#161616] pt-1">
             <svg
               width={width}
@@ -1928,7 +2567,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
         )}
 
         {/* PANEL 7: ADX / DMI (14) */}
-        {showAdxStudy && (
+        {isChartReady && hoveredData && showAdxStudy && (
           <div className="relative border-t border-[#161616] pt-1">
             <svg
               width={width}
@@ -2010,7 +2649,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
         )}
 
         {/* PANEL 8: ATR (14) */}
-        {showAtrStudy && (
+        {isChartReady && hoveredData && showAtrStudy && (
           <div className="relative border-t border-[#161616] pt-1">
             <svg
               width={width}
@@ -2072,7 +2711,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
         )}
 
         {/* PANEL 9: OBV (On-Balance Volume) */}
-        {showObvStudy && (
+        {isChartReady && hoveredData && showObvStudy && (
           <div className="relative border-t border-[#161616] pt-1">
             <svg
               width={width}
@@ -2134,7 +2773,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
         )}
 
         {/* PANEL 10: ROC (12) */}
-        {showRocStudy && (
+        {isChartReady && hoveredData && showRocStudy && (
           <div className="relative border-t border-[#161616] pt-1">
             <svg
               width={width}
@@ -2196,8 +2835,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
       </div>
 
       <div className="flex flex-wrap justify-between items-center gap-2 text-[9px] text-[#ff9900] mt-3 font-semibold select-none border-t border-[#333] pt-2">
-        <span className={historyLoading ? 'flex items-center gap-1.5' : undefined}>
-          {historyLoading && <RefreshCw size={10} className="animate-spin text-[#ff9900]" />}
+        <span>
           <span>
             RANGE:{' '}
             {interval === '5m'

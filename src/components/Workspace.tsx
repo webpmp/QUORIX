@@ -452,7 +452,22 @@ export default function Workspace({
     }
   };
 
-  const currentStock = stocks[selectedTicker] || stocks['AAPL'];
+  const currentStock = stocks[selectedTicker] || {
+    symbol: selectedTicker,
+    name: selectedTicker,
+    price: 0,
+    change: 0,
+    changePercent: 0,
+    high: 0,
+    low: 0,
+    open: 0,
+    prevClose: 0,
+    volume: 0,
+    marketCap: '—',
+    peRatio: 0,
+    beta: 0,
+    history: [],
+  };
 
   // Fetch or simulate server-side description on ticker search, and fetch initial/ticker news
   useEffect(() => {

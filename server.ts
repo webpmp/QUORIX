@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { enrichBarsWithStudies } from "./src/utils/technicalStudies";
+import { findValidYahooSearchEquity, isValidYahooChartMeta } from "./src/utils/equityValidation";
 
 // Load environment variables
 dotenv.config();
@@ -507,21 +508,31 @@ async function fetchYahooChartSnapshot(symbol: string): Promise<any | null> {
   }
 }
 
-async function fetchYahooSearch(query: string, quotesCount = 5, newsCount = 6): Promise<{ quotes: any[]; news: any[] }> {
+async function fetchYahooSearchDetailed(
+  query: string,
+  quotesCount = 5,
+  newsCount = 6
+): Promise<{ ok: boolean; quotes: any[]; news: any[] }> {
   try {
     const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(
       query
     )}&quotesCount=${quotesCount}&newsCount=${newsCount}`;
     const res = await fetch(url, { headers: { "User-Agent": YAHOO_UA } });
-    if (!res.ok) return { quotes: [], news: [] };
+    if (!res.ok) return { ok: false, quotes: [], news: [] };
     const data = await res.json();
     return {
+      ok: true,
       quotes: Array.isArray(data?.quotes) ? data.quotes : [],
       news: Array.isArray(data?.news) ? data.news : [],
     };
   } catch {
-    return { quotes: [], news: [] };
+    return { ok: false, quotes: [], news: [] };
   }
+}
+
+async function fetchYahooSearch(query: string, quotesCount = 5, newsCount = 6): Promise<{ quotes: any[]; news: any[] }> {
+  const { quotes, news } = await fetchYahooSearchDetailed(query, quotesCount, newsCount);
+  return { quotes, news };
 }
 
 const COMPANY_NAME_TO_TICKER: Record<string, string> = {
@@ -1517,10 +1528,11 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
       });
     }
 
-    // --- STEP 1: Try Yahoo Finance First (Free, real-time, includes real hourly bars) ---
-    try {
-      const yfSymbol = mapToYahooSymbol(cacheKey);
+    const yfSymbol = mapToYahooSymbol(cacheKey);
+    let yfChartReturned404 = false;
 
+    // --- STEP 1: Try Yahoo Finance Chart First (Free, real-time, includes real hourly bars) ---
+    try {
       console.log(`Querying Yahoo Finance proxy for symbol: ${yfSymbol} (requested as: ${cacheKey})`);
       const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfSymbol)}?interval=1h&range=5d`;
       const yfResponse = await fetch(yfUrl, {
@@ -1528,14 +1540,19 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
       });
+      if (yfResponse.status === 404) {
+        yfChartReturned404 = true;
+      }
       if (yfResponse.ok) {
         const yfData = await yfResponse.json();
         const result = yfData?.chart?.result?.[0];
-        if (result) {
+        if (result && isValidYahooChartMeta(result.meta)) {
           const meta = result.meta;
           const quote = result.indicators?.quote?.[0] || {};
           const timestamps: number[] = Array.isArray(result.timestamp) ? result.timestamp : [];
-          const price = typeof meta.regularMarketPrice === 'number' ? meta.regularMarketPrice : 0;
+          const price = typeof meta.regularMarketPrice === 'number' && Number.isFinite(meta.regularMarketPrice)
+            ? meta.regularMarketPrice
+            : 0;
           const prevClose =
             typeof meta.regularMarketPreviousClose === 'number'
               ? meta.regularMarketPreviousClose
@@ -1545,8 +1562,8 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
               ? meta.chartPreviousClose
               : price;
           const decimals = cacheKey === 'TNX' ? 3 : 2;
-          const change = parseFloat((price - prevClose).toFixed(decimals));
-          const changePercent = prevClose > 0 ? parseFloat(((change / prevClose) * 100).toFixed(2)) : 0;
+          const change = price > 0 || prevClose > 0 ? parseFloat((price - prevClose).toFixed(decimals)) : 0;
+          const changePercent = prevClose > 0 && price > 0 ? parseFloat(((change / prevClose) * 100).toFixed(2)) : 0;
           const history = extractYahooBars(result, '1h', 16);
 
           const regularStart = meta.currentTradingPeriod?.regular?.start;
@@ -1590,8 +1607,10 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
             prevClose: prevClose,
             change: change,
             changePercent: changePercent,
-            name: meta.longName || meta.shortName || `${cacheKey} Corp.`,
+            name: String(meta.longName || meta.shortName || cacheKey).trim(),
             exchange: formatExchangeName(meta),
+            instrumentType: typeof meta.instrumentType === 'string' ? meta.instrumentType.toUpperCase() : undefined,
+            isValidSecurity: true,
             history,
             isRealYF: true,
             hasPrePostMarketData: Boolean(meta.hasPrePostMarketData),
@@ -1615,111 +1634,127 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
         }
       }
     } catch (yfErr: any) {
-      console.log("Yahoo Finance query failed or returned empty results, falling back to Alpha Vantage:", yfErr.message);
+      console.log("Yahoo Finance query failed or returned empty results, checking search/fallback:", yfErr.message);
     }
 
-    // --- STEP 2: Fallback to Alpha Vantage ---
+    // --- STEP 2: Verify Security Identity via Yahoo Search (accepts valid equities missing chart price/volume) ---
+    const searchLookup = await fetchYahooSearchDetailed(cacheKey, 5, 0);
+    const searchEquityMatch = findValidYahooSearchEquity(searchLookup.quotes, cacheKey, yfSymbol);
+
+    // --- STEP 3: Fallback to Alpha Vantage if configured ---
     const apiKey = (customKeys.ALPHA_VANTAGE_API_KEY || process.env.ALPHA_VANTAGE_API_KEY || "").trim();
-    if (!apiKey || apiKey === "MY_ALPHA_VANTAGE_API_KEY") {
-      if (cached) {
-        return res.json({
-          success: true,
-          quote: adjustQuoteForTradingHours(cached.quote),
-          cachedAt: new Date(cached.timestamp).toLocaleTimeString(),
-          isCached: true,
-          warning: "Yahoo Finance unavailable and ALPHA_VANTAGE_API_KEY is not configured. Serving cached quote."
-        });
+    if (apiKey && apiKey !== "MY_ALPHA_VANTAGE_API_KEY") {
+      try {
+        const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(cacheKey)}&apikey=${encodeURIComponent(apiKey)}`;
+        console.log(`Querying Alpha Vantage proxy for symbol: ${cacheKey}`);
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = await response.json();
+
+          if (data.Note || data.Information) {
+            console.log("Alpha Vantage notice:", data.Note || data.Information);
+            if (cached) {
+              return res.json({
+                success: true,
+                quote: adjustQuoteForTradingHours(cached.quote),
+                cachedAt: new Date(cached.timestamp).toLocaleTimeString(),
+                isCached: true,
+                warning: "API rate limit reached. Serving last known live quote.",
+                isRateLimited: true
+              });
+            }
+          } else if (!data["Error Message"]) {
+            const quote = data["Global Quote"];
+            const avSymbol = String(quote?.["01. symbol"] || "").trim().toUpperCase();
+            const avPrice = parseFloat(quote?.["05. price"] || "0");
+            const hasQuoteFields = Boolean(quote && avSymbol && (avPrice > 0 || quote["07. latest trading day"]));
+            if (hasQuoteFields) {
+              const parsedQuote = {
+                symbol: avSymbol,
+                open: parseFloat(quote["02. open"] || "0"),
+                high: parseFloat(quote["03. high"] || "0"),
+                low: parseFloat(quote["04. low"] || "0"),
+                price: Number.isFinite(avPrice) ? avPrice : 0,
+                volume: parseInt(quote["06. volume"] || "0") || 0,
+                latestTradingDay: quote["07. latest trading day"] || "",
+                prevClose: parseFloat(quote["08. previous close"] || "0"),
+                change: parseFloat(quote["09. change"] || "0"),
+                changePercent: parseFloat((quote["10. change percent"] || "0%").replace("%", "")) || 0,
+                name: searchEquityMatch?.longname || searchEquityMatch?.shortname || avSymbol,
+                exchange: (searchEquityMatch?.exchDisp || searchEquityMatch?.exchange || "").toUpperCase(),
+                instrumentType: searchEquityMatch?.quoteType,
+                isValidSecurity: true,
+              };
+
+              quoteCache[cacheKey] = {
+                timestamp: now,
+                quote: parsedQuote
+              };
+
+              return res.json({
+                success: true,
+                quote: adjustQuoteForTradingHours(parsedQuote),
+                isCached: false
+              });
+            }
+          }
+        }
+      } catch (avErr: any) {
+        console.log("Alpha Vantage fallback failed:", avErr.message);
       }
-      return res.json({
-        success: false,
-        error: "Alpha Vantage API key is not configured. Add ALPHA_VANTAGE_API_KEY to .env or System Settings (SETT)."
-      });
     }
-    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(cacheKey)}&apikey=${encodeURIComponent(apiKey)}`;
-    
-    console.log(`Querying Alpha Vantage proxy for symbol: ${cacheKey}`);
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Alpha Vantage returned status ${response.status}`);
-    }
-    const data = await response.json();
-    
-    // Check for rate limiting or information messages
-    if (data.Note || data.Information) {
-      console.log("Alpha Vantage notice:", data.Note || data.Information);
-      
-      // Fallback: If we have a previously fetched real cached quote, serve it with notice
-      if (cached) {
-        console.log(`Alpha Vantage rate-limited. Serving EXPIRED cached quote for: ${cacheKey}`);
-        return res.json({
-          success: true,
-          quote: adjustQuoteForTradingHours(cached.quote),
-          cachedAt: new Date(cached.timestamp).toLocaleTimeString(),
-          isCached: true,
-          warning: "API rate limit reached. Serving last known live quote.",
-          isRateLimited: true
-        });
-      }
+
+    // If Yahoo Search confirmed a legitimate identifiable security whose price/volume is temporarily unavailable, allow it
+    if (searchEquityMatch) {
+      const securityOnlyQuote = {
+        symbol: cacheKey,
+        open: 0,
+        high: 0,
+        low: 0,
+        price: 0,
+        volume: 0,
+        latestTradingDay: new Date().toISOString().split('T')[0],
+        prevClose: 0,
+        change: 0,
+        changePercent: 0,
+        name: searchEquityMatch.longname || searchEquityMatch.shortname || cacheKey,
+        exchange: (searchEquityMatch.exchDisp || searchEquityMatch.exchange || "").toUpperCase(),
+        instrumentType: searchEquityMatch.quoteType,
+        isValidSecurity: true,
+        quoteUnavailable: true,
+        history: [],
+      };
 
       return res.json({
-        success: false,
-        error: "Live market quote unavailable (rate limit reached).",
-        isRateLimited: true
+        success: true,
+        quote: adjustQuoteForTradingHours(securityOnlyQuote),
+        isCached: false
       });
     }
 
-    if (data["Error Message"]) {
+    if (cached && !yfChartReturned404) {
       return res.json({
-        success: false,
-        error: data["Error Message"]
+        success: true,
+        quote: adjustQuoteForTradingHours(cached.quote),
+        cachedAt: new Date(cached.timestamp).toLocaleTimeString(),
+        isCached: true,
+        warning: "Live quote provider unavailable. Serving cached quote."
       });
     }
 
-    const quote = data["Global Quote"];
-    if (!quote || Object.keys(quote).length === 0) {
-      if (cached) {
-        return res.json({
-          success: true,
-          quote: adjustQuoteForTradingHours(cached.quote),
-          cachedAt: new Date(cached.timestamp).toLocaleTimeString(),
-          isCached: true
-        });
-      }
-      return res.json({
-        success: false,
-        error: "No quote data was found for symbol. Please check the ticker name."
-      });
-    }
-
-    const parsedQuote = {
-      symbol: (quote["01. symbol"] || cacheKey).toUpperCase(),
-      open: parseFloat(quote["02. open"] || "0"),
-      high: parseFloat(quote["03. high"] || "0"),
-      low: parseFloat(quote["04. low"] || "0"),
-      price: parseFloat(quote["05. price"] || "0"),
-      volume: parseInt(quote["06. volume"] || "0"),
-      latestTradingDay: quote["07. latest trading day"] || "",
-      prevClose: parseFloat(quote["08. previous close"] || "0"),
-      change: parseFloat(quote["09. change"] || "0"),
-      changePercent: parseFloat((quote["10. change percent"] || "0%").replace("%", "")),
-      name: `${(quote["01. symbol"] || cacheKey).toUpperCase()} Corp.`
-    };
-
-    // Save to in-memory cache
-    quoteCache[cacheKey] = {
-      timestamp: now,
-      quote: parsedQuote
-    };
-
+    const confirmedInvalid = searchLookup.ok && yfChartReturned404;
     return res.json({
-      success: true,
-      quote: adjustQuoteForTradingHours(parsedQuote),
-      isCached: false
+      success: false,
+      isInvalidTicker: confirmedInvalid,
+      error: confirmedInvalid
+        ? `No valid equity or security found for ticker "${cacheKey}".`
+        : "Unable to verify live quote data for symbol."
     });
   } catch (err: any) {
     console.log("Quote endpoint handled gracefully:", err.message);
     return res.json({
       success: false,
+      isInvalidTicker: false,
       error: err.message,
     });
   }
@@ -1760,14 +1795,10 @@ app.get("/api/market/history", async (req, res) => {
     let yfSymbol = mapToYahooSymbol(symbol);
     let yfResponse = await fetchChartForSymbol(yfSymbol);
 
-    // If Yahoo returned 404 (e.g. company name or alias), try resolving the exact Yahoo symbol via search
+    // If Yahoo returned 404, only resolve if search confirms an exact security match
     if (yfResponse.status === 404) {
-      const searchRes = await fetchYahooSearch(symbol, 3, 0);
-      const resolved = searchRes.quotes.find(
-        (q: any) =>
-          q?.symbol &&
-          ["EQUITY", "ETF", "INDEX", "CRYPTOCURRENCY", "FUTURE", "CURRENCY"].includes(q.quoteType)
-      )?.symbol;
+      const searchRes = await fetchYahooSearch(symbol, 5, 0);
+      const resolved = findValidYahooSearchEquity(searchRes.quotes, symbol, yfSymbol)?.symbol;
       if (resolved && resolved.toUpperCase() !== yfSymbol.toUpperCase()) {
         yfSymbol = resolved;
         yfResponse = await fetchChartForSymbol(yfSymbol);

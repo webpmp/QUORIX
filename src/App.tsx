@@ -12,6 +12,14 @@ import {
   FredMacroMetric,
   FredReleaseDate,
 } from './types';
+import {
+  buildStockDataFromQuote,
+  isValidQuotePayload,
+  loadPersistedTrackedTickers,
+  normalizeTickerSymbol,
+  resolveEquitySearch,
+  savePersistedTrackedTickers,
+} from './utils/equityValidation';
 
 export interface FredFeedStatus {
   loading: boolean;
@@ -22,58 +30,41 @@ export interface FredFeedStatus {
 
 const TAPE_SYMBOLS = ['SPX', 'DJI', 'IXIC', 'GC', 'CL', 'TNX', 'BTC'];
 const DEFAULT_TRACKED_TICKERS = ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'GOOG', 'AMZN', 'META', 'WULF'];
-const TRACKED_TICKERS_STORAGE_KEY = 'quorix_tracked_equities_v1';
 
 export default function App() {
-  const [trackedTickers, setTrackedTickers] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(TRACKED_TICKERS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed
-            .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
-            .map((t) => t.toUpperCase().trim())
-            .filter((t) => !TAPE_SYMBOLS.includes(t));
-        }
-      }
-    } catch {
-      // ignore storage errors
-    }
-    return DEFAULT_TRACKED_TICKERS;
-  });
+  const [trackedTickers, setTrackedTickers] = useState<string[]>(() =>
+    loadPersistedTrackedTickers(
+      typeof window !== 'undefined' ? window.localStorage : null,
+      DEFAULT_TRACKED_TICKERS,
+      TAPE_SYMBOLS
+    )
+  );
   const [stocks, setStocks] = useState<Record<string, StockData>>(() => {
     const initial = { ...INITIAL_STOCKS };
-    try {
-      const saved = localStorage.getItem(TRACKED_TICKERS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          for (const raw of parsed) {
-            const sym = typeof raw === 'string' ? raw.toUpperCase().trim() : '';
-            if (sym && !initial[sym]) {
-              initial[sym] = {
-                symbol: sym,
-                name: sym,
-                price: 0,
-                change: 0,
-                changePercent: 0,
-                high: 0,
-                low: 0,
-                open: 0,
-                prevClose: 0,
-                volume: 0,
-                marketCap: '—',
-                peRatio: 0,
-                beta: 0,
-                history: [],
-              };
-            }
-          }
-        }
+    const persisted = loadPersistedTrackedTickers(
+      typeof window !== 'undefined' ? window.localStorage : null,
+      DEFAULT_TRACKED_TICKERS,
+      TAPE_SYMBOLS
+    );
+    for (const sym of persisted) {
+      if (!initial[sym]) {
+        initial[sym] = {
+          symbol: sym,
+          name: sym,
+          price: 0,
+          change: 0,
+          changePercent: 0,
+          high: 0,
+          low: 0,
+          open: 0,
+          prevClose: 0,
+          volume: 0,
+          marketCap: '—',
+          peRatio: 0,
+          beta: 0,
+          history: [],
+        };
       }
-    } catch {
-      // ignore storage errors
     }
     return initial;
   });
@@ -103,68 +94,83 @@ export default function App() {
   const [pendingAiQuery, setPendingAiQuery] = useState<{ id: number; text: string } | null>(null);
   const [focusAskQuorixSignal, setFocusAskQuorixSignal] = useState<number>(0);
   const [tickTime, setTickTime] = useState<string>('');
+  const [quoteLoadState, setQuoteLoadState] = useState<
+    Record<string, 'loading' | 'ready' | 'unavailable' | 'invalid'>
+  >({});
 
   const fetchLiveQuote = useCallback(async (ticker: string, isBatch = false, force = false) => {
+    const sym = normalizeTickerSymbol(ticker);
+    if (!sym) return;
     try {
       const response = await fetch(
-        `/api/alpha-vantage/quote?symbol=${encodeURIComponent(ticker)}${force ? '&force=true' : ''}`
+        `/api/alpha-vantage/quote?symbol=${encodeURIComponent(sym)}${force ? '&force=true' : ''}`
       );
       const data = await response.json();
-      if (data.success && data.quote) {
+      if (isValidQuotePayload(data, sym)) {
         const q = data.quote;
-        setStocks((prev) => {
-          const existing = prev[q.symbol];
-          const prevPrice = existing?.price || 0;
-          const nextHistory =
-            Array.isArray(q.history) && q.history.length > 0
-              ? q.history
-              : existing?.history || [];
-
-          const direction =
-            prevPrice > 0 && q.price !== prevPrice
-              ? q.price > prevPrice
-                ? 'up'
-                : 'down'
-              : undefined;
-
-          return {
-            ...prev,
-            [q.symbol]: {
-              symbol: q.symbol,
-              name: q.name || existing?.name || q.symbol,
-              exchange: q.exchange || existing?.exchange,
-              price: q.price,
-              change: q.change,
-              changePercent: q.changePercent,
-              open: q.open,
-              high: q.high,
-              low: q.low,
-              prevClose: q.prevClose,
-              volume: q.volume,
-              marketCap: existing?.marketCap || '—',
-              peRatio: existing?.peRatio || 0,
-              beta: existing?.beta || 0,
-              history: nextHistory,
-              isRealTime: true,
-              isPreMarket: q.isPreMarket,
-              isAfterHours: q.isAfterHours,
-              preMarketPrice: q.preMarketPrice,
-              afterHoursPrice: q.afterHoursPrice,
-              extHoursPrice: q.extHoursPrice ?? null,
-              extHoursChange: q.extHoursChange ?? null,
-              extHoursChangePercent: q.extHoursChangePercent ?? null,
-              extHoursSession: q.extHoursSession ?? null,
-              isCoreHours: q.isCoreHours,
-              lastTickTime: direction ? Date.now() : existing?.lastTickTime,
-              lastTickDirection: direction || existing?.lastTickDirection,
-            },
-          };
-        });
+        const resolvedSym = normalizeTickerSymbol(q.symbol) || sym;
+        setStocks((prev) => ({
+          ...prev,
+          [resolvedSym]: buildStockDataFromQuote(q, prev[resolvedSym]),
+        }));
+        setQuoteLoadState((prev) => ({
+          ...prev,
+          [sym]: 'ready',
+          [resolvedSym]: 'ready',
+        }));
+      } else if (data?.isInvalidTicker === true && !TAPE_SYMBOLS.includes(sym)) {
+        // Remove stale persisted invalid tickers without affecting valid equities during transient outages
+        setTrackedTickers((prev) => (prev.includes(sym) ? prev.filter((t) => t !== sym) : prev));
+        setQuoteLoadState((prev) => ({ ...prev, [sym]: 'invalid' }));
+      } else {
+        setQuoteLoadState((prev) => (prev[sym] === 'loading' ? { ...prev, [sym]: 'unavailable' } : prev));
       }
     } catch (err) {
       if (!isBatch) {
-        console.error(`Failed to fetch quote for ${ticker}:`, err);
+        console.error(`Failed to fetch quote for ${sym}:`, err);
       }
+      setQuoteLoadState((prev) => (prev[sym] === 'loading' ? { ...prev, [sym]: 'unavailable' } : prev));
+    }
+  }, []);
+
+  const searchAndAddTrackedEquity = useCallback(async (ticker: string) => {
+    const sym = normalizeTickerSymbol(ticker);
+    if (!sym) return;
+
+    setQuoteLoadState((prev) => (prev[sym] === 'ready' ? prev : { ...prev, [sym]: 'loading' }));
+
+    const resolution = await resolveEquitySearch(sym);
+    if (!resolution.accepted || !resolution.stock) {
+      setQuoteLoadState((prev) => ({
+        ...prev,
+        [sym]: resolution.isInvalidTicker ? 'invalid' : 'unavailable',
+      }));
+      return;
+    }
+
+    const resolvedStock = resolution.stock;
+    const resolvedSym = resolvedStock.symbol;
+
+    setStocks((prev) => ({
+      ...prev,
+      [resolvedSym]: buildStockDataFromQuote(
+        resolution.quote || resolvedStock,
+        prev[resolvedSym]
+      ),
+    }));
+
+    setQuoteLoadState((prev) => ({
+      ...prev,
+      [sym]: 'ready',
+      [resolvedSym]: 'ready',
+    }));
+
+    if (!TAPE_SYMBOLS.includes(resolvedSym)) {
+      setTrackedTickers((prev) => (prev.includes(resolvedSym) ? prev : [...prev, resolvedSym]));
+    }
+
+    if (resolvedSym !== sym) {
+      setSelectedTicker((prev) => (prev === sym ? resolvedSym : prev));
     }
   }, []);
 
@@ -233,11 +239,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(TRACKED_TICKERS_STORAGE_KEY, JSON.stringify(trackedTickers));
-    } catch {
-      // ignore storage errors
-    }
+    savePersistedTrackedTickers(
+      typeof window !== 'undefined' ? window.localStorage : null,
+      trackedTickers
+    );
   }, [trackedTickers]);
 
   // Fetch initial live quotes and FRED macro/FX data on mount
@@ -342,29 +347,36 @@ export default function App() {
       return;
     }
 
-    const isTickerPattern = /^[A-Z]{1,5}$/.test(primary);
-    const isSecondaryTickerPattern = secondary ? /^[A-Z]{1,5}$/.test(secondary) : false;
+    const TICKER_CMD_RE = /^(?:[A-Z]{1,5}(?:[.-][A-Z0-9]{1,4})?|[0-9]{3,5}\.[A-Z]{1,3})$/;
+    const isTickerPattern = TICKER_CMD_RE.test(primary);
+    const isSecondaryTickerPattern = secondary ? TICKER_CMD_RE.test(secondary) : false;
 
     if (secondary && (stocks[secondary] || isSecondaryTickerPattern) && directScreens.includes(primary)) {
       const ticker = secondary.toUpperCase();
-      ensureTickerSlot(ticker, true);
       setSelectedTicker(ticker);
       setActiveScreen(primary);
-      fetchLiveQuote(ticker, false, true);
+      if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker)) {
+        ensureTickerSlot(ticker, false);
+        fetchLiveQuote(ticker, false, true);
+      } else if (quoteLoadState[ticker] !== 'loading') {
+        void searchAndAddTrackedEquity(ticker);
+      }
       return;
     }
 
     if (parts.length <= 2 && isTickerPattern && !directScreens.includes(primary)) {
       const ticker = primary;
-      ensureTickerSlot(ticker, true);
-      setSelectedTicker(ticker);
+      const targetScreen =
+        secondary && directScreens.includes(secondary) ? secondary : 'GP';
 
-      if (secondary && directScreens.includes(secondary)) {
-        setActiveScreen(secondary);
-      } else if (!secondary) {
-        setActiveScreen('GP');
+      setSelectedTicker(ticker);
+      setActiveScreen(targetScreen);
+      if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker)) {
+        ensureTickerSlot(ticker, false);
+        fetchLiveQuote(ticker, false, true);
+      } else if (quoteLoadState[ticker] !== 'loading') {
+        void searchAndAddTrackedEquity(ticker);
       }
-      fetchLiveQuote(ticker, false, true);
       return;
     }
 
@@ -380,9 +392,15 @@ export default function App() {
   };
 
   const handleSelectTicker = (ticker: string) => {
-    ensureTickerSlot(ticker, false);
-    setSelectedTicker(ticker);
-    fetchLiveQuote(ticker, false, true);
+    const sym = normalizeTickerSymbol(ticker);
+    if (!sym) return;
+    if (!stocks[sym] && quoteLoadState[sym] !== 'loading') {
+      setQuoteLoadState((prev) => ({ ...prev, [sym]: 'loading' }));
+    } else if (stocks[sym]) {
+      ensureTickerSlot(sym, false);
+    }
+    setSelectedTicker(sym);
+    fetchLiveQuote(sym, false, true);
     if (!['GP', 'HP', 'DES', 'ANR', 'NEWS'].includes(activeScreen)) {
       setActiveScreen('GP');
     }
