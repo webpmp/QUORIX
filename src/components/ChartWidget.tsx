@@ -2212,8 +2212,7 @@ export default function ChartWidget({ stock, onTickTimeChange }: ChartWidgetProp
               ? '1D (TODAY)'
               : interval === '1W'
               ? '1W (LAST 7 DAYS)'
-              : '1M (LAST 30/31 DAYS)'}{' '}
-            ({history.length} LIVE BARS)
+              : '1M (LAST 30/31 DAYS)'}
           </span>
         </span>
         <span className="text-zinc-500 truncate max-w-full">

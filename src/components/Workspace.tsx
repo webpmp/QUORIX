@@ -828,24 +828,24 @@ export default function Workspace({
       {/* 2. HP: HISTORICAL PRICING TABLE */}
       {activeScreen === 'HP' && (
         <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-lg">
-          <div className="border-b border-[#333] pb-2 mb-4 flex justify-between items-center select-none">
+          <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2 select-none">
             <span className="text-white text-md font-bold uppercase tracking-wider">
               {currentStock.symbol} Historical Price Log System
             </span>
-            <span className="text-zinc-400 text-[10px] uppercase">HP CENTRAL REPOSITORIES</span>
+            {renderTextSizeControl()}
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-[#d4d4d4] border-collapse">
+            <table className={`w-full text-left ${activeBwriteFont.body} text-[#d4d4d4] border-collapse`}>
               <thead>
-                <tr className="border-b border-[#333] text-zinc-500 text-[10px] uppercase font-bold">
-                  <th className="py-2.5">TIME</th>
-                  <th className="text-right">OPEN VALUE</th>
-                  <th className="text-right">HIGH VALUE</th>
-                  <th className="text-right">LOW VALUE</th>
-                  <th className="text-right">CLOSE VALUE</th>
-                  <th className="text-right">ACCUMULATED VOLUME</th>
-                  <th className="text-right">DIFFERENTIAL</th>
+                <tr className={`border-b border-[#333] text-zinc-500 ${activeBwriteFont.heading} uppercase font-bold`}>
+                  <th className="py-2.5 pr-3 whitespace-nowrap">TIME</th>
+                  <th className="text-right px-3 whitespace-nowrap">OPEN VALUE</th>
+                  <th className="text-right px-3 whitespace-nowrap">HIGH VALUE</th>
+                  <th className="text-right px-3 whitespace-nowrap">LOW VALUE</th>
+                  <th className="text-right px-3 whitespace-nowrap">CLOSE VALUE</th>
+                  <th className="text-right px-3 whitespace-nowrap">ACCUMULATED VOLUME</th>
+                  <th className="text-right pl-3 whitespace-nowrap">DIFFERENTIAL</th>
                 </tr>
               </thead>
               <tbody>
@@ -860,14 +860,14 @@ export default function Workspace({
                     const isUp = h.close >= h.open;
                     const diffRatio = h.open > 0 ? (((h.close - h.open) / h.open) * 100) : 0;
                     return (
-                      <tr key={i} className="border-b border-[#222] hover:bg-[#111] text-[11px] font-mono">
-                        <td className="py-2.5 text-[#3498db] font-bold font-mono">{h.date} (Intraday)</td>
-                        <td className="text-right font-mono">${h.open.toFixed(2)}</td>
-                        <td className="text-right font-mono text-[#00ff00]">${h.high.toFixed(2)}</td>
-                        <td className="text-right font-mono text-[#ff4444]">${h.low.toFixed(2)}</td>
-                        <td className="text-right font-mono text-zinc-150 font-bold">${h.close.toFixed(2)}</td>
-                        <td className="text-right text-zinc-500 font-mono">{h.volume.toLocaleString()}</td>
-                        <td className={`text-right font-bold font-mono ${isUp ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
+                      <tr key={i} className={`border-b border-[#222] hover:bg-[#111] ${activeBwriteFont.body} font-mono`}>
+                        <td className="py-2.5 pr-3 text-[#3498db] font-bold font-mono whitespace-nowrap">{h.date} (Intraday)</td>
+                        <td className="text-right px-3 font-mono whitespace-nowrap">${h.open.toFixed(2)}</td>
+                        <td className="text-right px-3 font-mono text-[#00ff00] whitespace-nowrap">${h.high.toFixed(2)}</td>
+                        <td className="text-right px-3 font-mono text-[#ff4444] whitespace-nowrap">${h.low.toFixed(2)}</td>
+                        <td className="text-right px-3 font-mono text-zinc-150 font-bold whitespace-nowrap">${h.close.toFixed(2)}</td>
+                        <td className="text-right px-3 text-zinc-500 font-mono whitespace-nowrap">{h.volume.toLocaleString()}</td>
+                        <td className={`text-right pl-3 font-bold font-mono whitespace-nowrap ${isUp ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
                           {isUp ? '+' : ''}{diffRatio.toFixed(2)}%
                         </td>
                       </tr>
