@@ -23,6 +23,7 @@ import {
   computeVolumePanelLayout,
   dragDeltaToZoomFactor,
   getVolumeZoomLimits,
+  shouldShowYScaleIndicator,
   wheelDeltaToZoomFactor,
 } from '../src/utils/yAxisZoom.ts';
 import type { StockData } from '../src/types.ts';
@@ -254,9 +255,16 @@ test('ChartWidget renders compact 75px Volume Study by default, increased Y-axis
   assert.equal(html.includes('70 OB'), true);
   assert.equal(html.includes('30 OS'), true);
 
-  // Y-axis boxes remain at x="2" width="52" (right edge x="54") and Price/Volume labels remain at x="46"
-  assert.equal(html.includes('<rect x="2" y="12" width="52"'), true);
-  assert.equal(html.includes('<rect x="2" y="14" width="52"'), true);
+  // Visible Y-axis highlight boxes extend 6px farther above and below labels while keeping x="2" width="52"
+  assert.equal(html.includes('<rect x="2" y="6" width="52" height="172"'), true);
+  assert.equal(html.includes('<rect x="2" y="8" width="52" height="69"'), true);
+  assert.equal(html.includes('<rect x="2" y="10" width="52" height="106"'), true);
+
+  // Interactive Y-axis hit areas preserve 58px width and add 6px top & 6px bottom vertical padding
+  assert.equal(html.includes('<rect x="0" y="-6" width="58" height="196"'), true);
+  assert.equal(html.includes('<rect x="0" y="-6" width="58" height="87"'), true);
+  assert.equal(html.includes('<rect x="0" y="-6" width="58" height="128"'), true);
+
   assert.equal(html.includes('<text x="46" y="26" text-anchor="end"'), true);
   assert.equal(html.includes('<text x="46" y="68" text-anchor="end"'), true);
   assert.equal(html.includes('<text x="52" y="26" text-anchor="end"'), false);
@@ -270,10 +278,28 @@ test('ChartWidget renders compact 75px Volume Study by default, increased Y-axis
   assert.equal(html.includes('<rect x="74" y="18"'), true);
   assert.equal(html.includes('<rect x="74" y="20"'), true);
 
-  // RSI Oscillator remains untouched (gridlines at x1="58", clip at x="50")
+  // RSI Oscillator plot coordinates remain untouched (gridlines at x1="58", clip at x="50")
   assert.equal(html.includes('<line x1="58" y1="46.6" x2="568" y2="46.6"'), true);
   assert.equal(html.includes('<clipPath id="gp-rsi-plot-clip"><rect x="50" y="19" width="526"'), true);
+
+  // Default 1.00x zoom level never displays Y-SCALE indicator
+  assert.equal(html.includes('Y-SCALE:'), false);
 });
+
+test('shouldShowYScaleIndicator hides 1.00x default/reset scale and displays zoomed in/out multipliers', () => {
+  assert.equal(shouldShowYScaleIndicator(1), false);
+  assert.equal(shouldShowYScaleIndicator(1.004), false);
+  assert.equal(shouldShowYScaleIndicator(0.996), false);
+  assert.equal(shouldShowYScaleIndicator(NaN), false);
+  assert.equal(shouldShowYScaleIndicator(0), false);
+
+  assert.equal(shouldShowYScaleIndicator(1.13), true);
+  assert.equal(shouldShowYScaleIndicator(1.01), true);
+  assert.equal(shouldShowYScaleIndicator(0.99), true);
+  assert.equal(shouldShowYScaleIndicator(0.5), true);
+  assert.equal(shouldShowYScaleIndicator(8.21), true);
+});
+
 
 
 

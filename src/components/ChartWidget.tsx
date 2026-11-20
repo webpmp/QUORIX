@@ -24,6 +24,7 @@ import {
   computeScaledVolumeMax,
   computeVolumePanelLayout,
   dragDeltaToZoomFactor,
+  shouldShowYScaleIndicator,
   wheelDeltaToZoomFactor,
   type YRange,
 } from '../utils/yAxisZoom';
@@ -619,6 +620,8 @@ export default function ChartWidget({
   const MAX_PRICE_EXPANSION_PX = 50;
   const pricePaddingTop = 18;
   const pricePaddingBottom = 18;
+  const Y_AXIS_VERTICAL_EXTRA_PAD = 6;
+  const Y_AXIS_BACKDROP_PAD_Y = 6 + Y_AXIS_VERTICAL_EXTRA_PAD;
 
   const barStep = adjWidth / Math.max(history.length, 1);
   const priceVolBarStep = priceVolAdjWidth / Math.max(history.length, 1);
@@ -1284,9 +1287,9 @@ export default function ChartWidget({
             {/* Subtle interactive backdrop for left Y-axis scale */}
             <rect
               x={2}
-              y={pricePaddingTop - 6}
+              y={pricePaddingTop - Y_AXIS_BACKDROP_PAD_Y}
               width={paddingLeft - 6}
-              height={priceAdjHeight + 12}
+              height={priceAdjHeight + Y_AXIS_BACKDROP_PAD_Y * 2}
               rx="2"
               fill={
                 isYAxisDragging
@@ -1646,9 +1649,9 @@ export default function ChartWidget({
             <rect
               ref={yAxisHitRef}
               x={0}
-              y={0}
+              y={-Y_AXIS_VERTICAL_EXTRA_PAD}
               width={paddingLeft}
-              height={priceHeight}
+              height={priceHeight + Y_AXIS_VERTICAL_EXTRA_PAD * 2}
               fill="transparent"
               className="cursor-ns-resize"
               onMouseEnter={() => {
@@ -1690,7 +1693,7 @@ export default function ChartWidget({
                 </span>
               ))}
             </div>
-            {(isYZoomed || isYAxisDragging) && (
+            {shouldShowYScaleIndicator(yZoomFactor) && (
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-[#ff9900] font-bold tabular-nums shrink-0">
                   Y-SCALE: {yZoomFactor.toFixed(2)}×
@@ -1742,9 +1745,9 @@ export default function ChartWidget({
               {/* Subtle interactive backdrop for left Volume Y-axis scale */}
               <rect
                 x={2}
-                y={volPaddingTop - 6}
+                y={volPaddingTop - Y_AXIS_BACKDROP_PAD_Y}
                 width={paddingLeft - 6}
-                height={volPlotHeight + 12}
+                height={volPlotHeight + Y_AXIS_BACKDROP_PAD_Y * 2}
                 rx="2"
                 fill={
                   isVolYAxisDragging
@@ -1923,9 +1926,9 @@ export default function ChartWidget({
               <rect
                 ref={volYAxisHitRef}
                 x={0}
-                y={0}
+                y={-Y_AXIS_VERTICAL_EXTRA_PAD}
                 width={paddingLeft}
-                height={volHeight}
+                height={volHeight + Y_AXIS_VERTICAL_EXTRA_PAD * 2}
                 fill="transparent"
                 className="cursor-ns-resize"
                 onMouseEnter={() => {
@@ -1997,7 +2000,7 @@ export default function ChartWidget({
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {(isVolYZoomed || isVolYAxisDragging) && (
+                {shouldShowYScaleIndicator(volYZoomFactor) && (
                   <span className="text-[#ff9900] font-bold tabular-nums">
                     Y-SCALE: {volYZoomFactor.toFixed(2)}×
                   </span>
@@ -2041,9 +2044,9 @@ export default function ChartWidget({
               {/* Subtle interactive backdrop for left RSI Y-axis scale */}
               <rect
                 x={2}
-                y={rsiPaddingTop - 6}
+                y={rsiPaddingTop - Y_AXIS_BACKDROP_PAD_Y}
                 width={paddingLeft - 6}
-                height={rsiAdjHeight + 12}
+                height={rsiAdjHeight + Y_AXIS_BACKDROP_PAD_Y * 2}
                 rx="2"
                 fill={
                   isRsiYAxisDragging
@@ -2232,9 +2235,9 @@ export default function ChartWidget({
               <rect
                 ref={rsiYAxisHitRef}
                 x={0}
-                y={0}
+                y={-Y_AXIS_VERTICAL_EXTRA_PAD}
                 width={paddingLeft}
-                height={rsiHeight}
+                height={rsiHeight + Y_AXIS_VERTICAL_EXTRA_PAD * 2}
                 fill="transparent"
                 className="cursor-ns-resize"
                 onMouseEnter={() => {
@@ -2302,7 +2305,7 @@ export default function ChartWidget({
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {(isRsiYZoomed || isRsiYAxisDragging) && (
+                {shouldShowYScaleIndicator(rsiYZoomFactor) && (
                   <span className="text-[#ff9900] font-bold tabular-nums">
                     Y-SCALE: {rsiYZoomFactor.toFixed(2)}×
                   </span>

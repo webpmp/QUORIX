@@ -399,7 +399,7 @@ export default function NewsTicker() {
       {/* Info indicator */}
       <div className="hidden lg:flex items-center gap-1.5 px-3 border-l border-[#333] text-zinc-500 text-[9px] shrink-0 h-full">
         <Info size={10} className="text-[#3498db]" />
-        <span>CLICK NEWS TAPE OR HOVER TO PAUSE</span>
+        <span>HOVER TO PAUSE</span>
       </div>
     </div>
   );

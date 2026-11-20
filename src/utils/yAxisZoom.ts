@@ -202,3 +202,12 @@ export function computeVolumePanelLayout(params: {
   };
 }
 
+/**
+ * Returns true only when the Y-axis zoom multiplier differs from the default 1.00× scale.
+ */
+export function shouldShowYScaleIndicator(zoomFactor: number): boolean {
+  if (!Number.isFinite(zoomFactor) || zoomFactor <= 0) return false;
+  return zoomFactor.toFixed(2) !== '1.00';
+}
+
+
