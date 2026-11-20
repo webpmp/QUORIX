@@ -1,4 +1,4 @@
-![QUORIX Terminal](./assets/quorix-gp.png)
+![QUORIX Terminal](./assets/quorix-gp-v1.png)
 
 # QUORIX Terminal
 
