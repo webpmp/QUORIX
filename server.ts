@@ -368,7 +368,19 @@ async function fetchLiveFredEconomics(apiKey: string, force = false) {
 const app = express();
 app.use(express.json());
 
-const PORT = 3000;
+function resolvePort(): number {
+  const portFlagIdx = process.argv.indexOf("--port");
+  const cliPort =
+    portFlagIdx !== -1 && process.argv[portFlagIdx + 1]
+      ? Number(process.argv[portFlagIdx + 1])
+      : NaN;
+  const envPort = Number(process.env.PORT);
+  if (Number.isInteger(cliPort) && cliPort > 0) return cliPort;
+  if (Number.isInteger(envPort) && envPort > 0) return envPort;
+  return 3000;
+}
+
+const PORT = resolvePort();
 
 // Lazy initialize Gemini API client and refresh automatically if GEMINI_API_KEY changes
 let aiClient: GoogleGenAI | null = null;
@@ -2780,9 +2792,14 @@ async function startServer() {
     return next(err);
   });
 
+  let vite: Awaited<ReturnType<typeof createViteServer>> | null = null;
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
+    const hmrDisabled = process.env.DISABLE_HMR === "true";
+    vite = await createViteServer({
+      server: {
+        middlewareMode: true,
+        ...(hmrDisabled ? { hmr: false, ws: false, watch: null } : {}),
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -2794,9 +2811,24 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const httpServer = app.listen(PORT, "0.0.0.0", () => {
     console.log(`QUORIX server running on http://localhost:${PORT}`);
   });
+
+  const shutdown = () => {
+    httpServer.close(() => {
+      if (vite) {
+        vite.close().finally(() => process.exit(0));
+      } else {
+        process.exit(0);
+      }
+    });
+  };
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("Failed to start QUORIX server:", err);
+  process.exit(1);
+});
