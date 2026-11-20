@@ -386,13 +386,6 @@ export default function CommandPanel({
           </div>
         </div>
       </div>
-
-      {/* Footer Instructions */}
-      <div className="p-2.5 bg-black text-[9px] text-zinc-500 select-none">
-        <div>
-          <span className="text-[#ff9900] font-bold">PRO-TIP:</span> Enter <span className="text-[#3498db]">"HELP"</span> or click items above to toggle workspace screens instantly.
-        </div>
-      </div>
     </div>
   );
 }
