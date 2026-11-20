@@ -9,6 +9,7 @@ import {
 import { FredFeedStatus } from '../App';
 import ChartWidget from './ChartWidget';
 import PolymarketScreen from './PolymarketScreen';
+import InstitutionalActivityScreen from './InstitutionalActivityScreen';
 import { Send, Sparkles, AlertCircle, RefreshCw, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 
 interface WorkspaceProps {
@@ -1738,6 +1739,15 @@ export default function Workspace({
         />
       )}
 
+      {/* 9.6 INST: INSTITUTIONAL ACTIVITY MONITOR (3SPREAD 13F) */}
+      {activeScreen === 'INST' && (
+        <InstitutionalActivityScreen
+          selectedTicker={selectedTicker}
+          stocks={stocks}
+          onSelectTicker={onSelectTicker}
+        />
+      )}
+
       {/* 9.8 SETT: API SETTINGS PAGE */}
       {(activeScreen === 'SETT' || activeScreen === 'SETTINGS') && (
         <div className="bg-[#050505] border border-[#333] rounded p-5 animate-fade-in text-xs font-mono text-zinc-300">
@@ -1917,12 +1927,12 @@ export default function Workspace({
           <div className="space-y-2 mb-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1 border-b border-[#222]/35">
               <span className="text-[#3498db] font-bold">TICKER_SYMBOL &lt;EQUITY&gt; SCREEN</span>
-              <span className="text-zinc-200">GP, HP, DES, ANR, NEWS</span>
-              <span className="text-zinc-500">e.g. typing "NVDA DES" or "AAPL GP" inside the input bar.</span>
+              <span className="text-zinc-200">GP, HP, DES, ANR, INST, NEWS</span>
+              <span className="text-zinc-500">e.g. typing "NVDA DES" or "AAPL INST" inside the input bar.</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1 border-b border-[#222]/35">
               <span className="text-[#3498db] font-bold">DIRECTORY_CODES</span>
-              <span className="text-zinc-200">CRNC, ECO, POLY, BWRITE, HELP</span>
+              <span className="text-zinc-200">INST, CRNC, ECO, POLY, BWRITE, HELP</span>
               <span className="text-zinc-500">Instant directory modules access directly.</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1">

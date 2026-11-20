@@ -334,16 +334,16 @@ export default function App() {
     const primary = parts[0];
     const secondary = parts.length > 1 ? parts[1] : null;
 
-    const directScreens = ['GP', 'HP', 'DES', 'ANR', 'NEWS', 'CRNC', 'ECO', 'POLY', 'BWRITE', 'HELP', 'HLP', 'SETT', 'SETTINGS'];
+    const directScreens = ['GP', 'HP', 'DES', 'ANR', 'INST', '13F', 'NEWS', 'CRNC', 'ECO', 'POLY', 'BWRITE', 'HELP', 'HLP', 'SETT', 'SETTINGS'];
+    const resolveScreenCode = (code: string): string => {
+      if (code === 'SETTINGS' || code === 'SETT') return 'SETT';
+      if (code === 'HLP') return 'HELP';
+      if (code === '13F') return 'INST';
+      return code;
+    };
 
     if (directScreens.includes(primary) && !secondary) {
-      if (primary === 'SETTINGS' || primary === 'SETT') {
-        setActiveScreen('SETT');
-      } else if (primary === 'HLP') {
-        setActiveScreen('HELP');
-      } else {
-        setActiveScreen(primary);
-      }
+      setActiveScreen(resolveScreenCode(primary));
       return;
     }
 
@@ -354,7 +354,7 @@ export default function App() {
     if (secondary && (stocks[secondary] || isSecondaryTickerPattern) && directScreens.includes(primary)) {
       const ticker = secondary.toUpperCase();
       setSelectedTicker(ticker);
-      setActiveScreen(primary);
+      setActiveScreen(resolveScreenCode(primary));
       if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker)) {
         ensureTickerSlot(ticker, false);
         fetchLiveQuote(ticker, false, true);
@@ -367,7 +367,7 @@ export default function App() {
     if (parts.length <= 2 && isTickerPattern && !directScreens.includes(primary)) {
       const ticker = primary;
       const targetScreen =
-        secondary && directScreens.includes(secondary) ? secondary : 'GP';
+        secondary && directScreens.includes(secondary) ? resolveScreenCode(secondary) : 'GP';
 
       setSelectedTicker(ticker);
       setActiveScreen(targetScreen);
@@ -401,7 +401,7 @@ export default function App() {
     }
     setSelectedTicker(sym);
     fetchLiveQuote(sym, false, true);
-    if (!['GP', 'HP', 'DES', 'ANR', 'NEWS'].includes(activeScreen)) {
+    if (!['GP', 'HP', 'DES', 'ANR', 'INST', 'NEWS'].includes(activeScreen)) {
       setActiveScreen('GP');
     }
   };

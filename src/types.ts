@@ -129,3 +129,144 @@ export interface PolymarketEvent {
   slug?: string;
   resolutionSource?: string;
 }
+
+export type InstitutionalPositionStatus =
+  | 'NEW'
+  | 'INCREASED'
+  | 'DECREASED'
+  | 'EXITED'
+  | 'UNCHANGED'
+  | 'NO_PRIOR_DATA';
+
+export interface InstitutionalHoldingRow {
+  id: string;
+  ticker: string | null;
+  issuerName: string;
+  cusip: string;
+  figi: string | null;
+  titleOfClass: string | null;
+  managerCik: string;
+  managerName: string;
+  shares: number;
+  sharesType: string;
+  valueUsd: number;
+  portfolioPct: number | null;
+  previousShares: number | null;
+  previousValueUsd: number | null;
+  shareChange: number | null;
+  percentChange: number | null;
+  status: InstitutionalPositionStatus;
+  reportingPeriod: string;
+  previousPeriod: string | null;
+  filingDate: string | null;
+  filingId: string | null;
+  sourceUrl: string | null;
+  investmentDiscretion: string | null;
+  votingSole: number | null;
+  votingShared: number | null;
+  votingNone: number | null;
+}
+
+export interface InstitutionalHoldingsSummary {
+  totalReportedShares: number;
+  totalReportedValueUsd: number;
+  activeInstitutions: number;
+  institutionsIncreasing: number;
+  institutionsDecreasing: number;
+  newPositions: number;
+  exitedPositions: number;
+  unchangedPositions: number;
+  noPriorDataCount: number;
+  netShareChange: number;
+  netPercentChange: number | null;
+}
+
+export interface InstitutionalAccumulationRow {
+  cusip: string;
+  ticker: string | null;
+  issuerName: string;
+  titleOfClass: string | null;
+  institutionsIncreasing: number;
+  institutionsDecreasing: number;
+  newPositions: number;
+  exitedPositions: number;
+  unchangedPositions: number;
+  totalInstitutions: number;
+  netShareChange: number;
+  priorTotalShares: number;
+  currentTotalShares: number;
+  netPercentChange: number | null;
+  totalValueUsd: number;
+  reportingPeriod: string;
+  previousPeriod: string;
+  isAccumulating: boolean;
+}
+
+export interface InstitutionalManagerDirectoryItem {
+  cik: string;
+  name: string;
+  latestFilingId: string;
+  latestPeriod: string;
+  latestFilingDate: string | null;
+  tableEntryTotal: number | null;
+  tableValueTotalUsd: number | null;
+  formType: string;
+  sourceUrl: string | null;
+}
+
+export interface InstitutionalInvestorProfile {
+  managerCik: string;
+  managerName: string;
+  location: string | null;
+  reportingPeriod: string;
+  previousPeriod: string | null;
+  filingDate: string | null;
+  priorFilingDate: string | null;
+  filingId: string;
+  priorFilingId: string | null;
+  sourceUrl: string | null;
+  isConfidentialOmitted: boolean;
+  totalValueUsd: number;
+  priorTotalValueUsd: number | null;
+  totalValueChangeUsd: number | null;
+  totalValueChangePct: number | null;
+  positionsCount: number;
+  priorPositionsCount: number | null;
+  newCount: number;
+  increasedCount: number;
+  decreasedCount: number;
+  exitedCount: number;
+  unchangedCount: number;
+  largestHoldings: InstitutionalHoldingRow[];
+  holdings: InstitutionalHoldingRow[];
+  holdingsTruncated: boolean;
+}
+
+export interface InstitutionalPositionChangeRow {
+  id: string;
+  category: 'NEW' | 'INCREASED' | 'DECREASED' | 'EXITED';
+  ticker: string | null;
+  issuerName: string;
+  cusip: string;
+  managerCik: string;
+  managerName: string;
+  previousShares: number;
+  currentShares: number;
+  shareChange: number;
+  percentChange: number | null;
+  currentValueUsd: number;
+  previousValueUsd: number;
+  previousPeriod: string;
+  currentPeriod: string;
+  filingDate: string | null;
+  sourceUrl: string | null;
+}
+
+export interface InstitutionalDataFreshness {
+  provider: '3spread';
+  latestAcceptedTime: string | null;
+  latestPeriodOfReport: string | null;
+  totalFilingsCount: number | null;
+  fetchedAt: string;
+}
+

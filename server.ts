@@ -5,6 +5,16 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { enrichBarsWithStudies } from "./src/utils/technicalStudies";
 import { findValidYahooSearchEquity, isValidYahooChartMeta } from "./src/utils/equityValidation";
+import {
+  ThreeSpreadError,
+  getAvailableReportingPeriods,
+  getInstitutionalAccumulation,
+  getInstitutionalHoldingsData,
+  getInstitutionalInvestorProfile,
+  getInstitutionalManagersDirectory,
+  getInstitutionalPositionChanges,
+  isThreeSpreadConfigured,
+} from "./src/server/threeSpreadService";
 
 // Load environment variables
 dotenv.config();
@@ -2767,6 +2777,142 @@ app.get("/api/news/ticker", async (req, res) => {
       error: err.message,
       data: []
     });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// INSTITUTIONAL ACTIVITY (Form 13F) — Exclusively powered by 3spread API
+// ---------------------------------------------------------------------------
+function handleInstitutionalError(res: express.Response, err: unknown, context: string) {
+  if (err instanceof ThreeSpreadError) {
+    return res.status(err.status).json({
+      success: false,
+      requiresKey: Boolean(err.requiresKey),
+      rateLimited: Boolean(err.rateLimited),
+      error: err.message,
+      provider: "3spread",
+    });
+  }
+  const msg = err instanceof Error ? err.message : "Failed to retrieve institutional holdings data.";
+  console.error(`Institutional (${context}) error:`, msg);
+  return res.status(502).json({
+    success: false,
+    requiresKey: false,
+    rateLimited: false,
+    error: "Unable to retrieve institutional holdings data from 3spread.",
+    provider: "3spread",
+  });
+}
+
+app.get("/api/institutional/status", async (req, res) => {
+  try {
+    const configured = isThreeSpreadConfigured();
+    if (!configured) {
+      return res.json({
+        success: true,
+        configured: false,
+        requiresKey: true,
+        provider: "3spread",
+        availablePeriods: [],
+        freshness: null,
+      });
+    }
+    const force = req.query.force === "true";
+    const { periods, freshness } = await getAvailableReportingPeriods(force);
+    return res.json({
+      success: true,
+      configured: true,
+      requiresKey: false,
+      provider: "3spread",
+      availablePeriods: periods,
+      freshness,
+    });
+  } catch (err) {
+    return handleInstitutionalError(res, err, "status");
+  }
+});
+
+app.get("/api/institutional/holdings", async (req, res) => {
+  try {
+    const data = await getInstitutionalHoldingsData({
+      ticker: typeof req.query.ticker === "string" ? req.query.ticker : undefined,
+      cusip: typeof req.query.cusip === "string" ? req.query.cusip : undefined,
+      issuer: typeof req.query.issuer === "string" ? req.query.issuer : undefined,
+      managerCik: typeof req.query.managerCik === "string" ? req.query.managerCik : undefined,
+      managerQuery: typeof req.query.managerQuery === "string" ? req.query.managerQuery : undefined,
+      period: typeof req.query.period === "string" ? req.query.period : undefined,
+      sortBy: typeof req.query.sortBy === "string" ? req.query.sortBy : undefined,
+      sortDir: typeof req.query.sortDir === "string" ? req.query.sortDir : undefined,
+      statusFilter: typeof req.query.statusFilter === "string" ? req.query.statusFilter : undefined,
+      page: req.query.page ? Number(req.query.page) : 1,
+      pageSize: req.query.pageSize ? Number(req.query.pageSize) : 50,
+      force: req.query.force === "true",
+    });
+    return res.json({ success: true, provider: "3spread", ...data });
+  } catch (err) {
+    return handleInstitutionalError(res, err, "holdings");
+  }
+});
+
+app.get("/api/institutional/accumulation", async (req, res) => {
+  try {
+    const data = await getInstitutionalAccumulation({
+      period: typeof req.query.period === "string" ? req.query.period : undefined,
+      minIncreasing: req.query.minIncreasing ? Number(req.query.minIncreasing) : 2,
+      minPctIncrease: req.query.minPctIncrease ? Number(req.query.minPctIncrease) : 0,
+      minNewPositions: req.query.minNewPositions ? Number(req.query.minNewPositions) : 0,
+      search: typeof req.query.search === "string" ? req.query.search : undefined,
+      sortBy: typeof req.query.sortBy === "string" ? req.query.sortBy : undefined,
+      sortDir: typeof req.query.sortDir === "string" ? req.query.sortDir : undefined,
+      force: req.query.force === "true",
+    });
+    return res.json({ success: true, provider: "3spread", ...data });
+  } catch (err) {
+    return handleInstitutionalError(res, err, "accumulation");
+  }
+});
+
+app.get("/api/institutional/investors", async (req, res) => {
+  try {
+    const data = await getInstitutionalManagersDirectory({
+      q: typeof req.query.q === "string" ? req.query.q : undefined,
+      period: typeof req.query.period === "string" ? req.query.period : undefined,
+      force: req.query.force === "true",
+    });
+    return res.json({ success: true, provider: "3spread", ...data });
+  } catch (err) {
+    return handleInstitutionalError(res, err, "investors");
+  }
+});
+
+app.get("/api/institutional/investor/:cik", async (req, res) => {
+  try {
+    const data = await getInstitutionalInvestorProfile({
+      cik: req.params.cik,
+      period: typeof req.query.period === "string" ? req.query.period : undefined,
+      force: req.query.force === "true",
+    });
+    return res.json({ success: true, provider: "3spread", ...data });
+  } catch (err) {
+    return handleInstitutionalError(res, err, "investor-profile");
+  }
+});
+
+app.get("/api/institutional/changes", async (req, res) => {
+  try {
+    const data = await getInstitutionalPositionChanges({
+      category: typeof req.query.category === "string" ? req.query.category : "ALL",
+      ticker: typeof req.query.ticker === "string" ? req.query.ticker : undefined,
+      cusip: typeof req.query.cusip === "string" ? req.query.cusip : undefined,
+      managerQuery: typeof req.query.managerQuery === "string" ? req.query.managerQuery : undefined,
+      period: typeof req.query.period === "string" ? req.query.period : undefined,
+      page: req.query.page ? Number(req.query.page) : 1,
+      pageSize: req.query.pageSize ? Number(req.query.pageSize) : 50,
+      force: req.query.force === "true",
+    });
+    return res.json({ success: true, provider: "3spread", ...data });
+  } catch (err) {
+    return handleInstitutionalError(res, err, "changes");
   }
 });
 
