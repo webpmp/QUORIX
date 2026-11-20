@@ -7,26 +7,40 @@ import { enrichBarsWithStudies } from "./src/utils/technicalStudies";
 import { findValidYahooSearchEquity, isValidYahooChartMeta } from "./src/utils/equityValidation";
 import {
   ThreeSpreadError,
+  clearThreeSpreadCache,
   getAvailableReportingPeriods,
+  getEnvThreeSpreadApiKey,
   getInstitutionalAccumulation,
   getInstitutionalHoldingsData,
   getInstitutionalInvestorProfile,
   getInstitutionalManagersDirectory,
   getInstitutionalPositionChanges,
+  getThreeSpreadApiKey,
   isThreeSpreadConfigured,
+  setRuntimeThreeSpreadApiKey,
 } from "./src/server/threeSpreadService";
+import {
+  DIAGNOSTIC_PROVIDER_SET,
+  runProviderConnectionTest,
+  type DiagnosticProviderId,
+} from "./src/server/apiDiagnostics";
+import {
+  API_KEY_IDS,
+  API_KEY_LABELS,
+  getActiveApiKey,
+  getApiKeysStatusPayload,
+  getEnvApiKey,
+  getRuntimeApiKey,
+  isMaskedKeyPlaceholder,
+  redactErrorMessage,
+  redactSecrets,
+  setRuntimeApiKey,
+  validateApiKeyInput,
+  type ApiKeyId,
+} from "./src/server/apiCredentials";
 
 // Load environment variables
 dotenv.config();
-
-// In-memory key store to allow dynamic configuration overrides via a Settings page
-const customKeys = {
-  ALPHA_VANTAGE_API_KEY: process.env.ALPHA_VANTAGE_API_KEY || "",
-  NYT_API_KEY: process.env.NYT_API_KEY || "",
-  NEWS_API_KEY: process.env.NEWS_API_KEY || "",
-  NEWSDATA_API_KEY: process.env.NEWSDATA_API_KEY || "",
-  FRED_API_KEY: process.env.FRED_API_KEY || "",
-};
 
 // In-memory cooldowns and 5-minute caches to prevent rate limits (429) on ticker switches / polling
 const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -53,7 +67,7 @@ let fredEconomicsCache: { timestamp: number; data: any } | null = null;
 let fredCurrenciesCache: { timestamp: number; data: any } | null = null;
 
 function getFredApiKey(): string {
-  return (customKeys.FRED_API_KEY || process.env.FRED_API_KEY || "").trim();
+  return getActiveApiKey("FRED_API_KEY");
 }
 
 async function fetchFredObservations(
@@ -1664,8 +1678,8 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
     const searchEquityMatch = findValidYahooSearchEquity(searchLookup.quotes, cacheKey, yfSymbol);
 
     // --- STEP 3: Fallback to Alpha Vantage if configured ---
-    const apiKey = (customKeys.ALPHA_VANTAGE_API_KEY || process.env.ALPHA_VANTAGE_API_KEY || "").trim();
-    if (apiKey && apiKey !== "MY_ALPHA_VANTAGE_API_KEY") {
+    const apiKey = getActiveApiKey("ALPHA_VANTAGE_API_KEY");
+    if (apiKey) {
       try {
         const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(cacheKey)}&apikey=${encodeURIComponent(apiKey)}`;
         console.log(`Querying Alpha Vantage proxy for symbol: ${cacheKey}`);
@@ -1674,7 +1688,10 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
           const data = await response.json();
 
           if (data.Note || data.Information) {
-            console.log("Alpha Vantage notice:", data.Note || data.Information);
+            console.log(
+              "Alpha Vantage notice:",
+              redactSecrets(data.Note || data.Information, { extraSecrets: [apiKey], maxLength: 240 })
+            );
             if (cached) {
               return res.json({
                 success: true,
@@ -1722,7 +1739,10 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
           }
         }
       } catch (avErr: any) {
-        console.log("Alpha Vantage fallback failed:", avErr.message);
+        console.log(
+          "Alpha Vantage fallback failed:",
+          redactErrorMessage(avErr, "Alpha Vantage request failed.", { extraSecrets: [apiKey] })
+        );
       }
     }
 
@@ -1773,11 +1793,12 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
         : "Unable to verify live quote data for symbol."
     });
   } catch (err: any) {
-    console.log("Quote endpoint handled gracefully:", err.message);
+    const safeMsg = redactErrorMessage(err, "Unable to fetch quote data.");
+    console.log("Quote endpoint handled gracefully:", safeMsg);
     return res.json({
       success: false,
       isInvalidTicker: false,
-      error: err.message,
+      error: safeMsg,
     });
   }
 });
@@ -1886,10 +1907,11 @@ app.get("/api/fred/economics", async (req, res) => {
       ...data,
     });
   } catch (err: any) {
-    console.error("FRED economics error:", err.message);
+    const safeMsg = redactErrorMessage(err, "Failed to retrieve FRED macroeconomic data.");
+    console.error("FRED economics error:", safeMsg);
     return res.json({
       success: false,
-      error: err.message,
+      error: safeMsg,
       indicators: [],
       macroMetrics: [],
       releases: [],
@@ -1944,7 +1966,10 @@ app.get("/api/fred/currencies", async (req, res) => {
             date: latest.date,
           };
         } catch (err: any) {
-          console.warn(`FRED FX ${seriesId} error:`, err.message);
+          console.warn(
+            `FRED FX ${seriesId} error:`,
+            redactErrorMessage(err, "FRED FX series error.", { extraSecrets: [apiKey] })
+          );
           return null;
         }
       })
@@ -1963,10 +1988,11 @@ app.get("/api/fred/currencies", async (req, res) => {
       isCached: false,
     });
   } catch (err: any) {
-    console.error("FRED currencies error:", err.message);
+    const safeMsg = redactErrorMessage(err, "Failed to retrieve FRED FX rates.");
+    console.error("FRED currencies error:", safeMsg);
     return res.json({
       success: false,
-      error: err.message,
+      error: safeMsg,
       currencies: [],
     });
   }
@@ -2102,69 +2128,137 @@ app.get("/api/polymarket/events", async (req, res) => {
   }
 });
 
-// GET current keys status (masked values only — never expose raw server keys to the client)
-app.get("/api/settings/keys", (_req, res) => {
-  const mask = (val?: string) => {
-    if (
-      !val ||
-      val.trim() === "" ||
-      val === "MY_ALPHA_VANTAGE_API_KEY" ||
-      val === "MY_NYT_API_KEY" ||
-      val === "MY_NEWS_API_KEY" ||
-      val === "MY_NEWSDATA_API_KEY" ||
-      val === "MY_FRED_API_KEY"
-    ) {
-      return "";
-    }
-    if (val.length <= 6) return "●●●●●●";
-    return `${val.substring(0, 3)}●●●●●●${val.substring(val.length - 3)}`;
-  };
+const DIAGNOSTIC_PROVIDER_TO_KEY_ID: Record<DiagnosticProviderId, ApiKeyId> = {
+  ALPHA_VANTAGE: "ALPHA_VANTAGE_API_KEY",
+  NYT: "NYT_API_KEY",
+  NEWS_API: "NEWS_API_KEY",
+  NEWSDATA: "NEWSDATA_API_KEY",
+  FRED: "FRED_API_KEY",
+  "3SPREAD": "3SPREAD_API_KEY",
+};
 
+// GET current keys status (fixed placeholder & source metadata only — never expose any characters of saved keys)
+app.get("/api/settings/keys", (_req, res) => {
+  const status = getApiKeysStatusPayload();
   res.json({
     success: true,
-    maskedKeys: {
-      ALPHA_VANTAGE_API_KEY: mask(customKeys.ALPHA_VANTAGE_API_KEY),
-      NYT_API_KEY: mask(customKeys.NYT_API_KEY),
-      NEWS_API_KEY: mask(customKeys.NEWS_API_KEY),
-      NEWSDATA_API_KEY: mask(customKeys.NEWSDATA_API_KEY),
-      FRED_API_KEY: mask(customKeys.FRED_API_KEY),
-    }
+    maskedKeys: status.maskedKeys,
+    credentials: status.credentials,
   });
 });
 
-// POST to update keys in-memory
+// POST to update optional runtime keys in server memory only (environment credentials always take precedence)
 app.post("/api/settings/keys", (req, res) => {
-  const { ALPHA_VANTAGE_API_KEY, NYT_API_KEY, NEWS_API_KEY, NEWSDATA_API_KEY, FRED_API_KEY } = req.body || {};
-  const isUnmaskedUpdate = (val: unknown): val is string =>
-    typeof val === "string" && !val.includes("●●●●●●");
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const validatedUpdates: Partial<Record<ApiKeyId, string>> = {};
 
-  if (isUnmaskedUpdate(ALPHA_VANTAGE_API_KEY)) {
-    customKeys.ALPHA_VANTAGE_API_KEY = ALPHA_VANTAGE_API_KEY;
-  }
-  if (isUnmaskedUpdate(NYT_API_KEY)) {
-    customKeys.NYT_API_KEY = NYT_API_KEY;
-    newsProviderCache.nyt = { timestamp: 0, items: [] };
-    apiCooldowns.nyt = 0;
-  }
-  if (isUnmaskedUpdate(NEWS_API_KEY)) {
-    customKeys.NEWS_API_KEY = NEWS_API_KEY;
-    newsProviderCache.newsapi = { timestamp: 0, items: [] };
-    apiCooldowns.newsapi = 0;
-  }
-  if (isUnmaskedUpdate(NEWSDATA_API_KEY)) {
-    customKeys.NEWSDATA_API_KEY = NEWSDATA_API_KEY;
-    newsProviderCache.newsdata = { timestamp: 0, items: [] };
-    apiCooldowns.newsdata = 0;
-  }
-  if (isUnmaskedUpdate(FRED_API_KEY)) {
-    customKeys.FRED_API_KEY = FRED_API_KEY;
-    fredEconomicsCache = null;
-    fredCurrenciesCache = null;
+  for (const id of API_KEY_IDS) {
+    if (!Object.prototype.hasOwnProperty.call(body, id)) continue;
+    const rawValue = body[id];
+    const validation = validateApiKeyInput(rawValue, API_KEY_LABELS[id]);
+    if (!validation.ok) {
+      return res.status(400).json({
+        success: false,
+        error: validation.error || "Invalid API credential submitted.",
+      });
+    }
+    if (!validation.skipped && !getEnvApiKey(id)) {
+      validatedUpdates[id] = validation.value || "";
+    }
   }
 
-  res.json({
+  const protectedByEnvironment: ApiKeyId[] = [];
+  for (const id of API_KEY_IDS) {
+    if (!Object.prototype.hasOwnProperty.call(body, id)) continue;
+    if (getEnvApiKey(id)) {
+      if (!isMaskedKeyPlaceholder(body[id]) && typeof body[id] === "string" && body[id].trim() !== "") {
+        protectedByEnvironment.push(id);
+      }
+      continue;
+    }
+    if (!Object.prototype.hasOwnProperty.call(validatedUpdates, id)) continue;
+
+    const nextVal = validatedUpdates[id] || "";
+    const result = setRuntimeApiKey(id, nextVal);
+    if (result.blockedByEnv) {
+      protectedByEnvironment.push(id);
+      continue;
+    }
+    if (result.updated) {
+      if (id === "NYT_API_KEY") {
+        newsProviderCache.nyt = { timestamp: 0, items: [] };
+        apiCooldowns.nyt = 0;
+      } else if (id === "NEWS_API_KEY") {
+        newsProviderCache.newsapi = { timestamp: 0, items: [] };
+        apiCooldowns.newsapi = 0;
+      } else if (id === "NEWSDATA_API_KEY") {
+        newsProviderCache.newsdata = { timestamp: 0, items: [] };
+        apiCooldowns.newsdata = 0;
+      } else if (id === "FRED_API_KEY") {
+        fredEconomicsCache = null;
+        fredCurrenciesCache = null;
+      } else if (id === "3SPREAD_API_KEY") {
+        clearThreeSpreadCache();
+      }
+    }
+  }
+
+  const status = getApiKeysStatusPayload();
+  return res.json({
     success: true,
-    message: "API Keys updated in-memory successfully"
+    message: "API Keys updated in-memory successfully",
+    protectedByEnvironment,
+    maskedKeys: status.maskedKeys,
+    credentials: status.credentials,
+  });
+});
+
+// POST to execute a lightweight connectivity & authentication test for a single configured API provider
+app.post("/api/settings/test-connection", async (req, res) => {
+  const rawProvider = typeof req.body?.provider === "string" ? req.body.provider.trim().toUpperCase() : "";
+  if (!DIAGNOSTIC_PROVIDER_SET.has(rawProvider)) {
+    return res.status(400).json({
+      success: false,
+      status: "FAILED",
+      message: "Unsupported API provider requested for connection test.",
+    });
+  }
+
+  const provider = rawProvider as DiagnosticProviderId;
+  const keyId = DIAGNOSTIC_PROVIDER_TO_KEY_ID[provider];
+  const envKey = getEnvApiKey(keyId);
+
+  let candidateKey = "";
+  if (!envKey && req.body && Object.prototype.hasOwnProperty.call(req.body, "apiKey")) {
+    const rawCandidate = req.body.apiKey;
+    if (rawCandidate !== undefined && rawCandidate !== null && rawCandidate !== "" && !isMaskedKeyPlaceholder(rawCandidate)) {
+      const validation = validateApiKeyInput(rawCandidate, API_KEY_LABELS[keyId]);
+      if (!validation.ok) {
+        return res.status(400).json({
+          success: false,
+          provider,
+          status: "FAILED",
+          message: validation.error || "Invalid API credential submitted.",
+        });
+      }
+      candidateKey = validation.value || "";
+    }
+  }
+
+  // Strict precedence: environment credential > unsaved UI candidate > saved runtime credential
+  const resolvedKey = envKey || candidateKey || getRuntimeApiKey(keyId);
+
+  const result = await runProviderConnectionTest({
+    provider,
+    apiKey: resolvedKey,
+  });
+
+  return res.json({
+    success: result.ok,
+    provider,
+    status: result.status,
+    message: result.message,
+    latencyMs: result.latencyMs,
   });
 });
 
@@ -2327,17 +2421,17 @@ function analyzeNewsSentiment(_text: string): "positive" | "negative" | "neutral
 
 // Proxy endpoint for news aggregation from NYT, News API, Newsdata.io, and ticker-specific Yahoo Finance
 app.get("/api/news/ticker", async (req, res) => {
-  const nytKey = customKeys.NYT_API_KEY;
-  const newsApiKey = customKeys.NEWS_API_KEY;
-  const newsdataKey = customKeys.NEWSDATA_API_KEY;
+  const nytKey = getActiveApiKey("NYT_API_KEY");
+  const newsApiKey = getActiveApiKey("NEWS_API_KEY");
+  const newsdataKey = getActiveApiKey("NEWSDATA_API_KEY");
   const requestedTicker = ((req.query.ticker as string) || "").toUpperCase().trim();
   const forceRefresh = req.query.force === "true";
   const rotateMode = req.query.mode === "rotate";
   const parsedSlot = parseInt(String(req.query.slot ?? ""), 10);
 
-  const hasNytKey = Boolean(nytKey && nytKey !== "MY_NYT_API_KEY" && nytKey.trim() !== "");
-  const hasNewsApiKey = Boolean(newsApiKey && newsApiKey !== "MY_NEWS_API_KEY" && newsApiKey.trim() !== "");
-  const hasNewsdataKey = Boolean(newsdataKey && newsdataKey !== "MY_NEWSDATA_API_KEY" && newsdataKey.trim() !== "");
+  const hasNytKey = Boolean(nytKey);
+  const hasNewsApiKey = Boolean(newsApiKey);
+  const hasNewsdataKey = Boolean(newsdataKey);
 
   const configuredSources = {
     nyt: hasNytKey,
@@ -2491,7 +2585,9 @@ app.get("/api/news/ticker", async (req, res) => {
       return [];
     }
     try {
-      const r = await fetch(`https://api.nytimes.com/svc/topstories/v2/business.json?api-key=${nytKey}`);
+      const r = await fetch(
+        `https://api.nytimes.com/svc/topstories/v2/business.json?api-key=${encodeURIComponent(nytKey)}`
+      );
       if (!r.ok) {
         apiCooldowns.nyt = Date.now() + 5 * 60 * 1000;
         throw new Error(`NYT status ${r.status}`);
@@ -2515,7 +2611,10 @@ app.get("/api/news/ticker", async (req, res) => {
       }
       return newsProviderCache.nyt.items;
     } catch (err: any) {
-      console.log("NYT API fetch handled gracefully:", err.message);
+      console.log(
+        "NYT API fetch handled gracefully:",
+        redactErrorMessage(err, "NYT API request failed.", { extraSecrets: [nytKey] })
+      );
       return newsProviderCache.nyt.items;
     }
   };
@@ -2531,7 +2630,12 @@ app.get("/api/news/ticker", async (req, res) => {
       return [];
     }
     try {
-      const r = await fetch(`https://newsapi.org/v2/top-headlines?category=business&country=us&apiKey=${newsApiKey}`);
+      const r = await fetch("https://newsapi.org/v2/top-headlines?category=business&country=us", {
+        headers: {
+          "X-Api-Key": newsApiKey,
+          Accept: "application/json",
+        },
+      });
       if (!r.ok) {
         apiCooldowns.newsapi = Date.now() + 5 * 60 * 1000;
         throw new Error(`News API status ${r.status}`);
@@ -2555,7 +2659,10 @@ app.get("/api/news/ticker", async (req, res) => {
       }
       return newsProviderCache.newsapi.items;
     } catch (err: any) {
-      console.log("News API fetch handled gracefully:", err.message);
+      console.log(
+        "News API fetch handled gracefully:",
+        redactErrorMessage(err, "News API request failed.", { extraSecrets: [newsApiKey] })
+      );
       return newsProviderCache.newsapi.items;
     }
   };
@@ -2571,7 +2678,9 @@ app.get("/api/news/ticker", async (req, res) => {
       return [];
     }
     try {
-      const r = await fetch(`https://newsdata.io/api/1/news?apikey=${newsdataKey}&category=business&language=en`);
+      const r = await fetch(
+        `https://newsdata.io/api/1/news?apikey=${encodeURIComponent(newsdataKey)}&category=business&language=en`
+      );
       if (!r.ok) {
         apiCooldowns.newsdata = Date.now() + 5 * 60 * 1000;
         throw new Error(`Newsdata.io status ${r.status}`);
@@ -2595,7 +2704,10 @@ app.get("/api/news/ticker", async (req, res) => {
       }
       return newsProviderCache.newsdata.items;
     } catch (err: any) {
-      console.log("Newsdata.io API fetch handled gracefully:", err.message);
+      console.log(
+        "Newsdata.io API fetch handled gracefully:",
+        redactErrorMessage(err, "Newsdata.io request failed.", { extraSecrets: [newsdataKey] })
+      );
       return newsProviderCache.newsdata.items;
     }
   };
@@ -2769,12 +2881,13 @@ app.get("/api/news/ticker", async (req, res) => {
     });
 
   } catch (err: any) {
-    console.error("News aggregation error:", err);
+    const safeMsg = redactErrorMessage(err, "Unable to aggregate financial news.");
+    console.error("News aggregation error:", safeMsg);
     return res.json({
       success: false,
       sources: activeSources,
       configuredSources,
-      error: err.message,
+      error: safeMsg,
       data: []
     });
   }
@@ -2789,11 +2902,11 @@ function handleInstitutionalError(res: express.Response, err: unknown, context: 
       success: false,
       requiresKey: Boolean(err.requiresKey),
       rateLimited: Boolean(err.rateLimited),
-      error: err.message,
+      error: redactErrorMessage(err, "3spread API request failed."),
       provider: "3spread",
     });
   }
-  const msg = err instanceof Error ? err.message : "Failed to retrieve institutional holdings data.";
+  const msg = redactErrorMessage(err, "Failed to retrieve institutional holdings data.");
   console.error(`Institutional (${context}) error:`, msg);
   return res.status(502).json({
     success: false,
@@ -2929,10 +3042,11 @@ async function startServer() {
 
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (req.path.startsWith("/api")) {
-      console.error("Unhandled API error:", err);
+      const safeMsg = redactErrorMessage(err, "Internal server error");
+      console.error("Unhandled API error:", safeMsg);
       return res.status(err?.status || 500).json({
         success: false,
-        error: err?.message || "Internal server error",
+        error: safeMsg,
       });
     }
     return next(err);

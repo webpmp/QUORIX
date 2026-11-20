@@ -6,3 +6,19 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-*
+
+# Private keys and certificates
+*.pem
+*.key
+
+# Local secret and credential files
+secrets/
+credentials/
+.local/
+

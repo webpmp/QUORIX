@@ -18,12 +18,21 @@ import {
   type ThreeSpreadFilingSummary,
   type ThreeSpreadHoldingRecord,
 } from '../src/utils/institutionalActivity';
+import Workspace from '../src/components/Workspace';
 import {
+  getEnvThreeSpreadApiKey,
+  getThreeSpreadApiKey,
   sanitizeCikInput,
   sanitizeCusipInput,
   sanitizePeriodInput,
   sanitizeTickerInput,
+  setRuntimeThreeSpreadApiKey,
 } from '../src/server/threeSpreadService';
+import {
+  DIAGNOSTIC_PROVIDER_IDS,
+  runProviderConnectionTest,
+  sanitizeDiagnosticMessage,
+} from '../src/server/apiDiagnostics';
 
 function makeHolding(overrides: Partial<ThreeSpreadHoldingRecord>): ThreeSpreadHoldingRecord {
   return {
@@ -441,5 +450,147 @@ test('formatHoldingsLimitationsNotice simplifies top-500 notice and removes prio
     ''
   );
 });
+
+test('3SPREAD_API_KEY env variable takes precedence and cannot be overwritten by runtime UI updates', () => {
+  const prev3Spread = process.env['3SPREAD_API_KEY'];
+  const prevThreeSpread = process.env.THREESPREAD_API_KEY;
+  try {
+    delete process.env['3SPREAD_API_KEY'];
+    delete process.env.THREESPREAD_API_KEY;
+
+    // Without env vars, runtime update succeeds
+    assert.equal(getEnvThreeSpreadApiKey(), '');
+    assert.equal(setRuntimeThreeSpreadApiKey('runtime-test-key-123'), true);
+    assert.equal(getThreeSpreadApiKey(), 'runtime-test-key-123');
+
+    // When 3SPREAD_API_KEY env is configured, it takes precedence and blocks UI overwrite
+    process.env['3SPREAD_API_KEY'] = 'env-3spread-key-abc';
+    assert.equal(getEnvThreeSpreadApiKey(), 'env-3spread-key-abc');
+    assert.equal(getThreeSpreadApiKey(), 'env-3spread-key-abc');
+    assert.equal(setRuntimeThreeSpreadApiKey('attempted-ui-overwrite'), false);
+    assert.equal(getThreeSpreadApiKey(), 'env-3spread-key-abc');
+
+    // Clear env and reset runtime key
+    delete process.env['3SPREAD_API_KEY'];
+    assert.equal(setRuntimeThreeSpreadApiKey(''), true);
+  } finally {
+    if (prev3Spread === undefined) delete process.env['3SPREAD_API_KEY'];
+    else process.env['3SPREAD_API_KEY'] = prev3Spread;
+    if (prevThreeSpread === undefined) delete process.env.THREESPREAD_API_KEY;
+    else process.env.THREESPREAD_API_KEY = prevThreeSpread;
+  }
+});
+
+test('Workspace SETT screen renders 3SPREAD API KEY password field immediately after FRED API KEY', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(Workspace, {
+      activeScreen: 'SETT',
+      selectedTicker: 'AAPL',
+      stocks: {},
+      currencies: [],
+      economics: [],
+      onExecuteCommand: () => {},
+    })
+  );
+
+  const fredIdx = html.indexOf('FRED API KEY (ST. LOUIS FED)');
+  const threeSpreadIdx = html.indexOf('3SPREAD API KEY');
+  assert.ok(fredIdx > -1, 'FRED API KEY field should be rendered');
+  assert.ok(threeSpreadIdx > fredIdx, '3SPREAD API KEY field should appear after FRED API KEY');
+  assert.match(
+    html,
+    /Used for retrieving institutional ownership data, institutional manager activity, and 13F filing information\./
+  );
+  assert.match(html, /type="password"[^>]*placeholder="Enter 3SPREAD API Key"/);
+  assert.match(html, /SAVE API CONFIGURATION/);
+  assert.match(html, /CANCEL/);
+  // All 6 diagnostic test pipelines must render with individual TEST CONNECTION buttons and READY state
+  for (const label of [
+    'ALPHA VANTAGE',
+    'NEW YORK TIMES BUSINESS',
+    'NEWS API',
+    'NEWSDATA.IO',
+    'FRED (ST. LOUIS FED)',
+    '3SPREAD',
+  ]) {
+    assert.ok(html.includes(`>${label}<`), `Expected diagnostic row for ${label}`);
+  }
+  const testButtonMatches = html.match(/>TEST CONNECTION<\/span>/g) || [];
+  assert.equal(testButtonMatches.length, 6);
+  const readyBadges = html.match(/>READY<\/span>/g) || [];
+  assert.equal(readyBadges.length, 6);
+});
+
+test('apiDiagnostics redacts secrets and handles missing, invalid, and valid provider responses', async () => {
+  const secret = 'super-secret-api-key-987654';
+  const redacted = sanitizeDiagnosticMessage(
+    `Request to https://example.com/v1?apikey=${secret}&api_key=other123 failed for ${secret}`,
+    secret
+  );
+  assert.ok(!redacted.includes(secret));
+  assert.ok(!redacted.includes('other123'));
+  assert.match(redacted, /\[REDACTED\]/);
+
+  // Missing key fails cleanly for every provider without issuing network calls
+  let fetchCalled = false;
+  const neverFetch: typeof fetch = async () => {
+    fetchCalled = true;
+    throw new Error('should not fetch');
+  };
+  for (const provider of DIAGNOSTIC_PROVIDER_IDS) {
+    const res = await runProviderConnectionTest({ provider, apiKey: '', fetchImpl: neverFetch });
+    assert.equal(res.ok, false);
+    assert.equal(res.status, 'FAILED');
+    assert.match(res.message, /No API key configured/i);
+  }
+  assert.equal(fetchCalled, false);
+
+  // Valid 3SPREAD response -> CONNECTED using lightweight /v1/data-as-of endpoint
+  let seenUrl = '';
+  let seenHeader = '';
+  const mockThreeSpreadOk: typeof fetch = async (input, init) => {
+    seenUrl = String(input);
+    seenHeader = String((init?.headers as Record<string, string>)?.apikey || '');
+    return new Response(
+      JSON.stringify({
+        families: {
+          institutional_holdings: {
+            period_of_report_max: '2026-09-30',
+            filing_count: 231077,
+          },
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  };
+  const ok3 = await runProviderConnectionTest({
+    provider: '3SPREAD',
+    apiKey: secret,
+    fetchImpl: mockThreeSpreadOk,
+  });
+  assert.equal(seenUrl, 'https://api.3spread.com/v1/data-as-of');
+  assert.equal(seenHeader, secret);
+  assert.equal(ok3.ok, true);
+  assert.equal(ok3.status, 'CONNECTED');
+  assert.ok(!ok3.message.includes(secret));
+  assert.match(ok3.message, /2026-09-30/);
+
+  // Invalid 3SPREAD response -> FAILED without leaking key
+  const mock401: typeof fetch = async () =>
+    new Response(JSON.stringify({ error: { code: 'HTTP_401', message: `Rejected ${secret}` } }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  const bad3 = await runProviderConnectionTest({
+    provider: '3SPREAD',
+    apiKey: secret,
+    fetchImpl: mock401,
+  });
+  assert.equal(bad3.ok, false);
+  assert.equal(bad3.status, 'FAILED');
+  assert.ok(!bad3.message.includes(secret));
+});
+
+
 
 

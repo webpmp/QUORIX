@@ -123,46 +123,52 @@ npm install
 
 ### 2. Configure Environment Variables
 
-Copy `.env.example` to `.env` and populate the keys for the integrations you want to enable:
+Copy `.env.example` to a local `.env` file and populate the keys for the integrations you want to enable:
 
 ```bash
 cp .env.example .env
 ```
 
-| Variable | Purpose | Required |
+| Variable | Provider / Purpose | Required |
 | --- | --- | --- |
+| `ALPHA_VANTAGE_API_KEY` | Alpha Vantage — equity quote fallback and market data | Optional |
+| `NYT_API_KEY` | New York Times Business — Top Stories business headlines | Optional |
+| `NEWS_API_KEY` | News API — global corporate and business news headlines | Optional |
+| `NEWSDATA_API_KEY` | Newsdata.io — real-time market event feeds | Optional |
+| `FRED_API_KEY` | FRED (St. Louis Fed) — `ECO` macro data, release calendar, and `CRNC` FX rates | Recommended |
+| `3SPREAD_API_KEY` | 3spread — institutional holdings and Form 13F data in `INST` (`THREESPREAD_API_KEY` is also supported as a compatibility alias) | Required for INST |
 | `GEMINI_API_KEY` | Google Gemini API key for `BWRITE` (Ask QUORIX) and AI-grounded company/news analysis | Recommended |
-| `FRED_API_KEY` | St. Louis Fed FRED API key for `ECO` macro data, release calendar, and `CRNC` FX rates | Recommended |
-| `ALPHA_VANTAGE_API_KEY` | Alpha Vantage API key for equity fundamentals and fallback quote lookup | Optional |
-| `NYT_API_KEY` | New York Times Top Stories API key for live business headlines | Optional |
-| `NEWS_API_KEY` | NewsAPI key for corporate and equity news | Optional |
-| `NEWSDATA_API_KEY` | NewsData.io API key for real-time market events | Optional |
-| `THREESPREAD_API_KEY` | 3spread API key for institutional holdings and Form 13F data in `INST` | Required for INST |
 | `APP_URL` | Hosted application URL | Optional |
+
+#### Credential Storage & Precedence
+
+- **Environment variables are the recommended configuration method** for all six integrations (`ALPHA_VANTAGE_API_KEY`, `NYT_API_KEY`, `NEWS_API_KEY`, `NEWSDATA_API_KEY`, `FRED_API_KEY`, and `3SPREAD_API_KEY` / `THREESPREAD_API_KEY`).
+- **In-memory runtime settings (`SETT`)**: Keys entered through the terminal's **SYSTEM SETTINGS (`SETT`)** screen are held strictly in Node.js server process memory—never written to local files, databases, browser `localStorage`/`sessionStorage`, or frontend build output. Runtime-entered keys are cleared when the server restarts.
+- **Environment precedence**: Environment-provided credentials always take precedence over credentials entered through `SETT` and cannot be overwritten or cleared from the UI.
+- **Zero partial key disclosure**: Settings API responses return only a fixed mask (`••••••••`) and source indicator (`environment`, `runtime`, or `none`)—never actual key characters.
+
+#### `.env` Configuration & GitHub Safety
+
+- Create your local `.env` file by copying `.env.example` (`cp .env.example .env`).
+- `.env` (and all `.env.*` variants) is excluded from Git via `.gitignore`, along with local database files (`*.db`, `*.sqlite*`), private keys (`*.pem`, `*.key`), and local credential folders (`secrets/`, `credentials/`, `.local/`).
+- `.env.example` must contain **placeholder values only** and remains tracked in Git as a template.
+- **Never commit actual API credentials** to GitHub or place real keys in `README.md`, source files, or committed configuration files.
+- Never prefix API credentials with `VITE_` or expose them to browser code.
 
 #### Configuring the 3spread API
 
 The Institutional Activity Monitor (`INST`) requires a 3spread API key.
 
 1. Create an account with [3spread](https://3spread.com/) and obtain an API key.
-2. Open the project's `.env` file.
-3. Add your key:
+2. Add your key to your local `.env` file using either `3SPREAD_API_KEY` or the `THREESPREAD_API_KEY` compatibility alias:
 
 ```bash
-THREESPREAD_API_KEY=your_3spread_api_key
+3SPREAD_API_KEY=your_3spread_api_key
+# Compatibility alias also supported:
+# THREESPREAD_API_KEY=your_3spread_api_key
 ```
 
-4. Save the file and restart the QUORIX server.
-
-**Security requirements:**
-
-- Keep `THREESPREAD_API_KEY` in the server-side environment.
-- Do not prefix the variable with `VITE_`.
-- Do not expose the key in frontend code, browser requests, or client-side configuration.
-- Do not commit your `.env` file or publish your API key.
-- The 3spread key is configured through the server environment, not through the terminal's `SETT` screen.
-
-> **Tip:** API keys for Alpha Vantage, NYT, NewsAPI, NewsData.io, and FRED can also be configured at runtime inside the terminal via the **`SETT`** screen.
+3. Save the file and restart the QUORIX server (or configure a session-only runtime key via **`SETT`** when no environment key is set).
 
 ### 3. Run in Development Mode
 
@@ -234,7 +240,7 @@ The Express server (`server.ts`) proxies external requests to protect credential
 
 ### Institutional Activity Data
 
-The Institutional Activity Monitor uses server-side 3spread API integration. The server handles authentication using the `THREESPREAD_API_KEY` environment variable.
+The Institutional Activity Monitor uses server-side 3spread API integration. The server handles authentication using the `3SPREAD_API_KEY` (or compatibility alias `THREESPREAD_API_KEY`) environment variable, falling back to an optional in-memory runtime key configured via `SETT` when no environment variable is set.
 
 - `GET /v1/data-as-of` - Available data reporting date
 - `GET /v1/coverage/by-issuer/{cik_or_ticker}` - Issuer coverage lookup

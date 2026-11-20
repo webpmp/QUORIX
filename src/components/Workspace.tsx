@@ -32,6 +32,65 @@ interface WorkspaceProps {
   onTickTimeChange?: (val: string) => void;
 }
 
+type DiagnosticProviderId = 'ALPHA_VANTAGE' | 'NYT' | 'NEWS_API' | 'NEWSDATA' | 'FRED' | '3SPREAD';
+type DiagnosticStatus = 'READY' | 'TESTING' | 'CONNECTED' | 'FAILED';
+
+interface DiagnosticPipelineRow {
+  id: DiagnosticProviderId;
+  label: string;
+  description: string;
+}
+
+interface DiagnosticStatusEntry {
+  status: DiagnosticStatus;
+  message: string;
+  latencyMs?: number;
+}
+
+const DIAGNOSTIC_PIPELINES: readonly DiagnosticPipelineRow[] = [
+  {
+    id: 'ALPHA_VANTAGE',
+    label: 'ALPHA VANTAGE',
+    description: 'Executes a lightweight $AAPL quote lookup to verify Alpha Vantage authentication and market data connectivity.',
+  },
+  {
+    id: 'NYT',
+    label: 'NEW YORK TIMES BUSINESS',
+    description: 'Checks authentication and reachability against the NY Times Business Top Stories API.',
+  },
+  {
+    id: 'NEWS_API',
+    label: 'NEWS API',
+    description: 'Runs a minimal single-headline US business query to verify News API credentials and quota access.',
+  },
+  {
+    id: 'NEWSDATA',
+    label: 'NEWSDATA.IO',
+    description: 'Executes a minimal business news probe to validate Newsdata.io authentication and feed availability.',
+  },
+  {
+    id: 'FRED',
+    label: 'FRED (ST. LOUIS FED)',
+    description: 'Fetches the latest Fed Funds (DFF) observation to verify St. Louis Fed FRED API authentication.',
+  },
+  {
+    id: '3SPREAD',
+    label: '3SPREAD',
+    description: 'Queries the lightweight 3spread data-as-of metadata endpoint to confirm Form 13F API authentication.',
+  },
+];
+
+function createInitialDiagnosticsState(): Record<DiagnosticProviderId, DiagnosticStatusEntry> {
+  return {
+    ALPHA_VANTAGE: { status: 'READY', message: '' },
+    NYT: { status: 'READY', message: '' },
+    NEWS_API: { status: 'READY', message: '' },
+    NEWSDATA: { status: 'READY', message: '' },
+    FRED: { status: 'READY', message: '' },
+    '3SPREAD': { status: 'READY', message: '' },
+  };
+}
+
 function getMarketTimeDetails(): { isPreMarket: boolean; isCoreHours: boolean; isAfterHours: boolean; isWeekend: boolean } {
   try {
     const etString = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
@@ -232,7 +291,7 @@ export default function Workspace({
   fredCurrenciesStatus,
   onRefreshEconomics,
   onRefreshCurrencies,
-  onExecuteCommand: _onExecuteCommand,
+  onExecuteCommand,
   onSelectTicker,
   pendingAiQuery,
   onClearPendingAiQuery,
@@ -322,24 +381,105 @@ export default function Workspace({
   const lastNewsTickerRef = useRef<string>('');
 
   // Settings Screen States
+  type SettingsKeyId =
+    | 'ALPHA_VANTAGE_API_KEY'
+    | 'NYT_API_KEY'
+    | 'NEWS_API_KEY'
+    | 'NEWSDATA_API_KEY'
+    | 'FRED_API_KEY'
+    | '3SPREAD_API_KEY';
+  type CredentialSource = 'environment' | 'runtime' | 'none';
+  interface CredentialMetaEntry {
+    configured: boolean;
+    source: CredentialSource;
+    maskedValue: string;
+  }
+
+  const createEmptyCredentialMeta = (): Record<SettingsKeyId, CredentialMetaEntry> => ({
+    ALPHA_VANTAGE_API_KEY: { configured: false, source: 'none', maskedValue: '' },
+    NYT_API_KEY: { configured: false, source: 'none', maskedValue: '' },
+    NEWS_API_KEY: { configured: false, source: 'none', maskedValue: '' },
+    NEWSDATA_API_KEY: { configured: false, source: 'none', maskedValue: '' },
+    FRED_API_KEY: { configured: false, source: 'none', maskedValue: '' },
+    '3SPREAD_API_KEY': { configured: false, source: 'none', maskedValue: '' },
+  });
+
   const [alphaVantageKey, setAlphaVantageKey] = useState('');
   const [nytKey, setNytKey] = useState('');
   const [newsApiKey, setNewsApiKey] = useState('');
   const [newsdataKey, setNewsdataKey] = useState('');
   const [fredKey, setFredKey] = useState('');
-  const [savedKeysSnapshot, setSavedKeysSnapshot] = useState({
+  const [threeSpreadKey, setThreeSpreadKey] = useState('');
+  const [savedKeysSnapshot, setSavedKeysSnapshot] = useState<Record<SettingsKeyId, string>>({
     ALPHA_VANTAGE_API_KEY: '',
     NYT_API_KEY: '',
     NEWS_API_KEY: '',
     NEWSDATA_API_KEY: '',
     FRED_API_KEY: '',
+    '3SPREAD_API_KEY': '',
   });
+  const [credentialMeta, setCredentialMeta] = useState<Record<SettingsKeyId, CredentialMetaEntry>>(
+    createEmptyCredentialMeta
+  );
   const [keysLoading, setKeysLoading] = useState(false);
   const [keysSaving, setKeysSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [cancelNotice, setCancelNotice] = useState(false);
-  const [apiTestState, setApiTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  const [apiTestDetails, setApiTestDetails] = useState('');
+  const [diagnostics, setDiagnostics] = useState<Record<DiagnosticProviderId, DiagnosticStatusEntry>>(
+    createInitialDiagnosticsState
+  );
+  const testingProvidersRef = useRef<Set<DiagnosticProviderId>>(new Set());
+
+  const isMaskedPlaceholder = (value: string) =>
+    value.includes('••••') || value.includes('●●●●');
+
+  const applyServerKeyStatus = (
+    maskedSource?: Partial<Record<SettingsKeyId, string>>,
+    credentialsSource?: Partial<Record<SettingsKeyId, CredentialMetaEntry>>
+  ) => {
+    const keys: SettingsKeyId[] = [
+      'ALPHA_VANTAGE_API_KEY',
+      'NYT_API_KEY',
+      'NEWS_API_KEY',
+      'NEWSDATA_API_KEY',
+      'FRED_API_KEY',
+      '3SPREAD_API_KEY',
+    ];
+    const nextSnapshot = {} as Record<SettingsKeyId, string>;
+    const nextMeta = createEmptyCredentialMeta();
+
+    for (const id of keys) {
+      const meta = credentialsSource?.[id];
+      const masked =
+        typeof meta?.maskedValue === 'string'
+          ? meta.maskedValue
+          : typeof maskedSource?.[id] === 'string'
+          ? maskedSource[id] || ''
+          : '';
+      nextSnapshot[id] = masked;
+      nextMeta[id] = meta
+        ? {
+            configured: Boolean(meta.configured),
+            source: meta.source || (masked ? 'runtime' : 'none'),
+            maskedValue: masked,
+          }
+        : {
+            configured: Boolean(masked),
+            source: masked ? 'runtime' : 'none',
+            maskedValue: masked,
+          };
+    }
+
+    setAlphaVantageKey(nextSnapshot.ALPHA_VANTAGE_API_KEY);
+    setNytKey(nextSnapshot.NYT_API_KEY);
+    setNewsApiKey(nextSnapshot.NEWS_API_KEY);
+    setNewsdataKey(nextSnapshot.NEWSDATA_API_KEY);
+    setFredKey(nextSnapshot.FRED_API_KEY);
+    setThreeSpreadKey(nextSnapshot['3SPREAD_API_KEY']);
+    setSavedKeysSnapshot(nextSnapshot);
+    setCredentialMeta(nextMeta);
+  };
 
   const fetchCurrentKeys = async () => {
     setKeysLoading(true);
@@ -347,20 +487,8 @@ export default function Workspace({
       const response = await fetch('/api/settings/keys');
       const data = await response.json();
       const keySource = data.maskedKeys || data.keys;
-      if (data.success && keySource) {
-        const snapshot = {
-          ALPHA_VANTAGE_API_KEY: keySource.ALPHA_VANTAGE_API_KEY || '',
-          NYT_API_KEY: keySource.NYT_API_KEY || '',
-          NEWS_API_KEY: keySource.NEWS_API_KEY || '',
-          NEWSDATA_API_KEY: keySource.NEWSDATA_API_KEY || '',
-          FRED_API_KEY: keySource.FRED_API_KEY || '',
-        };
-        setAlphaVantageKey(snapshot.ALPHA_VANTAGE_API_KEY);
-        setNytKey(snapshot.NYT_API_KEY);
-        setNewsApiKey(snapshot.NEWS_API_KEY);
-        setNewsdataKey(snapshot.NEWSDATA_API_KEY);
-        setFredKey(snapshot.FRED_API_KEY);
-        setSavedKeysSnapshot(snapshot);
+      if (data.success && (keySource || data.credentials)) {
+        applyServerKeyStatus(keySource, data.credentials);
       }
     } catch (err) {
       console.error('Failed to fetch current keys:', err);
@@ -379,31 +507,53 @@ export default function Workspace({
     e.preventDefault();
     setKeysSaving(true);
     setSaveSuccess(false);
+    setSaveError('');
     setCancelNotice(false);
     try {
-      const payload = {
+      const currentValues: Record<SettingsKeyId, string> = {
         ALPHA_VANTAGE_API_KEY: alphaVantageKey,
         NYT_API_KEY: nytKey,
         NEWS_API_KEY: newsApiKey,
         NEWSDATA_API_KEY: newsdataKey,
         FRED_API_KEY: fredKey,
+        '3SPREAD_API_KEY': threeSpreadKey,
       };
+
+      // Never submit unchanged masked placeholders or environment-managed credentials
+      const payload: Partial<Record<SettingsKeyId, string>> = {};
+      (Object.keys(currentValues) as SettingsKeyId[]).forEach((id) => {
+        if (credentialMeta[id]?.source === 'environment') return;
+        const val = currentValues[id];
+        if (val === savedKeysSnapshot[id]) return;
+        if (isMaskedPlaceholder(val)) return;
+        payload[id] = val;
+      });
+
       const response = await fetch('/api/settings/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
-      if (data.success) {
-        setSavedKeysSnapshot(payload);
+      if (response.ok && data.success) {
+        if (data.maskedKeys || data.credentials) {
+          applyServerKeyStatus(data.maskedKeys, data.credentials);
+        }
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
         window.dispatchEvent(new Event('quorix-settings-updated'));
         onRefreshEconomics?.();
         onRefreshCurrencies?.();
+      } else {
+        setSaveError(
+          typeof data?.error === 'string' && data.error.trim()
+            ? data.error
+            : 'Unable to save API configuration. Verify the entered values.'
+        );
       }
     } catch (err) {
       console.error('Failed to save API keys:', err);
+      setSaveError('Unable to reach server to save API configuration.');
     } finally {
       setKeysSaving(false);
     }
@@ -415,41 +565,83 @@ export default function Workspace({
     setNewsApiKey(savedKeysSnapshot.NEWS_API_KEY);
     setNewsdataKey(savedKeysSnapshot.NEWSDATA_API_KEY);
     setFredKey(savedKeysSnapshot.FRED_API_KEY);
+    setThreeSpreadKey(savedKeysSnapshot['3SPREAD_API_KEY']);
     setSaveSuccess(false);
+    setSaveError('');
     setCancelNotice(true);
     setTimeout(() => setCancelNotice(false), 3000);
   };
 
-  const testApiKey = async () => {
-    setApiTestState('testing');
-    setApiTestDetails('');
+  const runDiagnosticTest = async (providerId: DiagnosticProviderId) => {
+    if (testingProvidersRef.current.has(providerId)) return;
+    testingProvidersRef.current.add(providerId);
+
+    setDiagnostics((prev) => ({
+      ...prev,
+      [providerId]: { status: 'TESTING', message: '' },
+    }));
+
+    const providerKeyIdMap: Record<DiagnosticProviderId, SettingsKeyId> = {
+      ALPHA_VANTAGE: 'ALPHA_VANTAGE_API_KEY',
+      NYT: 'NYT_API_KEY',
+      NEWS_API: 'NEWS_API_KEY',
+      NEWSDATA: 'NEWSDATA_API_KEY',
+      FRED: 'FRED_API_KEY',
+      '3SPREAD': '3SPREAD_API_KEY',
+    };
+    const providerValueMap: Record<DiagnosticProviderId, string> = {
+      ALPHA_VANTAGE: alphaVantageKey,
+      NYT: nytKey,
+      NEWS_API: newsApiKey,
+      NEWSDATA: newsdataKey,
+      FRED: fredKey,
+      '3SPREAD': threeSpreadKey,
+    };
+
+    const keyId = providerKeyIdMap[providerId];
+    const currentVal = providerValueMap[providerId];
+    const isEnvManaged = credentialMeta[keyId]?.source === 'environment';
+    const hasUnsavedCandidate =
+      !isEnvManaged &&
+      currentVal !== savedKeysSnapshot[keyId] &&
+      currentVal.trim() !== '' &&
+      !isMaskedPlaceholder(currentVal);
+
     try {
-      // First, save current keys to ensure the test uses the latest input values!
-      await fetch('/api/settings/keys', {
+      const response = await fetch('/api/settings/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ALPHA_VANTAGE_API_KEY: alphaVantageKey,
-          NYT_API_KEY: nytKey,
-          NEWS_API_KEY: newsApiKey,
-          NEWSDATA_API_KEY: newsdataKey,
-          FRED_API_KEY: fredKey,
-        })
+        body: JSON.stringify(
+          hasUnsavedCandidate
+            ? { provider: providerId, apiKey: currentVal }
+            : { provider: providerId }
+        ),
       });
-      window.dispatchEvent(new Event('quorix-settings-updated'));
-
-      const response = await fetch('/api/alpha-vantage/quote?symbol=AAPL');
       const data = await response.json();
-      if (data.success && data.quote) {
-        setApiTestState('success');
-        setApiTestDetails(`SUCCESS: Connected to Alpha Vantage! AAPL quote retrieved successfully: $${data.quote.price} (${data.quote.changePercent >= 0 ? '+' : ''}${data.quote.changePercent.toFixed(2)}%).`);
-      } else {
-        setApiTestState('error');
-        setApiTestDetails(`FAILED: ${data.warning || data.message || data.error || 'Check key or wait for rate cooldown.'}`);
-      }
-    } catch (err: any) {
-      setApiTestState('error');
-      setApiTestDetails(`ERROR: ${err.message || 'Connection failed'}`);
+      const connected = Boolean(response.ok && data?.success && data?.status === 'CONNECTED');
+      setDiagnostics((prev) => ({
+        ...prev,
+        [providerId]: {
+          status: connected ? 'CONNECTED' : 'FAILED',
+          message:
+            typeof data?.message === 'string' && data.message.trim()
+              ? data.message
+              : connected
+              ? 'Connection verified successfully.'
+              : 'Connection test failed. Verify the configured API key.',
+          latencyMs: typeof data?.latencyMs === 'number' ? data.latencyMs : undefined,
+        },
+      }));
+    } catch {
+      setDiagnostics((prev) => ({
+        ...prev,
+        [providerId]: {
+          status: 'FAILED',
+          message: 'Unable to reach diagnostic endpoint. Verify server connectivity and retry.',
+        },
+      }));
+    } finally {
+      testingProvidersRef.current.delete(providerId);
     }
   };
 
@@ -1759,73 +1951,170 @@ export default function Workspace({
           </div>
 
           <p className="mb-4 leading-relaxed text-zinc-400">
-            Configure third-party API connectivity keys. These credentials are bound to your active container session. When saved, the server will prioritize these overrides for real-time stock quotes and business news feeds.
+            Configure third-party API connectivity keys in server memory for this session. Environment-provided credentials always take precedence and cannot be overwritten from this panel.
           </p>
 
           <form onSubmit={handleSaveKeys} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Alpha Vantage */}
               <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
-                <label className="text-[#3498db] font-bold block mb-1 uppercase text-[10px]">ALPHA VANTAGE API KEY</label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="text-[#3498db] font-bold uppercase text-[10px]">ALPHA VANTAGE API KEY</label>
+                  {credentialMeta.ALPHA_VANTAGE_API_KEY.source === 'environment' && (
+                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                      ENV MANAGED
+                    </span>
+                  )}
+                  {credentialMeta.ALPHA_VANTAGE_API_KEY.source === 'runtime' && (
+                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                      RUNTIME
+                    </span>
+                  )}
+                </div>
                 <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for accurate real-time stock quote lookups and volume tracking.</span>
                 <input
                   type="password"
                   value={alphaVantageKey}
                   onChange={(e) => setAlphaVantageKey(e.target.value)}
+                  readOnly={credentialMeta.ALPHA_VANTAGE_API_KEY.source === 'environment'}
+                  title={credentialMeta.ALPHA_VANTAGE_API_KEY.source === 'environment' ? 'Configured via ALPHA_VANTAGE_API_KEY environment variable' : undefined}
                   placeholder="Enter Alpha Vantage API Key"
-                  className="w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db]"
+                  className={`w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db] ${credentialMeta.ALPHA_VANTAGE_API_KEY.source === 'environment' ? 'opacity-75 cursor-not-allowed' : ''}`}
                 />
               </div>
 
               {/* NYT Business */}
               <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
-                <label className="text-[#3498db] font-bold block mb-1 uppercase text-[10px]">NY TIMES BUSINESS API KEY</label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="text-[#3498db] font-bold uppercase text-[10px]">NY TIMES BUSINESS API KEY</label>
+                  {credentialMeta.NYT_API_KEY.source === 'environment' && (
+                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                      ENV MANAGED
+                    </span>
+                  )}
+                  {credentialMeta.NYT_API_KEY.source === 'runtime' && (
+                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                      RUNTIME
+                    </span>
+                  )}
+                </div>
                 <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for fetching business top stories from New York Times.</span>
                 <input
                   type="password"
                   value={nytKey}
                   onChange={(e) => setNytKey(e.target.value)}
+                  readOnly={credentialMeta.NYT_API_KEY.source === 'environment'}
+                  title={credentialMeta.NYT_API_KEY.source === 'environment' ? 'Configured via NYT_API_KEY environment variable' : undefined}
                   placeholder="Enter New York Times API Key"
-                  className="w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db]"
+                  className={`w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db] ${credentialMeta.NYT_API_KEY.source === 'environment' ? 'opacity-75 cursor-not-allowed' : ''}`}
                 />
               </div>
 
               {/* News API */}
               <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
-                <label className="text-[#3498db] font-bold block mb-1 uppercase text-[10px]">NEWS API KEY</label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="text-[#3498db] font-bold uppercase text-[10px]">NEWS API KEY</label>
+                  {credentialMeta.NEWS_API_KEY.source === 'environment' && (
+                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                      ENV MANAGED
+                    </span>
+                  )}
+                  {credentialMeta.NEWS_API_KEY.source === 'runtime' && (
+                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                      RUNTIME
+                    </span>
+                  )}
+                </div>
                 <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for retrieving global corporate news headlines and media tickers.</span>
                 <input
                   type="password"
                   value={newsApiKey}
                   onChange={(e) => setNewsApiKey(e.target.value)}
+                  readOnly={credentialMeta.NEWS_API_KEY.source === 'environment'}
+                  title={credentialMeta.NEWS_API_KEY.source === 'environment' ? 'Configured via NEWS_API_KEY environment variable' : undefined}
                   placeholder="Enter News API Key"
-                  className="w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db]"
+                  className={`w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db] ${credentialMeta.NEWS_API_KEY.source === 'environment' ? 'opacity-75 cursor-not-allowed' : ''}`}
                 />
               </div>
 
               {/* Newsdata.io */}
               <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
-                <label className="text-[#3498db] font-bold block mb-1 uppercase text-[10px]">NEWSDATA.IO API KEY</label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="text-[#3498db] font-bold uppercase text-[10px]">NEWSDATA.IO API KEY</label>
+                  {credentialMeta.NEWSDATA_API_KEY.source === 'environment' && (
+                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                      ENV MANAGED
+                    </span>
+                  )}
+                  {credentialMeta.NEWSDATA_API_KEY.source === 'runtime' && (
+                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                      RUNTIME
+                    </span>
+                  )}
+                </div>
                 <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for real-time market event feeds and business data syndication.</span>
                 <input
                   type="password"
                   value={newsdataKey}
                   onChange={(e) => setNewsdataKey(e.target.value)}
+                  readOnly={credentialMeta.NEWSDATA_API_KEY.source === 'environment'}
+                  title={credentialMeta.NEWSDATA_API_KEY.source === 'environment' ? 'Configured via NEWSDATA_API_KEY environment variable' : undefined}
                   placeholder="Enter Newsdata.io API Key"
-                  className="w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db]"
+                  className={`w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db] ${credentialMeta.NEWSDATA_API_KEY.source === 'environment' ? 'opacity-75 cursor-not-allowed' : ''}`}
                 />
               </div>
 
               {/* FRED API */}
-              <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all md:col-span-2">
-                <label className="text-[#3498db] font-bold block mb-1 uppercase text-[10px]">FRED API KEY (ST. LOUIS FED)</label>
+              <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="text-[#3498db] font-bold uppercase text-[10px]">FRED API KEY (ST. LOUIS FED)</label>
+                  {credentialMeta.FRED_API_KEY.source === 'environment' && (
+                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                      ENV MANAGED
+                    </span>
+                  )}
+                  {credentialMeta.FRED_API_KEY.source === 'runtime' && (
+                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                      RUNTIME
+                    </span>
+                  )}
+                </div>
                 <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for live US Treasury yields, global macroeconomic indicators, economic release calendar, and H.10 FX rates.</span>
                 <input
                   type="password"
                   value={fredKey}
                   onChange={(e) => setFredKey(e.target.value)}
+                  readOnly={credentialMeta.FRED_API_KEY.source === 'environment'}
+                  title={credentialMeta.FRED_API_KEY.source === 'environment' ? 'Configured via FRED_API_KEY environment variable' : undefined}
                   placeholder="Enter FRED API Key"
-                  className="w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db]"
+                  className={`w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db] ${credentialMeta.FRED_API_KEY.source === 'environment' ? 'opacity-75 cursor-not-allowed' : ''}`}
+                />
+              </div>
+
+              {/* 3SPREAD API */}
+              <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="text-[#3498db] font-bold uppercase text-[10px]">3SPREAD API KEY</label>
+                  {credentialMeta['3SPREAD_API_KEY'].source === 'environment' && (
+                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                      ENV MANAGED
+                    </span>
+                  )}
+                  {credentialMeta['3SPREAD_API_KEY'].source === 'runtime' && (
+                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                      RUNTIME
+                    </span>
+                  )}
+                </div>
+                <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for retrieving institutional ownership data, institutional manager activity, and 13F filing information.</span>
+                <input
+                  type="password"
+                  value={threeSpreadKey}
+                  onChange={(e) => setThreeSpreadKey(e.target.value)}
+                  readOnly={credentialMeta['3SPREAD_API_KEY'].source === 'environment'}
+                  title={credentialMeta['3SPREAD_API_KEY'].source === 'environment' ? 'Configured via 3SPREAD_API_KEY / THREESPREAD_API_KEY environment variable' : undefined}
+                  placeholder="Enter 3SPREAD API Key"
+                  className={`w-full bg-black border border-[#333] rounded p-2 text-xs font-mono text-[#00ff00] outline-none focus:border-[#3498db] ${credentialMeta['3SPREAD_API_KEY'].source === 'environment' ? 'opacity-75 cursor-not-allowed' : ''}`}
                 />
               </div>
             </div>
@@ -1862,6 +2151,12 @@ export default function Workspace({
                 </span>
               )}
 
+              {saveError && (
+                <span className="text-[#ff4444] font-bold text-[10px]">
+                  ● {saveError}
+                </span>
+              )}
+
               {cancelNotice && (
                 <span className="text-zinc-400 font-bold text-[10px]">
                   ● CHANGES DISCARDED
@@ -1872,39 +2167,75 @@ export default function Workspace({
 
           {/* Connection Test / Diagnostic Panel */}
           <div className="mt-5 border-t border-[#333] pt-4">
-            <span className="text-white font-bold block mb-2 uppercase tracking-wide text-[11px]">DIAGNOSTIC & TEST PIPELINES</span>
-            <div className="bg-black p-3.5 border border-[#222] rounded flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex-1">
-                <span className="text-[#ff9900] font-bold block text-[10px] uppercase">Test Alpha Vantage Query Node</span>
-                <span className="text-[9px] text-zinc-500 block leading-snug mt-0.5">Executes a test quote lookup for $AAPL on the newly configured keys to confirm connectivity.</span>
-              </div>
-              <button
-                onClick={testApiKey}
-                disabled={apiTestState === 'testing'}
-                className="w-full md:w-auto bg-[#111] hover:bg-[#222] active:bg-[#333] border border-[#333] hover:border-zinc-500 text-zinc-300 hover:text-white font-extrabold py-2 px-3 rounded uppercase text-[10px] text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                {apiTestState === 'testing' ? (
-                  <>
-                    <RefreshCw size={11} className="animate-spin text-[#ff9900]" />
-                    <span>TESTING CORE PIPELINE...</span>
-                  </>
-                ) : (
-                  <span>TEST CONNECTION</span>
-                )}
-              </button>
-            </div>
+            <span className="text-white font-bold block mb-2.5 uppercase tracking-wide text-[11px]">DIAGNOSTIC & TEST PIPELINES</span>
+            <div className="space-y-2.5">
+              {DIAGNOSTIC_PIPELINES.map((pipeline) => {
+                const diag = diagnostics[pipeline.id];
+                const isTesting = diag.status === 'TESTING';
+                const statusClass =
+                  diag.status === 'CONNECTED'
+                    ? 'text-[#00ff00] border-emerald-900/60 bg-emerald-950/30'
+                    : diag.status === 'FAILED'
+                    ? 'text-[#ff4444] border-red-900/60 bg-red-950/30'
+                    : diag.status === 'TESTING'
+                    ? 'text-[#ff9900] border-[#ff9900]/40 bg-[#ff9900]/10'
+                    : 'text-zinc-500 border-zinc-800 bg-zinc-950';
 
-            {apiTestState !== 'idle' && (
-              <div className={`mt-3 p-3 border text-[11px] rounded leading-relaxed break-words font-mono ${
-                apiTestState === 'success' 
-                  ? 'bg-emerald-950/20 text-[#00ff00] border-emerald-900/40' 
-                  : apiTestState === 'error'
-                  ? 'bg-red-950/20 text-[#ff4444] border-red-900/40'
-                  : 'bg-zinc-900/30 text-zinc-400 border-zinc-800'
-              }`}>
-                {apiTestDetails}
-              </div>
-            )}
+                return (
+                  <div key={pipeline.id} className="bg-black p-3.5 border border-[#222] rounded">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[#ff9900] font-bold text-[10px] uppercase">
+                            {pipeline.label}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider leading-none ${statusClass}`}
+                          >
+                            {diag.status}
+                          </span>
+                        </div>
+                        <span className="text-[9px] text-zinc-500 block leading-snug mt-0.5">
+                          {pipeline.description}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => runDiagnosticTest(pipeline.id)}
+                        disabled={isTesting}
+                        className="w-full md:w-auto shrink-0 bg-[#111] hover:bg-[#222] active:bg-[#333] border border-[#333] hover:border-zinc-500 text-zinc-300 hover:text-white font-extrabold py-2 px-3 rounded uppercase text-[10px] text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isTesting ? (
+                          <>
+                            <RefreshCw size={11} className="animate-spin text-[#ff9900]" />
+                            <span>TESTING...</span>
+                          </>
+                        ) : (
+                          <span>TEST CONNECTION</span>
+                        )}
+                      </button>
+                    </div>
+
+                    {(diag.status === 'CONNECTED' || diag.status === 'FAILED') && diag.message && (
+                      <div
+                        className={`mt-2.5 px-3 py-2 border text-[10px] rounded leading-relaxed break-words font-mono flex flex-wrap items-start justify-between gap-2 ${
+                          diag.status === 'CONNECTED'
+                            ? 'bg-emerald-950/20 text-[#00ff00] border-emerald-900/40'
+                            : 'bg-red-950/20 text-[#ff4444] border-red-900/40'
+                        }`}
+                      >
+                        <span>
+                          <span className="font-bold">{diag.status}:</span> {diag.message}
+                        </span>
+                        {typeof diag.latencyMs === 'number' && (
+                          <span className="text-zinc-500 tabular-nums shrink-0">{diag.latencyMs}ms</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -1941,6 +2272,115 @@ export default function Workspace({
               <span className="text-zinc-500">Ask any custom finance questions in standard natural English!</span>
             </div>
           </div>
+
+          <h3 className="text-[#ff9900] font-bold text-[13px] border-b border-[#222] pb-1 uppercase mb-2 select-none">
+            Terminal Commands Reference
+          </h3>
+          <p className="text-zinc-400 mb-3">
+            Type any command into the top <span className="text-[#ff9900] font-bold">&gt;</span> prompt and press{' '}
+            <span className="text-zinc-200 font-bold">Enter</span> or click{' '}
+            <span className="text-zinc-200 font-bold">EXEC</span>:
+          </p>
+
+          <div className="overflow-x-auto border border-[#222] rounded mb-3 bg-black">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#0c0c0c] border-b border-[#333] text-[10px] uppercase tracking-wider text-zinc-400 select-none">
+                  <th className="py-2 px-3 font-bold">Command</th>
+                  <th className="py-2 px-3 font-bold">Module</th>
+                  <th className="py-2 px-3 font-bold">Description</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#1a1a1a]">
+                {[
+                  {
+                    command: 'BWRITE',
+                    module: 'Ask QUORIX',
+                    description: 'AI financial & macro analyst with Search Grounding',
+                  },
+                  {
+                    command: 'NEWS',
+                    module: 'News Hub',
+                    description: 'Live multi-source financial news feed',
+                  },
+                  {
+                    command: 'GP',
+                    module: 'Graph Price',
+                    description: 'Interactive OHLCV candlestick/line/area + Volume & RSI charts',
+                  },
+                  {
+                    command: 'HP',
+                    module: 'Historical Pricing',
+                    description: 'Tabular OHLCV historical price archive',
+                  },
+                  {
+                    command: 'DES',
+                    module: 'Security Analytics',
+                    description: 'Core company overview, valuation metrics & bio',
+                  },
+                  {
+                    command: 'ANR',
+                    module: 'Analyst Recs',
+                    description: 'Street consensus estimates & rating breakdown',
+                  },
+                  {
+                    command: 'CRNC',
+                    module: 'Currencies (FX)',
+                    description: 'Live foreign exchange rates via FRED',
+                  },
+                  {
+                    command: 'ECO',
+                    module: 'Economic Indicator',
+                    description: 'Macroeconomic dashboard & release calendar via FRED',
+                  },
+                  {
+                    command: 'POLY',
+                    module: 'Polymarket Screener',
+                    description: 'Real-time prediction market odds & spreads',
+                  },
+                  {
+                    command: 'INST',
+                    module: 'Institutional Activity Monitor',
+                    description: 'Institutional holdings, 13F position changes, accumulation screening & investor profiles',
+                  },
+                  {
+                    command: 'SETT',
+                    module: 'System Settings',
+                    description: 'Configure API keys at runtime',
+                  },
+                  {
+                    command: 'HELP',
+                    module: 'User Manuals',
+                    description: 'Command syntax & shortcut guide',
+                  },
+                ].map((row) => (
+                  <tr key={row.command} className="hover:bg-[#0b0b0b] transition-colors">
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => onExecuteCommand(row.command)}
+                        className="text-[#3498db] hover:text-[#ff9900] font-bold cursor-pointer transition-colors"
+                      >
+                        {row.command}
+                      </button>
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap text-zinc-200 font-semibold">
+                      {row.module}
+                    </td>
+                    <td className="py-2 px-3 text-zinc-400">{row.description}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-zinc-400 mb-6 leading-relaxed">
+            <span className="text-zinc-200 font-bold">Chained Commands:</span> Prefix a ticker symbol with a screen command, e.g.{' '}
+            <span className="text-[#3498db] font-bold">NVDA GP</span>,{' '}
+            <span className="text-[#3498db] font-bold">TSLA DES</span>,{' '}
+            <span className="text-[#3498db] font-bold">BTC HP</span>, or type a ticker symbol (
+            <span className="text-[#3498db] font-bold">AAPL</span>) to switch the active security.
+          </p>
 
           <div className="bg-[#050505] border border-[#333] p-3 rounded text-[10px] text-zinc-500/90 leading-relaxed select-none">
             <span className="text-white font-bold block mb-1">COMPLIANCE &amp; SYSTEM INFORMATION:</span>

@@ -21,6 +21,13 @@ import type {
   InstitutionalManagerDirectoryItem,
   InstitutionalPositionChangeRow,
 } from '../types';
+import {
+  getActiveApiKey,
+  getEnvApiKey,
+  redactSecrets,
+  setRuntimeApiKey,
+  validateApiKeyInput,
+} from './apiCredentials';
 
 const THREESPREAD_BASE_URL = 'https://api.3spread.com';
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -56,11 +63,28 @@ export class ThreeSpreadError extends Error {
   }
 }
 
+export function getEnvThreeSpreadApiKey(): string {
+  return getEnvApiKey('3SPREAD_API_KEY');
+}
+
+export function setRuntimeThreeSpreadApiKey(rawKey: string): boolean {
+  // Never overwrite environment-provided credentials through the UI
+  if (getEnvThreeSpreadApiKey()) {
+    return false;
+  }
+  const validation = validateApiKeyInput(rawKey, '3SPREAD API key');
+  if (!validation.ok || validation.skipped) {
+    return false;
+  }
+  const result = setRuntimeApiKey('3SPREAD_API_KEY', validation.value || '');
+  if (result.updated) {
+    cache.clear();
+  }
+  return !result.blockedByEnv;
+}
+
 export function getThreeSpreadApiKey(): string {
-  const raw = process.env.THREESPREAD_API_KEY || '';
-  const cleaned = raw.trim().replace(/^['"]|['"]$/g, '').trim();
-  if (!cleaned || cleaned === 'MY_THREESPREAD_API_KEY') return '';
-  return cleaned;
+  return getActiveApiKey('3SPREAD_API_KEY');
 }
 
 export function isThreeSpreadConfigured(): boolean {
@@ -219,16 +243,27 @@ async function fetchThreeSpreadJson<T>(
       const errObj = errBody?.error;
       if (errObj && typeof errObj.message === 'string') {
         const codePrefix = typeof errObj.code === 'string' ? `[${errObj.code}] ` : '';
-        detail = `3spread API error (${response.status}): ${codePrefix}${errObj.message}`;
+        detail = `3spread API error (${response.status}): ${codePrefix}${redactSecrets(errObj.message, {
+          extraSecrets: [apiKey],
+          maxLength: 220,
+        })}`;
       } else if (typeof errBody?.detail === 'string') {
-        detail = `3spread API error (${response.status}): ${errBody.detail}`;
+        detail = `3spread API error (${response.status}): ${redactSecrets(errBody.detail, {
+          extraSecrets: [apiKey],
+          maxLength: 220,
+        })}`;
       } else if (typeof errBody?.message === 'string') {
-        detail = `3spread API error (${response.status}): ${errBody.message}`;
+        detail = `3spread API error (${response.status}): ${redactSecrets(errBody.message, {
+          extraSecrets: [apiKey],
+          maxLength: 220,
+        })}`;
       }
     } catch {
       // ignore body parse failures
     }
-    throw new ThreeSpreadError(detail, { status: response.status >= 500 ? 502 : response.status });
+    throw new ThreeSpreadError(redactSecrets(detail, { extraSecrets: [apiKey], maxLength: 240 }), {
+      status: response.status >= 500 ? 502 : response.status,
+    });
   }
 
   return (await response.json()) as T;
