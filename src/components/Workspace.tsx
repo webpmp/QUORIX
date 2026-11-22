@@ -1473,7 +1473,7 @@ export default function Workspace({
           <div className="bg-[#050505] border border-[#333] rounded p-4 shadow-xl">
             <div className="border-b border-[#333] pb-2 mb-4 flex justify-between items-center">
               <span className="text-white text-md font-bold uppercase tracking-wider">
-                ECO QUORIX Global Economic Calendar (FRED)
+                Global Economic Calendar (FRED)
               </span>
               <div className="flex items-center gap-3">
                 <span className="text-[10px] text-zinc-500 font-mono">
@@ -1631,10 +1631,10 @@ export default function Workspace({
                         <table className="w-full text-left text-xs text-zinc-300 font-mono">
                           <thead className="sticky top-0 bg-[#0a0a0a] z-10">
                             <tr className="border-b border-[#333] text-zinc-500 text-[10px] uppercase font-bold">
-                              <th className="py-2 px-3">RELEASE DATE</th>
-                              <th className="py-2 px-3">RELEASE ID</th>
-                              <th className="py-2 px-3">ECONOMIC RELEASE</th>
-                              <th className="py-2 px-3 text-right">REPORTS</th>
+                              <th className="py-2 px-3 whitespace-nowrap">RELEASE DATE</th>
+                              <th className="py-2 px-3 whitespace-nowrap">RELEASE ID</th>
+                              <th className="py-2 px-3 whitespace-nowrap">ECONOMIC RELEASE</th>
+                              <th className="py-2 px-3 text-right whitespace-nowrap">REPORTS</th>
                             </tr>
                           </thead>
                           <tbody>
