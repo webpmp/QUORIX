@@ -596,6 +596,16 @@ test('SectorRotationPanel renders updated insider tx format, 11 interactive ETF 
   assert.ok(html.includes('US EQUITY SECTOR ROTATION MATRIX (11 GICS SECTORS)'));
   assert.equal(html.includes('CLICK ANY ROW FOR DETAIL'), false);
 
+  // 1b. Table column headers render at 10px with whitespace-nowrap and full labels
+  assert.ok(
+    html.includes(
+      '<tr class="bg-[#080808] border-b border-[#222] text-[10px] text-zinc-400 uppercase select-none">'
+    )
+  );
+  for (const headerLabel of ['INSTITUTIONAL (13F)', 'INSIDER (30D)', 'ROTATION STATUS']) {
+    assert.ok(html.includes(`<span>${headerLabel}</span>`), `Expected full header "${headerLabel}"`);
+  }
+
   // 2. Insider format uses "85% buy (75 tx)" with whitespace-nowrap and does not expand tx -> transactions
   assert.ok(html.includes('85% buy (75 tx)'));
   assert.equal(html.includes('buy $ •'), false);

@@ -1411,7 +1411,7 @@ export default function SectorRotationPanel({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-[11px] tabular-nums">
             <thead>
-              <tr className="bg-[#080808] border-b border-[#222] text-[9px] text-zinc-400 uppercase select-none">
+              <tr className="bg-[#080808] border-b border-[#222] text-[10px] text-zinc-400 uppercase select-none">
                 {(
                   [
                     { field: 'name', label: 'SECTOR', align: 'left' },
