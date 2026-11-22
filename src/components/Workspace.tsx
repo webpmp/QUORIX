@@ -1090,37 +1090,21 @@ export default function Workspace({
                     const displayTime = formatDisplayTime(item.publishedAt || item.time);
                     const cleanedTitle = cleanHeadline(item.title);
                     return (
-                      <div key={item.id || idx} className="bg-[#010101] border border-[#222] hover:border-[#333] p-2.5 rounded flex flex-col justify-between text-[10px]/relaxed transition-all">
-                        <div>
-                          <div className="flex justify-between items-center text-[11px] text-zinc-400 mb-1.5 font-mono uppercase">
-                            <span className="text-[#3498db] font-bold">
-                              {item.source.replace(' Business', '').toUpperCase()}
-                            </span>
-                            <span>{displayTime}</span>
-                          </div>
-                          <a
-                            href={item.url || 'https://www.reuters.com'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-zinc-100 hover:text-[#00ff00] text-sm md:text-base font-bold leading-snug hover:underline block mb-1"
-                          >
-                            {cleanedTitle}
-                          </a>
-                        </div>
-                        <div className="flex justify-between items-center mt-2.5 pt-1.5 border-t border-[#151515]">
-                          {/* Sentiment temporarily disabled until accuracy is improved
-                          <span className={`text-[8px] font-extrabold px-1 rounded ${
-                            item.sentiment === 'positive' 
-                              ? 'bg-[#00ff00]/10 text-[#00ff00]' 
-                              : item.sentiment === 'negative' 
-                                ? 'bg-[#ff4444]/10 text-[#ff4444]' 
-                                : 'bg-zinc-900 text-zinc-500'
-                          }`}>
-                            {(item.sentiment || 'NEUTRAL').toUpperCase()}
+                      <div key={item.id || idx} className="bg-[#010101] border border-[#222] hover:border-[#333] p-2.5 rounded flex flex-col text-[10px]/relaxed transition-all">
+                        <div className="flex justify-between items-center text-[11px] text-zinc-400 mb-1.5 font-mono uppercase">
+                          <span className="text-[#3498db] font-bold">
+                            {item.source.replace(' Business', '').toUpperCase()}
                           </span>
-                          */}
-                          <span className="text-[7.5px] text-zinc-600 font-mono ml-auto">ID: {item.id ? item.id.substring(0, 8) : `N-${idx}`}</span>
+                          <span>{displayTime}</span>
                         </div>
+                        <a
+                          href={item.url || 'https://www.reuters.com'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-zinc-100 hover:text-[#00ff00] text-sm md:text-base font-bold leading-snug hover:underline block"
+                        >
+                          {cleanedTitle}
+                        </a>
                       </div>
                     );
                   })}
