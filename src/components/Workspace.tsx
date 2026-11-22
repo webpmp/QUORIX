@@ -19,7 +19,7 @@ import {
   selectBestHistoricalBars,
   type HistoricalPriceBar,
 } from '../utils/historicalPricing';
-import { Send, Sparkles, AlertCircle, RefreshCw, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import { Send, AlertCircle, RefreshCw, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 
 interface WorkspaceProps {
   activeScreen: string;
@@ -1732,8 +1732,7 @@ export default function Workspace({
         <div className="bg-[#050505] border border-[#333] rounded flex flex-col flex-1 min-h-0 animate-fade-in shadow-xl overflow-hidden">
           
           <div className="border-b border-[#333] p-3 bg-black flex justify-between items-center select-none">
-            <span className="text-white text-md font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles size={14} className="text-[#3498db]" />
+            <span className="text-white text-md font-bold uppercase tracking-wider flex items-center">
               QUORIX INTELLIGENCE
             </span>
             {renderTextSizeControl()}
