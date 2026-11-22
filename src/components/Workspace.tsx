@@ -2334,14 +2334,14 @@ export default function Workspace({
         <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in font-mono text-zinc-300">
           <div className="border-b border-[#333] pb-2 mb-4 flex justify-between items-center select-none">
             <span className="text-white text-md font-bold uppercase tracking-wider">
-              QUORIX Reference &amp; User Manual
+              Reference &amp; User Manual
             </span>
             <span className="text-[10px] text-zinc-500 font-mono">HLP CENTRAL REPOSITORIES</span>
           </div>
 
           <div className="text-xs">
           <p className="mb-4 leading-relaxed text-zinc-400">
-            Welcome to the QUORIX financial terminal. Live market quotes and OHLCV history are streamed from Yahoo Finance / Alpha Vantage, economic indicators and FX rates from the St. Louis Fed FRED API, prediction markets from Polymarket, and research analysis from Gemini.
+            Welcome to the QUORIX Reference &amp; User Manual. This section provides guidance on navigating the terminal, understanding its features, working with market data and research tools, and configuring system settings. Use these resources to learn how each workspace functions, understand available capabilities, and get the most out of the QUORIX financial terminal.
           </p>
 
           <h3 className="text-[#ff9900] font-bold text-[13px] border-b border-[#222] pb-1 uppercase mb-2 select-none">Command Execution syntax</h3>
@@ -2471,10 +2471,38 @@ export default function Workspace({
 
           <p className="text-zinc-400 leading-relaxed">
             <span className="text-zinc-200 font-bold">Chained Commands:</span> Prefix a ticker symbol with a screen command, e.g.{' '}
-            <span className="text-[#3498db] font-bold">NVDA GP</span>,{' '}
-            <span className="text-[#3498db] font-bold">TSLA DES</span>,{' '}
-            <span className="text-[#3498db] font-bold">BTC HP</span>, or type a ticker symbol (
-            <span className="text-[#3498db] font-bold">AAPL</span>) to switch the active security.
+            <button
+              type="button"
+              onClick={() => onExecuteCommand('NVDA GP')}
+              className="text-[#3498db] hover:text-[#ff9900] font-bold cursor-pointer transition-colors"
+            >
+              NVDA GP
+            </button>
+            ,{' '}
+            <button
+              type="button"
+              onClick={() => onExecuteCommand('TSLA DES')}
+              className="text-[#3498db] hover:text-[#ff9900] font-bold cursor-pointer transition-colors"
+            >
+              TSLA DES
+            </button>
+            ,{' '}
+            <button
+              type="button"
+              onClick={() => onExecuteCommand('BTC HP')}
+              className="text-[#3498db] hover:text-[#ff9900] font-bold cursor-pointer transition-colors"
+            >
+              BTC HP
+            </button>
+            , or type a ticker symbol (
+            <button
+              type="button"
+              onClick={() => onExecuteCommand('AAPL')}
+              className="text-[#3498db] hover:text-[#ff9900] font-bold cursor-pointer transition-colors"
+            >
+              AAPL
+            </button>
+            ) to switch the active security.
           </p>
           </div>
         </div>

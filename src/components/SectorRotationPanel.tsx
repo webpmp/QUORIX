@@ -1397,7 +1397,7 @@ export default function SectorRotationPanel({
       <div className="bg-black border border-[#222] rounded overflow-hidden">
         <div className="px-3 py-2 bg-[#0a0a0a] border-b border-[#222] flex flex-wrap items-center justify-between gap-2 text-[10px]">
           <span className="font-extrabold uppercase tracking-wider text-zinc-200">
-            US EQUITY SECTOR ROTATION MATRIX (11 GICS SECTORS)
+            US EQUITY SECTOR ROTATION MATRIX
           </span>
           <span className="text-zinc-500">
             13F COHORT: {data.institutionalMeta.available
