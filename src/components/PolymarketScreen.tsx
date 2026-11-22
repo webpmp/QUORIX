@@ -233,8 +233,8 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
       {/* 1. HEADER SECTION */}
       <div className="border-b border-[#333] pb-3 mb-3 flex flex-col md:flex-row justify-between items-start md:items-center select-none gap-2 shrink-0">
         <div>
-          <span className="text-[#ff9900] text-sm font-extrabold uppercase tracking-wider block">
-            PMKT - EQUITY PREDICTION SCREENER
+          <span className="text-white text-md font-bold uppercase tracking-wider block">
+            POLYMARKET SCREENER
           </span>
           <span className="text-[10px] text-zinc-500 block">
             LIVE INDIVIDUAL STOCK TARGETS, EARNINGS BEATS &amp; CORPORATE CATALYSTS

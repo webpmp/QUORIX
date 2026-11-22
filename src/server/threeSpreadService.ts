@@ -13,6 +13,7 @@ import {
   type ThreeSpreadHoldingRecord,
 } from '../utils/institutionalActivity';
 import type {
+  InsiderTradingResponse,
   InstitutionalAccumulationRow,
   InstitutionalDataFreshness,
   InstitutionalHoldingRow,
@@ -21,6 +22,11 @@ import type {
   InstitutionalManagerDirectoryItem,
   InstitutionalPositionChangeRow,
 } from '../types';
+import {
+  mergeInsiderTransactionsWithFilings,
+  type ThreeSpreadInsiderFilingSummary,
+  type ThreeSpreadInsiderTransactionRow,
+} from '../utils/insiderTrading';
 import {
   getActiveApiKey,
   getEnvApiKey,
@@ -1496,3 +1502,133 @@ export async function getInstitutionalPositionChanges(params: {
     freshness,
   };
 }
+
+const INSIDERS_FILINGS_CACHE_TTL_MS = 10 * 60 * 1000;
+const INSIDERS_PAGE_CACHE_TTL_MS = 5 * 60 * 1000;
+// 3spread /v1/insiders/transactions enforces a maximum 730-day window; use 720 days for safety
+const INSIDER_TRANSACTIONS_WINDOW_DAYS = 720;
+
+interface ThreeSpreadInsidersListRaw {
+  returned?: number;
+  limit?: number;
+  has_more?: boolean;
+  sort?: string;
+  next_cursor?: string | null;
+  data?: ThreeSpreadInsiderFilingSummary[];
+}
+
+interface ThreeSpreadInsiderTransactionsListRaw {
+  page?: number;
+  page_size?: number;
+  has_more?: boolean;
+  data?: ThreeSpreadInsiderTransactionRow[];
+}
+
+/**
+ * Retrieves recent SEC Form 3/4/5 insider trading activity for a single ticker via 3spread:
+ * - `GET /v1/insiders` provides filing metadata (`form_type`, `accepted_time`, `accession_num`, `source_url`)
+ * - `GET /v1/insiders/transactions` provides transaction-level rows (`transaction_date`, `transaction_code`,
+ *   `transaction_shares`, `transaction_price_per_share`, `transaction_total_value`, `filer_name`)
+ * Both responses are cached server-side and joined by `filing_id`.
+ */
+export async function getInsiderTradingByTicker(params: {
+  ticker: string;
+  limit?: number;
+  offset?: number;
+  force?: boolean;
+}): Promise<InsiderTradingResponse> {
+  const ticker = sanitizeTickerInput(params.ticker);
+  if (!ticker) {
+    throw new ThreeSpreadError('A valid ticker symbol is required to load insider trading records.', {
+      status: 400,
+    });
+  }
+
+  const limit = Math.min(50, Math.max(1, Math.floor(Number(params.limit) || 20)));
+  const offset = Math.min(1000, Math.max(0, Math.floor(Number(params.offset) || 0)));
+  const force = Boolean(params.force);
+
+  const pageCacheKey = `insiders:page:${ticker}:${limit}:${offset}`;
+  const cachedPage = getCached<InsiderTradingResponse>(pageCacheKey, force);
+  if (cachedPage) {
+    return cachedPage;
+  }
+
+  const windowEnd = new Date().toISOString().slice(0, 10);
+  const windowStart = shiftIsoDate(windowEnd, -INSIDER_TRANSACTIONS_WINDOW_DAYS);
+
+  const filingsCacheKey = `insiders:filings:${ticker}`;
+  const fetchFilings = async (): Promise<ThreeSpreadInsiderFilingSummary[]> => {
+    const cachedFilings = getCached<ThreeSpreadInsiderFilingSummary[]>(filingsCacheKey, force);
+    if (cachedFilings) return cachedFilings;
+    try {
+      const resp = await fetchThreeSpreadJson<ThreeSpreadInsidersListRaw>('/v1/insiders', {
+        ticker,
+        limit: 100,
+      });
+      const list = Array.isArray(resp?.data) ? resp.data : [];
+      return setCached(filingsCacheKey, list, INSIDERS_FILINGS_CACHE_TTL_MS);
+    } catch (err) {
+      if (err instanceof ThreeSpreadError && err.status === 404) {
+        return setCached(filingsCacheKey, [], INSIDERS_FILINGS_CACHE_TTL_MS);
+      }
+      throw err;
+    }
+  };
+
+  const fetchTransactions = async (): Promise<{
+    rows: ThreeSpreadInsiderTransactionRow[];
+    hasMore: boolean;
+  }> => {
+    try {
+      const resp = await fetchThreeSpreadJson<ThreeSpreadInsiderTransactionsListRaw>(
+        '/v1/insiders/transactions',
+        {
+          issuer_ticker: ticker,
+          transaction_kind: 'nonderiv',
+          transaction_start: windowStart,
+          transaction_end: windowEnd,
+          limit,
+          offset,
+        }
+      );
+      const rows = Array.isArray(resp?.data) ? resp.data : [];
+      return { rows, hasMore: Boolean(resp?.has_more) };
+    } catch (err) {
+      if (err instanceof ThreeSpreadError && err.status === 404) {
+        return { rows: [], hasMore: false };
+      }
+      throw err;
+    }
+  };
+
+  const [filings, txResult] = await Promise.all([fetchFilings(), fetchTransactions()]);
+
+  const merged = mergeInsiderTransactionsWithFilings(txResult.rows, filings);
+  const records =
+    merged.dataMode === 'filings'
+      ? merged.records.slice(offset, offset + limit)
+      : merged.records;
+  const hasMore =
+    merged.dataMode === 'filings'
+      ? offset + limit < merged.records.length
+      : txResult.hasMore;
+
+  const payload: InsiderTradingResponse = {
+    success: true,
+    provider: '3spread',
+    ticker,
+    issuerName: merged.issuerName,
+    records,
+    limit,
+    offset,
+    hasMore,
+    windowStart,
+    windowEnd,
+    dataMode: merged.dataMode,
+    fetchedAt: new Date().toISOString(),
+  };
+
+  return setCached(pageCacheKey, payload, INSIDERS_PAGE_CACHE_TTL_MS);
+}
+

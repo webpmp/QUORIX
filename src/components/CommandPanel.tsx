@@ -101,7 +101,7 @@ export default function CommandPanel({
     { code: 'ECO', name: 'ECONOMIC INDICATOR', desc: 'FRED Macro & Calendar', category: 'Macro' },
     { code: 'POLY', name: 'POLYMARKET SCREENER', desc: 'Predictive market arbitrage', category: 'Macro' },
     { code: 'SETT', name: 'SYSTEM SETTINGS', desc: 'Configure API Keys', category: 'Tools' },
-    { code: 'HELP', name: 'USER MANUALS', desc: 'Syntax reference guide', category: 'Tools' }
+    { code: 'HELP', name: 'USER MANUAL', desc: 'Syntax reference guide', category: 'Tools' }
   ];
 
   return (

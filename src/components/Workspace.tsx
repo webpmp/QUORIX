@@ -10,6 +10,7 @@ import { FredFeedStatus } from '../App';
 import ChartWidget from './ChartWidget';
 import CorrelationAnalyzerScreen from './CorrelationAnalyzerScreen';
 import { CurrenciesScreen } from './CurrenciesScreen';
+import { InsiderTradingPanel } from './InsiderTradingPanel';
 import PolymarketScreen from './PolymarketScreen';
 import InstitutionalActivityScreen from './InstitutionalActivityScreen';
 import {
@@ -1127,6 +1128,9 @@ export default function Workspace({
               );
             })()}
           </div>
+
+          {/* Insider Trading (3spread SEC Form 3/4/5) */}
+          <InsiderTradingPanel ticker={selectedTicker} />
         </div>
       )}
 
@@ -2019,14 +2023,14 @@ export default function Workspace({
 
       {/* 9.8 SETT: API SETTINGS PAGE */}
       {(activeScreen === 'SETT' || activeScreen === 'SETTINGS') && (
-        <div className="bg-[#050505] border border-[#333] rounded p-5 animate-fade-in text-xs font-mono text-zinc-300">
+        <div className="bg-[#050505] border border-[#333] rounded p-5 animate-fade-in font-mono text-zinc-300">
           <div className="border-b border-[#333] pb-2 mb-4 flex justify-between items-center select-none">
-            <span className="text-white text-md font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#ff9900]"></span>
-              SETT - Secure Api Config Control Panel
+            <span className="text-white text-md font-bold uppercase tracking-wider">
+              SYSTEM SETTINGS
             </span>
           </div>
 
+          <div className="text-xs">
           <p className="mb-4 leading-relaxed text-zinc-400">
             Configure third-party API connectivity keys in server memory for this session. Environment-provided credentials always take precedence and cannot be overwritten from this panel.
           </p>
@@ -2321,19 +2325,21 @@ export default function Workspace({
             </span>
             Quorix routes external market data, economic indicators, foreign exchange rates, news, and AI requests through server-side API endpoints. This architecture centralizes external service integrations and helps protect API credentials from exposure in the browser.
           </div>
+          </div>
         </div>
       )}
 
       {/* 10. HELP: INSTRUCTIONS DIRECTORY */}
       {activeScreen === 'HELP' && (
-        <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in text-xs font-mono text-zinc-300">
+        <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in font-mono text-zinc-300">
           <div className="border-b border-[#333] pb-2 mb-4 flex justify-between items-center select-none">
             <span className="text-white text-md font-bold uppercase tracking-wider">
-              HLP QUORIX Reference & User Manuals
+              QUORIX Reference &amp; User Manual
             </span>
             <span className="text-[10px] text-zinc-500 font-mono">HLP CENTRAL REPOSITORIES</span>
           </div>
 
+          <div className="text-xs">
           <p className="mb-4 leading-relaxed text-zinc-400">
             Welcome to the QUORIX financial terminal. Live market quotes and OHLCV history are streamed from Yahoo Finance / Alpha Vantage, economic indicators and FX rates from the St. Louis Fed FRED API, prediction markets from Polymarket, and research analysis from Gemini.
           </p>
@@ -2470,6 +2476,7 @@ export default function Workspace({
             <span className="text-[#3498db] font-bold">BTC HP</span>, or type a ticker symbol (
             <span className="text-[#3498db] font-bold">AAPL</span>) to switch the active security.
           </p>
+          </div>
         </div>
       )}
     </div>

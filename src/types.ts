@@ -511,3 +511,55 @@ export interface FxIntelligencePayload {
   centralBanksSource: string | null;
   centralBanksError?: string | null;
 }
+
+export type InsiderTransactionCategory =
+  | 'purchase'
+  | 'sale'
+  | 'grant'
+  | 'exercise'
+  | 'tax'
+  | 'gift'
+  | 'disposition'
+  | 'other';
+
+export interface InsiderTradingRecord {
+  id: string;
+  filingId: string;
+  recordIndex: number;
+  date: string | null;
+  filingDate: string | null;
+  insiderName: string;
+  transactionCode: string | null;
+  transactionLabel: string;
+  transactionCategory: InsiderTransactionCategory;
+  acquiredDisposed: 'A' | 'D' | null;
+  securityTitle: string | null;
+  shares: number | null;
+  price: number | null;
+  totalValue: number | null;
+  sharesFollowing: number | null;
+  directOrIndirect: 'D' | 'I' | null;
+  formType: string | null;
+  accessionNum: string | null;
+  sourceUrl: string | null;
+  isAmendment: boolean;
+}
+
+export interface InsiderTradingResponse {
+  success: boolean;
+  provider: '3spread';
+  ticker: string;
+  issuerName: string | null;
+  records: InsiderTradingRecord[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  windowStart: string | null;
+  windowEnd: string | null;
+  dataMode: 'transactions' | 'filings';
+  fetchedAt: string | null;
+  requiresKey?: boolean;
+  rateLimited?: boolean;
+  error?: string | null;
+}
+

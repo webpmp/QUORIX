@@ -752,10 +752,10 @@ export default function InstitutionalActivityScreen({
   return (
     <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl select-text flex flex-col lg:flex-1 lg:min-h-0 lg:overflow-hidden font-mono text-xs text-zinc-200">
       {/* 1. WORKSPACE HEADER */}
-      <div className="border-b border-[#333] pb-3 mb-2.5 flex flex-col md:flex-row justify-between items-start md:items-center gap-2 shrink-0 select-none">
+      <div className="border-b border-[#333] pb-3 mb-2.5 flex flex-col md:flex-row justify-between items-start md:items-center gap-2 shrink-0 select-none text-base">
         <div>
-          <span className="text-[#ff9900] text-sm font-extrabold uppercase tracking-wider block">
-            INST - INSTITUTIONAL ACTIVITY MONITOR
+          <span className="text-white text-md font-bold uppercase tracking-wider">
+            INSTITUTIONAL ACTIVITY MONITOR
           </span>
           <span className="text-[10px] text-zinc-500 block">
             FORM 13F INSTITUTIONAL HOLDINGS, MULTI-MANAGER ACCUMULATION &amp; POSITION CHANGES

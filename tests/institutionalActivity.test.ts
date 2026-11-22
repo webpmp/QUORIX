@@ -419,7 +419,8 @@ test('InstitutionalActivityScreen places DELAYED 13F DISCLOSURE next to PROVIDER
     })
   );
 
-  assert.match(html, /INST - INSTITUTIONAL ACTIVITY MONITOR/);
+  assert.match(html, /text-white text-md font-bold uppercase tracking-wider">INSTITUTIONAL ACTIVITY MONITOR<\/span>/);
+  assert.doesNotMatch(html, /INST - INSTITUTIONAL ACTIVITY MONITOR/);
   assert.match(html, /PROVIDER: 3SPREAD/);
   assert.match(
     html,

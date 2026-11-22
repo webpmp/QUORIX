@@ -298,6 +298,8 @@ describe('CurrenciesScreen SSR Rendering', () => {
     const idx5 = html.indexOf('>CURRENCY CROSS RATES<');
     const idx6 = html.indexOf('>CENTRAL BANK &amp; INTEREST RATES<');
 
+    assert.ok(html.includes('text-white text-md font-bold uppercase tracking-wider block">CURRENCIES (FX)</span>'));
+    assert.ok(!html.includes('CRNC · FX MARKET INTELLIGENCE'));
     assert.ok(idx1 > 0 && idx2 > idx1 && idx3 > idx2 && idx4 > idx3 && idx5 > idx4 && idx6 > idx5);
     assert.ok(!html.includes('1. FX MARKET OVERVIEW'));
     assert.ok(!html.includes('CLICK CARD TO CHART'));

@@ -33,6 +33,7 @@ import {
   clearThreeSpreadCache,
   getAvailableReportingPeriods,
   getEnvThreeSpreadApiKey,
+  getInsiderTradingByTicker,
   getInstitutionalAccumulation,
   getInstitutionalHoldingsData,
   getInstitutionalInvestorProfile,
@@ -4118,6 +4119,110 @@ app.get("/api/institutional/sector-rotation", async (req, res) => {
     return res.status(500).json({
       success: false,
       error: safeMsg,
+    });
+  }
+});
+
+// INSIDER TRADING (SEC Form 3/4/5) — Powered by 3spread /v1/insiders + /v1/insiders/transactions
+app.get("/api/insiders", async (req, res) => {
+  const rawTicker = typeof req.query.ticker === "string" ? req.query.ticker.trim().toUpperCase() : "";
+  const limit = req.query.limit ? Number(req.query.limit) : 20;
+  const offset = req.query.offset ? Number(req.query.offset) : 0;
+  const force = req.query.force === "true";
+
+  if (!rawTicker) {
+    return res.status(400).json({
+      success: false,
+      provider: "3spread",
+      ticker: "",
+      issuerName: null,
+      records: [],
+      limit: 20,
+      offset: 0,
+      hasMore: false,
+      windowStart: null,
+      windowEnd: null,
+      dataMode: "transactions",
+      fetchedAt: null,
+      error: "Ticker symbol is required.",
+    });
+  }
+
+  if (!isThreeSpreadConfigured()) {
+    return res.status(503).json({
+      success: false,
+      provider: "3spread",
+      requiresKey: true,
+      ticker: rawTicker,
+      issuerName: null,
+      records: [],
+      limit: Math.min(50, Math.max(1, Math.floor(limit) || 20)),
+      offset: Math.max(0, Math.floor(offset) || 0),
+      hasMore: false,
+      windowStart: null,
+      windowEnd: null,
+      dataMode: "transactions",
+      fetchedAt: null,
+      error: "Insider trading data requires THREESPREAD_API_KEY configuration on the server.",
+    });
+  }
+
+  try {
+    const data = await getInsiderTradingByTicker({
+      ticker: rawTicker,
+      limit,
+      offset,
+      force,
+    });
+    return res.json(data);
+  } catch (err) {
+    if (err instanceof ThreeSpreadError) {
+      const status = err.status;
+      let userMessage = redactErrorMessage(err, "Unable to retrieve insider trading data.");
+      if (status === 401 || status === 403) {
+        userMessage = "3spread API authentication failed. Verify the configured THREESPREAD_API_KEY.";
+      } else if (status === 429) {
+        userMessage = "3spread API rate limit reached. Please wait a moment and retry.";
+      } else if (status === 400 || status === 422) {
+        userMessage = redactErrorMessage(err, "Invalid insider trading query parameters.");
+      } else if (status >= 500) {
+        userMessage = "Insider trading data is temporarily unavailable from 3spread.";
+      }
+      return res.status(status).json({
+        success: false,
+        provider: "3spread",
+        requiresKey: Boolean(err.requiresKey),
+        rateLimited: Boolean(err.rateLimited),
+        ticker: rawTicker,
+        issuerName: null,
+        records: [],
+        limit: Math.min(50, Math.max(1, Math.floor(limit) || 20)),
+        offset: Math.max(0, Math.floor(offset) || 0),
+        hasMore: false,
+        windowStart: null,
+        windowEnd: null,
+        dataMode: "transactions",
+        fetchedAt: null,
+        error: userMessage,
+      });
+    }
+
+    const safeMsg = redactErrorMessage(err, "Unable to retrieve insider trading data.");
+    console.error("Insider trading API error:", safeMsg);
+    return res.status(502).json({
+      success: false,
+      provider: "3spread",
+      ticker: rawTicker,
+      issuerName: null,
+      records: [],
+      limit: Math.min(50, Math.max(1, Math.floor(limit) || 20)),
+      offset: Math.max(0, Math.floor(offset) || 0),
+      hasMore: false,
+      windowStart: null,
+      windowEnd: null,
+      dataMode: "transactions",
+      fetchedAt: null,
+      error: "Unable to retrieve insider trading data.",
     });
   }
 });

@@ -657,9 +657,9 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
       {/* TOP WORKSPACE HEADER */}
       <div className="bg-[#050505] border border-[#333] rounded px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-white text-sm sm:text-base font-bold uppercase tracking-wider">
-            CRNC · FX MARKET INTELLIGENCE
-          </h1>
+          <span className="text-white text-md font-bold uppercase tracking-wider block">
+            CURRENCIES (FX)
+          </span>
           <div className="text-[10px] text-zinc-400 mt-0.5">
             FEDERAL RESERVE H.10 DAILY FX OBSERVATIONS · BIS OFFICIAL POLICY RATES
           </div>
