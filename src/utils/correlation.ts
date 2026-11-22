@@ -85,7 +85,7 @@ export const CORRELATION_LEGEND_BANDS: readonly CorrelationBandMeta[] = [
   { id: 'strong-positive', label: 'Strong positive', rangeLabel: '+0.80 to +1.00', direction: 'positive' },
   { id: 'moderate-positive', label: 'Moderate positive', rangeLabel: '+0.40 to +0.79', direction: 'positive' },
   { id: 'weak-positive', label: 'Weak positive', rangeLabel: '+0.10 to +0.39', direction: 'positive' },
-  { id: 'neutral', label: 'Little or no linear correlation', rangeLabel: '-0.09 to +0.09', direction: 'neutral' },
+  { id: 'neutral', label: 'Little or no correlation', rangeLabel: '-0.09 to +0.09', direction: 'neutral' },
   { id: 'weak-negative', label: 'Weak negative', rangeLabel: '-0.10 to -0.39', direction: 'negative' },
   { id: 'moderate-negative', label: 'Moderate negative', rangeLabel: '-0.40 to -0.79', direction: 'negative' },
   { id: 'strong-negative', label: 'Strong negative', rangeLabel: '-0.80 to -1.00', direction: 'negative' },

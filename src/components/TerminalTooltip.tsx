@@ -120,6 +120,8 @@ export const TerminalTooltip: React.FC<TerminalTooltipProps> = ({
     };
   }, [open, updatePosition]);
 
+  const hasDisplayClass = /(?:^|\s)(?:block|flex|grid|inline-flex)(?:\s|$)/.test(className);
+
   return (
     <span
       ref={triggerRef}
@@ -129,7 +131,7 @@ export const TerminalTooltip: React.FC<TerminalTooltipProps> = ({
       onBlur={closeImmediately}
       data-tooltip-text={ariaText || (typeof content === 'string' ? content : title || '')}
       aria-describedby={open ? tooltipId : undefined}
-      className={`inline-flex items-center ${className}`}
+      className={hasDisplayClass ? className : `inline-flex items-center ${className}`.trim()}
     >
       {children}
       {open &&

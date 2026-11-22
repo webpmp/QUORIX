@@ -983,7 +983,6 @@ const DailyReturnScatterPlot: React.FC<{
  * ========================================================================== */
 export default function CorrelationAnalyzerScreen({
   stocks,
-  trackedTickers = [],
   seedTicker = null,
   initialSymbols,
   initialSeriesMap,
@@ -1378,15 +1377,6 @@ export default function CorrelationAnalyzerScreen({
 
   const lookbackCfg = getLookbackConfig(lookbackPeriod);
 
-  // Quick-add tracked equities not already selected or in benchmarks
-  const quickTrackedOptions = useMemo(() => {
-    const benchSet = new Set(BENCHMARK_DEFAULTS.map((b) => b.symbol));
-    return trackedTickers
-      .map((t) => normalizeTickerSymbol(t))
-      .filter((t) => t && !benchSet.has(t))
-      .slice(0, 8);
-  }, [trackedTickers]);
-
   return (
     <div className="space-y-4 animate-fade-in font-mono text-zinc-300">
       {/* ====================================================================
@@ -1496,7 +1486,7 @@ export default function CorrelationAnalyzerScreen({
         </div>
 
         {/* Search Input + Benchmark Quick-Adds */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 items-center">
           <div ref={searchBoxRef} className="xl:col-span-6 relative">
             <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
               <div className="flex-1 flex items-center bg-black border border-[#333] focus-within:border-[#3498db] rounded px-2.5 py-1.5 transition-colors">
@@ -1582,8 +1572,8 @@ export default function CorrelationAnalyzerScreen({
             )}
           </div>
 
-          {/* Selectable Default Benchmarks + Tracked Quick-Adds */}
-          <div className="xl:col-span-6 space-y-2">
+          {/* Selectable Default Benchmarks */}
+          <div className="xl:col-span-6">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] text-zinc-500 uppercase font-bold mr-1">BENCHMARKS:</span>
               {BENCHMARK_DEFAULTS.map((b) => {
@@ -1608,32 +1598,6 @@ export default function CorrelationAnalyzerScreen({
                 );
               })}
             </div>
-
-            {quickTrackedOptions.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] text-zinc-500 uppercase font-bold mr-1">TRACKED:</span>
-                {quickTrackedOptions.map((sym) => {
-                  const isSelected = selectedSymbols.includes(sym);
-                  return (
-                    <button
-                      key={sym}
-                      type="button"
-                      onClick={() =>
-                        isSelected ? handleRemoveSymbol(sym) : void handleAddSymbol(sym)
-                      }
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                        isSelected
-                          ? 'bg-[#141414] border-[#3498db] text-[#3498db]'
-                          : 'bg-[#080808] border-[#222] text-zinc-500 hover:border-zinc-500 hover:text-zinc-200'
-                      }`}
-                    >
-                      {isSelected ? '✓ ' : '+ '}
-                      {sym}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </div>
         </div>
 
@@ -1884,20 +1848,20 @@ export default function CorrelationAnalyzerScreen({
           </div>
 
           {/* Symmetrical Responsive Matrix Table */}
-          <div className="overflow-x-auto pb-1">
+          <div className="w-full overflow-x-auto pb-1">
             <table
-              className="w-full border-separate border-spacing-1 text-xs font-mono"
+              className="w-full min-w-full border-separate border-spacing-1 text-xs font-mono"
               aria-label="Security correlation matrix"
             >
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-10 bg-[#050505] text-left px-2.5 py-2 text-[10px] text-zinc-500 uppercase font-bold min-w-[96px]">
+                  <th className="sticky left-0 z-10 bg-[#050505] text-left px-2.5 py-2 text-[10px] text-zinc-500 uppercase font-bold whitespace-nowrap w-px min-w-[76px]">
                     SECURITY
                   </th>
                   {matrixResult.symbols.map((sym) => (
                     <th
                       key={`col-${sym}`}
-                      className="px-2 py-2 text-center text-[10px] text-[#3498db] font-bold uppercase whitespace-nowrap min-w-[84px]"
+                      className="px-2 py-2 text-center text-[10px] text-[#3498db] font-bold uppercase whitespace-nowrap min-w-[88px]"
                       title={seriesBySymbol.get(sym)?.name || sym}
                     >
                       {sym}
@@ -1914,13 +1878,10 @@ export default function CorrelationAnalyzerScreen({
                     <tr key={`row-${rowSym}`}>
                       <th
                         scope="row"
-                        className="sticky left-0 z-10 bg-[#050505] text-left px-2.5 py-2 border-r border-[#1f1f1f] whitespace-nowrap"
+                        className="sticky left-0 z-10 bg-[#050505] text-left px-2.5 py-2 border-r border-[#1f1f1f] whitespace-nowrap w-px min-w-[76px]"
                         title={rowName}
                       >
                         <div className="text-[11px] font-bold text-[#3498db]">{rowSym}</div>
-                        <div className="text-[9px] text-zinc-500 truncate max-w-[110px] font-normal">
-                          {rowName}
-                        </div>
                       </th>
                       {row.map((cell) => {
                         const isPairSelected =
@@ -1994,19 +1955,19 @@ export default function CorrelationAnalyzerScreen({
                         );
 
                         return (
-                          <td key={`${cell.rowSymbol}-${cell.colSymbol}`} className="p-0">
+                          <td key={`${cell.rowSymbol}-${cell.colSymbol}`} className="p-0 min-w-[88px]">
                             <TerminalTooltip
                               title={cellTooltipTitle}
                               content={cellTooltipBody}
                               ariaText={cellAriaSummary}
                               maxWidth={250}
                               nonInteractive={true}
-                              className="w-full block"
+                              className="block w-full"
                             >
                               {cell.isDiagonal ? (
                                 <div
                                   tabIndex={0}
-                                  className={`w-full h-[48px] min-w-[84px] rounded border flex items-center justify-center tabular-nums focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] ${cellStyle}`}
+                                  className={`w-full h-[48px] min-w-[88px] rounded border flex items-center justify-center tabular-nums focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] ${cellStyle}`}
                                 >
                                   <span className="text-xs font-bold">{displayVal}</span>
                                 </div>
@@ -2015,7 +1976,7 @@ export default function CorrelationAnalyzerScreen({
                                   type="button"
                                   onClick={() => setActivePair([cell.rowSymbol, cell.colSymbol])}
                                   aria-label={`Compare ${cell.rowSymbol} and ${cell.colSymbol}: correlation ${displayVal}`}
-                                  className={`w-full h-[48px] min-w-[84px] rounded border flex items-center justify-center gap-0.5 tabular-nums transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] ${cellStyle} ${
+                                  className={`w-full h-[48px] min-w-[88px] rounded border flex items-center justify-center gap-0.5 tabular-nums transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] ${cellStyle} ${
                                     isPairSelected ? 'ring-1 ring-[#ff9900] border-[#ff9900]' : ''
                                   }`}
                                 >

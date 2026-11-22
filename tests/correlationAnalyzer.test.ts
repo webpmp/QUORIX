@@ -192,8 +192,8 @@ test('interpretCorrelation maps all 7 interpretation bands accurately', () => {
   assert.equal(interpretCorrelation(0.8).label, 'Strong positive');
   assert.equal(interpretCorrelation(0.65).label, 'Moderate positive');
   assert.equal(interpretCorrelation(0.25).label, 'Weak positive');
-  assert.equal(interpretCorrelation(0.05).label, 'Little or no linear correlation');
-  assert.equal(interpretCorrelation(-0.08).label, 'Little or no linear correlation');
+  assert.equal(interpretCorrelation(0.05).label, 'Little or no correlation');
+  assert.equal(interpretCorrelation(-0.08).label, 'Little or no correlation');
   assert.equal(interpretCorrelation(-0.25).label, 'Weak negative');
   assert.equal(interpretCorrelation(-0.6).label, 'Moderate negative');
   assert.equal(interpretCorrelation(-0.85).label, 'Strong negative');
@@ -288,17 +288,20 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
   const sB = buildSeriesFromReturns('QQQ', 'Invesco QQQ Trust', dates, rB, 420);
   const sC = buildSeriesFromReturns('TLT', 'iShares 20+ Year Treasury Bond ETF', dates, rC, 90);
 
-  // 1. Populated workspace render
+  // 1. Populated workspace render (including trackedTickers prop to verify TRACKED shortcuts are removed)
   const populatedHtml = renderToStaticMarkup(
     React.createElement(CorrelationAnalyzerScreen, {
       stocks: {},
+      trackedTickers: ['AAPL', 'MSFT', 'NVDA'],
       initialSymbols: ['SPY', 'QQQ', 'TLT'],
       initialSeriesMap: { SPY: sA, QQQ: sB, TLT: sC },
       initialLookback: '90D',
       initialRollingWindow: 30,
     })
   );
-  // Concise terminal section headings
+  // Concise terminal section headings & selection controls
+  assert.equal(populatedHtml.includes('BENCHMARKS:'), true);
+  assert.equal(populatedHtml.includes('TRACKED:'), false);
   assert.equal(populatedHtml.includes('CORRELATION MATRIX'), true);
   assert.equal(populatedHtml.includes('1.00'), true);
   assert.equal(populatedHtml.includes('Strong positive'), true);
@@ -314,6 +317,16 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
   assert.equal(populatedHtml.includes('OVERLAPPING OBSERVATIONS'), true);
   assert.equal(populatedHtml.includes('CORRELATION INSIGHTS'), true);
   assert.equal(populatedHtml.includes('Correlation does not establish causation'), true);
+
+  // Matrix leftmost column renders ticker-only rows with compact w-px sticky header (no inline descriptions)
+  const tableStart = populatedHtml.indexOf('<table');
+  const tableEnd = populatedHtml.indexOf('</table>', tableStart);
+  assert.ok(tableStart > -1 && tableEnd > tableStart);
+  const matrixTableHtml = populatedHtml.slice(tableStart, tableEnd);
+  assert.equal(matrixTableHtml.includes('<div class="text-[11px] font-bold text-[#3498db]">SPY</div></th>'), true);
+  assert.equal(matrixTableHtml.includes('max-w-[110px]'), false);
+  assert.equal(matrixTableHtml.includes('w-px min-w-[76px]'), true);
+  assert.equal(matrixTableHtml.includes('class="block w-full"'), true);
 
   // All three analytical charts match viewBox height 1:1 to their rendered CSS heights
   // (Rolling Correlation: h-[210px] -> 210; Normalized Performance & Return Distribution: h-[200px] -> 200).
