@@ -291,14 +291,20 @@ describe('CurrenciesScreen SSR Rendering', () => {
       })
     );
 
-    const idx1 = html.indexOf('1. FX MARKET OVERVIEW');
-    const idx2 = html.indexOf('2. CURRENCY PERFORMANCE');
-    const idx3 = html.indexOf('3. HISTORICAL FX TRENDS');
-    const idx4 = html.indexOf('4. FOREIGN EXCHANGE RATES MATRIX');
-    const idx5 = html.indexOf('5. CURRENCY CROSS RATES');
-    const idx6 = html.indexOf('6. CENTRAL BANK &amp; INTEREST RATES');
+    const idx1 = html.indexOf('>FX MARKET OVERVIEW<');
+    const idx2 = html.indexOf('>CURRENCY PERFORMANCE<');
+    const idx3 = html.indexOf('>HISTORICAL FX TRENDS<');
+    const idx4 = html.indexOf('>FOREIGN EXCHANGE RATES MATRIX<');
+    const idx5 = html.indexOf('>CURRENCY CROSS RATES<');
+    const idx6 = html.indexOf('>CENTRAL BANK &amp; INTEREST RATES<');
 
     assert.ok(idx1 > 0 && idx2 > idx1 && idx3 > idx2 && idx4 > idx3 && idx5 > idx4 && idx6 > idx5);
+    assert.ok(!html.includes('1. FX MARKET OVERVIEW'));
+    assert.ok(!html.includes('CLICK CARD TO CHART'));
+    assert.ok(!html.includes('CLICK COLUMN HEADER TO SORT'));
+    assert.ok(html.includes('6 MAJOR CURRENCIES · USD-RELATIVE STRENGTH'));
+    assert.ok(html.includes('+ STRENGTHENING · − WEAKENING'));
+    assert.ok(html.includes('whitespace-nowrap">BASE \\ QUOTE</th>'));
     assert.ok(html.includes('170.50')); // EUR/JPY derived cross rate
     assert.ok(html.includes('Federal Reserve'));
     assert.ok(html.includes('European Central Bank'));

@@ -722,7 +722,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
-              1. FX MARKET OVERVIEW
+              FX MARKET OVERVIEW
             </h2>
             <InfoTooltipIcon
               label="FX Market Overview methodology"
@@ -732,7 +732,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
             />
           </div>
           <span className="text-[10px] text-zinc-500 uppercase">
-            6 MAJOR CURRENCIES · USD-RELATIVE STRENGTH · CLICK CARD TO CHART
+            6 MAJOR CURRENCIES · USD-RELATIVE STRENGTH
           </span>
         </div>
 
@@ -843,7 +843,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
-              2. CURRENCY PERFORMANCE
+              CURRENCY PERFORMANCE
             </h2>
             <InfoTooltipIcon
               label="Currency Performance calculation methodology"
@@ -853,7 +853,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
             />
           </div>
           <span className="text-[10px] text-zinc-500 uppercase">
-            + STRENGTHENING · − WEAKENING · CLICK COLUMN HEADER TO SORT
+            + STRENGTHENING · − WEAKENING
           </span>
         </div>
 
@@ -1003,7 +1003,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
-              3. HISTORICAL FX TRENDS
+              HISTORICAL FX TRENDS
             </h2>
             <InfoTooltipIcon
               label="Historical FX Trends information"
@@ -1183,7 +1183,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap justify-between items-center gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
-              4. FOREIGN EXCHANGE RATES MATRIX (FRED H.10)
+              FOREIGN EXCHANGE RATES MATRIX
             </h2>
             <InfoTooltipIcon
               label="FRED H.10 Matrix data disclosure"
@@ -1286,7 +1286,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
-              5. CURRENCY CROSS RATES
+              CURRENCY CROSS RATES
             </h2>
             <InfoTooltipIcon
               label="Currency Cross Rates derivation methodology"
@@ -1326,7 +1326,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
           <table className="w-full text-xs font-mono border-collapse">
             <thead>
               <tr className="border-b border-[#333] text-[10px] uppercase">
-                <th className="py-2 px-2 text-left text-zinc-500 font-bold w-20">BASE \ QUOTE</th>
+                <th className="py-2 px-2 pr-3 text-left text-zinc-500 font-bold whitespace-nowrap">BASE \ QUOTE</th>
                 {crossMatrix.currencies.map((quote) => (
                   <th
                     key={quote}
@@ -1403,7 +1403,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
-              6. CENTRAL BANK &amp; INTEREST RATES
+              CENTRAL BANK &amp; INTEREST RATES
             </h2>
             <InfoTooltipIcon
               label="Central Bank policy rates source and methodology"
