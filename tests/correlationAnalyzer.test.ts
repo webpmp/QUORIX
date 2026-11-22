@@ -107,7 +107,8 @@ test('CommandPanel renders CORR immediately after GP and displays 13 ACTIVE whil
 
   assert.equal(html.includes('13 ACTIVE'), true);
   assert.equal(html.includes('CORRELATION ANALYZER'), true);
-  assert.equal(html.includes('Security correlation &amp; portfolio analysis'), true);
+  assert.equal(html.includes('Correlation &amp; portfolio analysis'), true);
+  assert.equal(html.includes('Security correlation &amp; portfolio analysis'), false);
   assert.equal(html.includes('id="cmd-shortcut-CORR"'), true);
 
   // Verify exact order: GP immediately followed by CORR, immediately followed by HP
@@ -321,7 +322,11 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
   assert.equal(twoHundredViewBoxes.length, 2);
   assert.equal(populatedHtml.includes('viewBox="0 0 520 220"'), false);
 
-  // Removed instructional / redundant prose should no longer clutter the workspace
+  // Removed instructional / redundant prose and ACTIVE indicator should no longer clutter the workspace
+  assert.equal(populatedHtml.includes('ACTIVE:'), false);
+  assert.equal(populatedHtml.includes('INTERVAL:'), true);
+  assert.equal(populatedHtml.includes('METHOD:'), true);
+  assert.equal(populatedHtml.includes('SECURITIES:'), true);
   assert.equal(
     populatedHtml.includes('Historical Pearson correlation, rolling co-movement, normalized return paths'),
     false

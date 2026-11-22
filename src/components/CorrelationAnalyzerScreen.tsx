@@ -1446,10 +1446,6 @@ export default function CorrelationAnalyzerScreen({
 
           {/* Active Config Summary (clean unboxed tabular metadata) */}
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] text-zinc-400 tabular-nums">
-            <span>
-              ACTIVE: <strong className="text-[#ff9900]">{lookbackCfg.label.toUpperCase()}</strong>
-            </span>
-            <span aria-hidden="true">·</span>
             <span className="inline-flex items-center gap-1">
               <span>
                 INTERVAL: <strong className="text-zinc-200">DAILY</strong>

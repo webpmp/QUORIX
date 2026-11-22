@@ -92,7 +92,7 @@ export default function CommandPanel({
     { code: 'BWRITE', name: 'ASK QUORIX', desc: 'Consult AI analyst', category: 'Tools' },
     { code: 'NEWS', name: 'NEWS HUB', desc: 'Real-time grounding', category: 'Information' },
     { code: 'GP', name: 'GRAPH PRICE', desc: 'Candlestick / Vol Chart', category: 'Equities' },
-    { code: 'CORR', name: 'CORRELATION ANALYZER', desc: 'Security correlation & portfolio analysis', category: 'Equities' },
+    { code: 'CORR', name: 'CORRELATION ANALYZER', desc: 'Correlation & portfolio analysis', category: 'Equities' },
     { code: 'HP', name: 'HISTORICAL PRICING', desc: 'Price Archive table', category: 'Equities' },
     { code: 'DES', name: 'SECURITY ANALYTICS', desc: 'Core Info & Bio', category: 'Equities' },
     { code: 'ANR', name: 'ANALYST RECS', desc: 'Consensus estimates', category: 'Equities' },
