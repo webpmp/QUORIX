@@ -173,7 +173,7 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
       {/* Section Header */}
       <div className="border-b border-[#333] pb-1.5 mb-2 flex flex-wrap items-center justify-between gap-2 select-none">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-[10px] text-[#ff9900] font-bold uppercase tracking-wider">
+          <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
             INSIDER TRADING
           </h2>
           {normalizedTicker && (

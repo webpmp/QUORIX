@@ -1067,7 +1067,7 @@ export default function Workspace({
 
           {/* Ticker Headlines */}
           <div className="bg-[#050505] border border-[#333] p-3 rounded">
-            <span className="text-[10px] text-[#ff9900] font-bold block border-b border-[#333] pb-1.5 uppercase mb-2 select-none">
+            <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block border-b border-[#333] pb-1.5 mb-2 select-none">
               {selectedTicker} Headlines (24H)
             </span>
             {newsLoading ? (
@@ -1297,7 +1297,7 @@ export default function Workspace({
         <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl">
           <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2">
             <span className="text-white text-md font-bold uppercase tracking-wider">
-              {currentStock.symbol} ANR Consensus Rating
+              Analyst Consensus Rating
             </span>
             {renderTextSizeControl()}
           </div>
@@ -1519,8 +1519,10 @@ export default function Workspace({
                 {/* US Macro & Treasury Rates Snapshot */}
                 {fredMacroMetrics.length > 0 && (
                   <div>
-                    <div className="text-[10px] text-[#ff9900] font-bold uppercase tracking-wider mb-2">
-                      US Macro &amp; Treasury Benchmarks (FRED)
+                    <div className="mb-2">
+                      <div className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
+                        US Macro &amp; Treasury Benchmarks (FRED)
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                       {fredMacroMetrics.map((metric) => (
@@ -1542,8 +1544,10 @@ export default function Workspace({
 
                 {/* Global Macro Indicators Table */}
                 <div>
-                  <div className="text-[10px] text-[#ff9900] font-bold uppercase tracking-wider mb-2">
-                    Global Macroeconomic Indicators
+                  <div className="mb-2">
+                    <div className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
+                      Global Macroeconomic Indicators
+                    </div>
                   </div>
                   <table className="w-full text-left text-xs text-zinc-300 font-mono">
                     <thead>
@@ -1600,7 +1604,7 @@ export default function Workspace({
                   return (
                     <div>
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <div className="text-[10px] text-[#ff9900] font-bold uppercase tracking-wider">
+                        <div className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                           FRED Economic Release Calendar (Last 30 Days • {filteredReleases.length})
                         </div>
                         <div className="flex items-center gap-2 font-mono">
@@ -2232,7 +2236,7 @@ export default function Workspace({
 
           {/* Connection Test / Diagnostic Panel */}
           <div className="mt-5 border-t border-[#333] pt-4">
-            <span className="text-white font-bold block mb-2.5 uppercase tracking-wide text-[11px]">DIAGNOSTIC & TEST PIPELINES</span>
+            <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block mb-2.5">DIAGNOSTIC & TEST PIPELINES</span>
             <div className="space-y-2.5">
               {DIAGNOSTIC_PIPELINES.map((pipeline) => {
                 const diag = diagnostics[pipeline.id];
@@ -2304,7 +2308,7 @@ export default function Workspace({
           </div>
 
           <div className="mt-5 bg-[#050505] border border-[#333] p-3 rounded text-[10px] text-zinc-500/90 leading-relaxed select-none">
-            <span className="text-white font-bold block mb-1 uppercase">
+            <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block mb-1">
               SYSTEM ARCHITECTURE &amp; DATA ROUTING
             </span>
             Quorix routes external market data, economic indicators, foreign exchange rates, news, and AI requests through server-side API endpoints. This architecture centralizes external service integrations and helps protect API credentials from exposure in the browser.
@@ -2328,7 +2332,7 @@ export default function Workspace({
             Welcome to the QUORIX Reference &amp; User Manual. This section provides guidance on navigating the terminal, understanding its features, working with market data and research tools, and configuring system settings. Use these resources to learn how each workspace functions, understand available capabilities, and get the most out of the QUORIX financial terminal.
           </p>
 
-          <h3 className="text-[#ff9900] font-bold text-[13px] border-b border-[#222] pb-1 uppercase mb-2 select-none">Command Execution syntax</h3>
+          <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider border-b border-[#222] pb-1 mb-2 select-none">Command Execution syntax</h3>
           <div className="space-y-2 mb-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1 border-b border-[#222]/35">
               <span className="text-[#3498db] font-bold">TICKER_SYMBOL &lt;EQUITY&gt; SCREEN</span>
@@ -2347,7 +2351,7 @@ export default function Workspace({
             </div>
           </div>
 
-          <h3 className="text-[#ff9900] font-bold text-[13px] border-b border-[#222] pb-1 uppercase mb-2 select-none">
+          <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider border-b border-[#222] pb-1 mb-2 select-none">
             Terminal Commands Reference
           </h3>
           <p className="text-zinc-400 mb-3">

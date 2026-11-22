@@ -689,7 +689,7 @@ export default function SectorRotationPanel({
           <div className="xl:col-span-5 bg-black border border-[#222] rounded p-3 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#ff9900]">
+                <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   RELATIVE PERFORMANCE VS SPY
                 </span>
                 <span className="text-[9px] text-zinc-500 uppercase">DAILY CLOSING PRICES</span>
@@ -767,7 +767,7 @@ export default function SectorRotationPanel({
           <div className="bg-black border border-[#222] rounded p-3 space-y-2.5">
             <div className="flex items-start justify-between gap-2 border-b border-[#1c1c1c] pb-2">
               <div>
-                <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-[#ff9900]">
+                <div className="flex items-center gap-1.5 text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   <Building2 size={12} />
                   <span>INSTITUTIONAL POSITIONING (FORM 13F)</span>
                 </div>
@@ -865,7 +865,7 @@ export default function SectorRotationPanel({
           <div className="bg-black border border-[#222] rounded p-3 space-y-2.5">
             <div className="flex items-start justify-between gap-2 border-b border-[#1c1c1c] pb-2">
               <div>
-                <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-[#3498db]">
+                <div className="flex items-center gap-1.5 text-[#3498db] text-xs font-bold uppercase tracking-wider">
                   <Users size={12} />
                   <span>INSIDER SENTIMENT (FORM 4 — SEPARATE FROM 13F)</span>
                 </div>
@@ -942,7 +942,7 @@ export default function SectorRotationPanel({
         {/* Row 3: Sector Institutional Activity Drill-Down */}
         <div className="bg-black border border-[#222] rounded overflow-hidden">
           <div className="px-3 py-2 bg-[#0a0a0a] border-b border-[#222] flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-200">
+            <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
               {selectedSector.name.toUpperCase()} — INSTITUTIONAL 13F ACTIVITY DRILL-DOWN
             </span>
             <div className="flex flex-wrap items-center gap-1">
@@ -1396,7 +1396,7 @@ export default function SectorRotationPanel({
       {/* Primary Sector Rotation Comparison Table */}
       <div className="bg-black border border-[#222] rounded overflow-hidden">
         <div className="px-3 py-2 bg-[#0a0a0a] border-b border-[#222] flex flex-wrap items-center justify-between gap-2 text-[10px]">
-          <span className="font-extrabold uppercase tracking-wider text-zinc-200">
+          <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
             US EQUITY SECTOR ROTATION MATRIX
           </span>
           <span className="text-zinc-500">
@@ -1562,7 +1562,7 @@ export default function SectorRotationPanel({
       {/* Classification Coverage & Methodology Footer */}
       <div className="bg-[#080808] border border-[#222] rounded p-3 space-y-2 text-[10px] text-zinc-400">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1c1c1c] pb-2">
-          <div className="flex items-center gap-1.5 text-zinc-200 font-extrabold uppercase tracking-wider">
+          <div className="flex items-center gap-1.5 text-[#ff9900] text-xs font-bold uppercase tracking-wider">
             <Info size={11} className="text-[#ff9900]" />
             <span>METHODOLOGY, DATA SEPARATION &amp; 13F CLASSIFICATION COVERAGE</span>
           </div>

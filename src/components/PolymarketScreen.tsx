@@ -387,7 +387,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
         {/* LEFT COLUMN: EVENTS BROWSER LIST */}
         <div className="lg:col-span-5 border border-[#333] bg-black rounded flex flex-col min-h-[320px] lg:min-h-0 lg:h-full overflow-hidden">
           <div className="bg-[#0c0c0c] border-[#333] border-b p-2 flex justify-between items-center select-none shrink-0">
-            <span className="text-[#ff9900] font-bold text-[10px] uppercase">
+            <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
               {searchTerm
                 ? `QUERY "${searchTerm.toUpperCase()}" (${events.length})`
                 : `${selectedCategory.toUpperCase()} MARKETS (${events.length})`}
@@ -465,7 +465,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Event Header Panel */}
               <div className="bg-[#0c0c0c] border-[#333] border-b p-2 select-none shrink-0 flex justify-between items-center gap-2">
-                <span className="text-[#3498db] font-bold text-[10px] uppercase">
+                <span className="text-[#3498db] text-xs font-bold uppercase tracking-wider">
                   IMPLIED PROBABILITY &amp; STRIKE BREAKDOWN
                 </span>
                 {activeEvent.slug ? (
@@ -535,7 +535,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
 
                 {/* Markets details showing Outcome values & Live Probabilities */}
                 <div className="space-y-3 border-t border-b border-[#222] py-3.5">
-                  <span className="text-[10px] text-zinc-400 font-bold block uppercase select-none">
+                  <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block select-none">
                     Contract Strikes &amp; Implied Probabilities (CLOB Prices)
                   </span>
 

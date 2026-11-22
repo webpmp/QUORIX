@@ -920,7 +920,7 @@ export default function InstitutionalActivityScreen({
       {requiresKey && activeTab !== 'SECTOR_ROTATION' ? (
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="max-w-xl w-full bg-black border border-[#333] rounded p-5 space-y-3">
-            <div className="flex items-center gap-2 text-[#ff9900] font-extrabold text-xs uppercase tracking-wider">
+            <div className="flex items-center gap-2 text-[#ff9900] text-xs font-bold uppercase tracking-wider">
               <AlertCircle size={15} />
               <span>3SPREAD API CONFIGURATION REQUIRED</span>
             </div>
@@ -1171,7 +1171,7 @@ export default function InstitutionalActivityScreen({
               {/* Holdings Table */}
               <div className="flex-1 min-h-[260px] bg-black border border-[#333] rounded flex flex-col overflow-hidden">
                 <div className="bg-[#0c0c0c] border-b border-[#333] px-3 py-1.5 flex items-center justify-between text-[10px] shrink-0 select-none">
-                  <span className="text-[#ff9900] font-bold uppercase">
+                  <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                     INSTITUTIONAL HOLDERS ({holdingsTotalRows.toLocaleString()})
                   </span>
                   {holdingsPeriodInfo.previous && (
@@ -1437,7 +1437,7 @@ export default function InstitutionalActivityScreen({
               {/* Accumulation Screener Table */}
               <div className="flex-1 min-h-[260px] bg-black border border-[#333] rounded flex flex-col overflow-hidden">
                 <div className="bg-[#0c0c0c] border-b border-[#333] px-3 py-1.5 flex items-center justify-between text-[10px] shrink-0 select-none">
-                  <span className="text-[#ff9900] font-bold uppercase">
+                  <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                     MULTI-INSTITUTION ACCUMULATION CANDIDATES ({accRows.length})
                   </span>
                   {accMeta && (
@@ -1570,7 +1570,7 @@ export default function InstitutionalActivityScreen({
               <div className="lg:col-span-4 bg-black border border-[#333] rounded flex flex-col min-h-[280px] lg:min-h-0 overflow-hidden">
                 <div className="bg-[#0c0c0c] border-b border-[#333] p-2 space-y-2 shrink-0 select-none">
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-[#ff9900] font-bold uppercase">
+                    <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                       INSTITUTIONAL MANAGERS ({managersList.length})
                     </span>
                   </div>
@@ -2018,7 +2018,7 @@ export default function InstitutionalActivityScreen({
               {/* Position Changes Table */}
               <div className="flex-1 min-h-[260px] bg-black border border-[#333] rounded flex flex-col overflow-hidden">
                 <div className="bg-[#0c0c0c] border-b border-[#333] px-3 py-1.5 flex items-center justify-between text-[10px] shrink-0 select-none">
-                  <span className="text-[#ff9900] font-bold uppercase">
+                  <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                     INSTITUTIONAL POSITION CHANGES ({changesTotalRows.toLocaleString()})
                   </span>
                   {changesMeta && (

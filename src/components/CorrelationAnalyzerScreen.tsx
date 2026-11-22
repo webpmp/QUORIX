@@ -1537,7 +1537,7 @@ export default function CorrelationAnalyzerScreen({
        * ==================================================================== */}
       <div className="bg-[#050505] border border-[#333] rounded p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-[11px] text-[#ff9900] font-bold uppercase tracking-wider">
+          <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
             SECURITY SELECTION
           </h2>
           {selectedSymbols.length > 0 && (
@@ -2337,7 +2337,7 @@ export default function CorrelationAnalyzerScreen({
           <div className="space-y-1.5 w-full min-w-0">
             <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
               <div className="flex items-center gap-1.5">
-                <h3 className="text-zinc-200 font-bold uppercase tracking-wider">
+                <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   ROLLING CORRELATION
                 </h3>
                 <InfoTooltipIcon
@@ -2364,7 +2364,7 @@ export default function CorrelationAnalyzerScreen({
             <div className="space-y-1.5 flex flex-col min-w-0 w-full">
               <div className="flex items-center justify-between gap-2 text-[10px]">
                 <div className="flex items-center gap-1.5">
-                  <h3 className="text-zinc-200 font-bold uppercase tracking-wider">
+                  <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                     NORMALIZED PERFORMANCE
                   </h3>
                   <InfoTooltipIcon
@@ -2392,7 +2392,7 @@ export default function CorrelationAnalyzerScreen({
             <div className="space-y-1.5 flex flex-col min-w-0 w-full">
               <div className="flex items-center justify-between gap-2 text-[10px]">
                 <div className="flex items-center gap-1.5">
-                  <h3 className="text-zinc-200 font-bold uppercase tracking-wider">
+                  <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                     RETURN DISTRIBUTION
                   </h3>
                   <InfoTooltipIcon
