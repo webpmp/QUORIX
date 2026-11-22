@@ -4,7 +4,9 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import CommandPanel from '../src/components/CommandPanel.tsx';
 import Workspace from '../src/components/Workspace.tsx';
-import CorrelationAnalyzerScreen from '../src/components/CorrelationAnalyzerScreen.tsx';
+import CorrelationAnalyzerScreen, {
+  computeResponsiveChartWidth,
+} from '../src/components/CorrelationAnalyzerScreen.tsx';
 import {
   alignSecurityReturns,
   buildCorrelationMatrix,
@@ -312,6 +314,13 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
   assert.equal(populatedHtml.includes('CORRELATION INSIGHTS'), true);
   assert.equal(populatedHtml.includes('Correlation does not establish causation'), true);
 
+  // All three analytical charts match viewBox height 1:1 to their rendered CSS heights
+  // (Rolling Correlation: h-[210px] -> 210; Normalized Performance & Return Distribution: h-[200px] -> 200).
+  assert.equal(populatedHtml.includes('viewBox="0 0 680 210"'), true);
+  const twoHundredViewBoxes = populatedHtml.match(/viewBox="0 0 520 200"/g) || [];
+  assert.equal(twoHundredViewBoxes.length, 2);
+  assert.equal(populatedHtml.includes('viewBox="0 0 520 220"'), false);
+
   // Removed instructional / redundant prose should no longer clutter the workspace
   assert.equal(
     populatedHtml.includes('Historical Pearson correlation, rolling co-movement, normalized return paths'),
@@ -400,4 +409,21 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
   );
   assert.equal(errHtml.includes('Historical Data Errors'), true);
   assert.equal(errHtml.includes('BADSYM'), true);
+});
+
+test('computeResponsiveChartWidth adapts cleanly across desktop, tablet, mobile, and fallback measurements', () => {
+  // Desktop full-width Rolling Correlation and half-width Normalized Performance
+  assert.equal(computeResponsiveChartWidth(1184.6, 680), 1184);
+  assert.equal(computeResponsiveChartWidth(582.3, 520), 582);
+
+  // Tablet single-column width
+  assert.equal(computeResponsiveChartWidth(712, 520), 712);
+
+  // Standard mobile width and narrow floor guard
+  assert.equal(computeResponsiveChartWidth(328, 680), 328);
+  assert.equal(computeResponsiveChartWidth(210, 680), 260);
+
+  // SSR / unmeasured fallback
+  assert.equal(computeResponsiveChartWidth(null, 680), 680);
+  assert.equal(computeResponsiveChartWidth(0, 520), 520);
 });

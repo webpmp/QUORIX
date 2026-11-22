@@ -335,6 +335,57 @@ function pickTickIndices(length: number, maxTicks = 5): number[] {
   return indices;
 }
 
+export function computeResponsiveChartWidth(
+  measuredWidth: number | null | undefined,
+  fallbackWidth: number,
+  minWidth = 260
+): number {
+  if (typeof measuredWidth === 'number' && Number.isFinite(measuredWidth) && measuredWidth > 0) {
+    return Math.max(minWidth, Math.floor(measuredWidth));
+  }
+  return fallbackWidth;
+}
+
+function useContainerWidth(
+  ref: React.RefObject<HTMLDivElement | null>,
+  fallbackWidth: number,
+  rebindKey?: string | number | boolean
+): number {
+  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const updateWidth = () => {
+      const nextWidth = Math.floor(el.getBoundingClientRect().width);
+      if (nextWidth > 0) {
+        setMeasuredWidth((prev) => (prev !== nextWidth ? nextWidth : prev));
+      }
+    };
+
+    updateWidth();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const nextWidth = Math.floor(entry.contentRect.width);
+          if (nextWidth > 0) {
+            setMeasuredWidth((prev) => (prev !== nextWidth ? nextWidth : prev));
+          }
+        }
+      });
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, [ref, rebindKey]);
+
+  return computeResponsiveChartWidth(measuredWidth, fallbackWidth);
+}
+
 /* ============================================================================
  * 1. HISTORICAL ROLLING CORRELATION CHART (SVG)
  * ========================================================================== */
@@ -346,10 +397,13 @@ const RollingCorrelationChart: React.FC<{
   unavailableReason: string | null;
 }> = ({ symbolA, symbolB, series, rollingWindow, unavailableReason }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgContainerRef = useRef<HTMLDivElement | null>(null);
+  const hasChartData = !unavailableReason && series.length >= 2;
+  const width = useContainerWidth(svgContainerRef, 680, hasChartData);
 
-  if (unavailableReason || series.length < 2) {
+  if (!hasChartData) {
     return (
-      <div className="h-[230px] bg-[#080808] border border-[#222] rounded flex flex-col items-center justify-center px-6 text-center gap-1.5">
+      <div className="w-full h-[230px] bg-[#080808] border border-[#222] rounded flex flex-col items-center justify-center px-6 text-center gap-1.5">
         <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">
           Rolling Correlation Unavailable
         </span>
@@ -361,10 +415,9 @@ const RollingCorrelationChart: React.FC<{
     );
   }
 
-  const width = 680;
-  const height = 230;
-  const pad = { top: 18, right: 16, bottom: 30, left: 46 };
-  const plotW = width - pad.left - pad.right;
+  const height = 210;
+  const pad = { top: 18, right: 16, bottom: 28, left: 46 };
+  const plotW = Math.max(1, width - pad.left - pad.right);
   const plotH = height - pad.top - pad.bottom;
 
   const xOf = (idx: number) =>
@@ -382,7 +435,8 @@ const RollingCorrelationChart: React.FC<{
   const areaBasePath = `${linePath} L ${xOf(series.length - 1).toFixed(2)} ${zeroY.toFixed(2)} L ${xOf(0).toFixed(2)} ${zeroY.toFixed(2)} Z`;
 
   const yTicks = [1, 0.5, 0, -0.5, -1];
-  const xTickIndices = pickTickIndices(series.length, 5);
+  const maxXTicks = width >= 920 ? 7 : width >= 540 ? 5 : 4;
+  const xTickIndices = pickTickIndices(series.length, maxXTicks);
   const activePt = hoverIdx !== null && series[hoverIdx] ? series[hoverIdx] : series[series.length - 1];
   const activeBand = interpretCorrelation(activePt.correlation);
   const clipIdPos = `roll-pos-${symbolA}-${symbolB}`.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -398,7 +452,7 @@ const RollingCorrelationChart: React.FC<{
   };
 
   return (
-    <div className="bg-[#080808] border border-[#222] rounded p-3">
+    <div className="w-full min-w-0 bg-[#080808] border border-[#222] rounded p-3">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-[10px] font-mono">
         <div className="flex flex-wrap items-center gap-2 text-zinc-400">
           <span className="text-zinc-200 font-bold">
@@ -433,14 +487,15 @@ const RollingCorrelationChart: React.FC<{
         </div>
       </div>
 
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-[210px] block select-none"
-        role="img"
-        aria-label={`Rolling ${rollingWindow}-observation Pearson correlation between ${symbolA} and ${symbolB}`}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHoverIdx(null)}
-      >
+      <div ref={svgContainerRef} className="w-full min-w-0">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full h-[210px] block select-none"
+          role="img"
+          aria-label={`Rolling ${rollingWindow}-observation Pearson correlation between ${symbolA} and ${symbolB}`}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoverIdx(null)}
+        >
         <defs>
           <clipPath id={clipIdPos}>
             <rect x={pad.left} y={pad.top} width={plotW} height={Math.max(0, zeroY - pad.top)} />
@@ -570,7 +625,8 @@ const RollingCorrelationChart: React.FC<{
             />
           </g>
         )}
-      </svg>
+        </svg>
+      </div>
     </div>
   );
 };
@@ -584,19 +640,21 @@ const NormalizedPerformanceChart: React.FC<{
   series: NormalizedPerformancePoint[];
 }> = ({ symbolA, symbolB, series }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgContainerRef = useRef<HTMLDivElement | null>(null);
+  const hasChartData = series.length >= 2;
+  const width = useContainerWidth(svgContainerRef, 520, hasChartData);
 
-  if (series.length < 2) {
+  if (!hasChartData) {
     return (
-      <div className="h-[220px] bg-[#080808] border border-[#222] rounded flex items-center justify-center px-6 text-center text-[11px] text-zinc-500">
+      <div className="w-full h-[220px] bg-[#080808] border border-[#222] rounded flex items-center justify-center px-6 text-center text-[11px] text-zinc-500">
         Insufficient overlapping adjusted closing prices to plot normalized performance (Base = 100).
       </div>
     );
   }
 
-  const width = 520;
-  const height = 220;
-  const pad = { top: 18, right: 16, bottom: 28, left: 48 };
-  const plotW = width - pad.left - pad.right;
+  const height = 200;
+  const pad = { top: 18, right: 16, bottom: 26, left: 48 };
+  const plotW = Math.max(1, width - pad.left - pad.right);
   const plotH = height - pad.top - pad.bottom;
 
   let minVal = 100;
@@ -620,7 +678,8 @@ const NormalizedPerformanceChart: React.FC<{
     .join(' ');
 
   const yTicks = [yMax, yMin + (yMax - yMin) * 0.66, yMin + (yMax - yMin) * 0.33, yMin];
-  const xTickIndices = pickTickIndices(series.length, 4);
+  const maxXTicks = width >= 680 ? 6 : width >= 460 ? 5 : 4;
+  const xTickIndices = pickTickIndices(series.length, maxXTicks);
   const activePt = hoverIdx !== null && series[hoverIdx] ? series[hoverIdx] : series[series.length - 1];
   const pctA = activePt.indexA - 100;
   const pctB = activePt.indexB - 100;
@@ -634,7 +693,7 @@ const NormalizedPerformanceChart: React.FC<{
   };
 
   return (
-    <div className="bg-[#080808] border border-[#222] rounded p-3">
+    <div className="w-full min-w-0 flex-1 bg-[#080808] border border-[#222] rounded p-3">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-[10px] font-mono">
         <div className="flex items-center gap-3 tabular-nums">
           <span className="text-[#ff9900] font-bold">
@@ -649,14 +708,15 @@ const NormalizedPerformanceChart: React.FC<{
         <span className="text-zinc-500 tabular-nums">{formatShortIsoDate(activePt.date)}</span>
       </div>
 
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-[200px] block select-none"
-        role="img"
-        aria-label={`Normalized performance comparison of ${symbolA} and ${symbolB} indexed to 100`}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHoverIdx(null)}
-      >
+      <div ref={svgContainerRef} className="w-full min-w-0">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full h-[200px] block select-none"
+          role="img"
+          aria-label={`Normalized performance comparison of ${symbolA} and ${symbolB} indexed to 100`}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoverIdx(null)}
+        >
         {yTicks.map((tick, i) => {
           const y = yOf(tick);
           return (
@@ -719,7 +779,8 @@ const NormalizedPerformanceChart: React.FC<{
             <circle cx={xOf(hoverIdx)} cy={yOf(series[hoverIdx].indexB)} r={3.5} fill="#3498db" />
           </g>
         )}
-      </svg>
+        </svg>
+      </div>
     </div>
   );
 };
@@ -735,19 +796,21 @@ const DailyReturnScatterPlot: React.FC<{
   correlation: number | null;
 }> = ({ symbolA, symbolB, points, regressionLine, correlation }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgContainerRef = useRef<HTMLDivElement | null>(null);
+  const hasChartData = points.length >= 2;
+  const width = useContainerWidth(svgContainerRef, 520, hasChartData);
 
-  if (points.length < 2) {
+  if (!hasChartData) {
     return (
-      <div className="h-[220px] bg-[#080808] border border-[#222] rounded flex items-center justify-center px-6 text-center text-[11px] text-zinc-500">
+      <div className="w-full flex-1 h-[220px] bg-[#080808] border border-[#222] rounded flex items-center justify-center px-6 text-center text-[11px] text-zinc-500">
         Insufficient overlapping daily percentage returns to render scatter plot.
       </div>
     );
   }
 
-  const width = 520;
-  const height = 220;
-  const pad = { top: 18, right: 18, bottom: 32, left: 48 };
-  const plotW = width - pad.left - pad.right;
+  const height = 200;
+  const pad = { top: 18, right: 18, bottom: 26, left: 48 };
+  const plotW = Math.max(1, width - pad.left - pad.right);
   const plotH = height - pad.top - pad.bottom;
 
   let maxAbsX = 1;
@@ -785,7 +848,7 @@ const DailyReturnScatterPlot: React.FC<{
   const hovered = hoverIdx !== null ? points[hoverIdx] : null;
 
   return (
-    <div className="bg-[#080808] border border-[#222] rounded p-3">
+    <div className="w-full min-w-0 flex-1 bg-[#080808] border border-[#222] rounded p-3">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-[10px] font-mono">
         <span className="text-zinc-400">
           X: <span className="text-zinc-200 font-bold">{symbolA} Daily %</span> · Y:{' '}
@@ -809,12 +872,13 @@ const DailyReturnScatterPlot: React.FC<{
         )}
       </div>
 
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-[200px] block select-none"
-        role="img"
-        aria-label={`Daily percentage return scatter plot of ${symbolA} versus ${symbolB}`}
-      >
+      <div ref={svgContainerRef} className="w-full min-w-0">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full h-[200px] block select-none"
+          role="img"
+          aria-label={`Daily percentage return scatter plot of ${symbolA} versus ${symbolB}`}
+        >
         {/* Plot frame */}
         <rect
           x={pad.left}
@@ -866,7 +930,7 @@ const DailyReturnScatterPlot: React.FC<{
           <text
             key={`x-${tick}`}
             x={xOf(tick)}
-            y={height - 10}
+            y={height - 8}
             textAnchor={tick < 0 ? 'start' : tick > 0 ? 'end' : 'middle'}
             fill="#71717a"
             fontSize="9"
@@ -908,7 +972,8 @@ const DailyReturnScatterPlot: React.FC<{
             />
           );
         })}
-      </svg>
+        </svg>
+      </div>
     </div>
   );
 };
@@ -2245,7 +2310,7 @@ export default function CorrelationAnalyzerScreen({
           </div>
 
           {/* Rolling Correlation Chart (full width inside Pairwise section) */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 w-full min-w-0">
             <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
               <div className="flex items-center gap-1.5">
                 <h3 className="text-zinc-200 font-bold uppercase tracking-wider">
@@ -2272,7 +2337,7 @@ export default function CorrelationAnalyzerScreen({
 
           {/* 2-Column Analytical Pair Charts: Normalized Performance + Return Distribution */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-stretch">
-            <div className="space-y-1.5 flex flex-col">
+            <div className="space-y-1.5 flex flex-col min-w-0 w-full">
               <div className="flex items-center justify-between gap-2 text-[10px]">
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-zinc-200 font-bold uppercase tracking-wider">
@@ -2300,7 +2365,7 @@ export default function CorrelationAnalyzerScreen({
               />
             </div>
 
-            <div className="space-y-1.5 flex flex-col">
+            <div className="space-y-1.5 flex flex-col min-w-0 w-full">
               <div className="flex items-center justify-between gap-2 text-[10px]">
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-zinc-200 font-bold uppercase tracking-wider">
