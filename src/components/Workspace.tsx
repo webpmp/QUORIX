@@ -8,14 +8,24 @@ import {
 } from '../types';
 import { FredFeedStatus } from '../App';
 import ChartWidget from './ChartWidget';
+import CorrelationAnalyzerScreen from './CorrelationAnalyzerScreen';
 import PolymarketScreen from './PolymarketScreen';
 import InstitutionalActivityScreen from './InstitutionalActivityScreen';
+import {
+  countDistinctTradingDays,
+  deduplicateAndSortHistoricalBars,
+  isClosingPriceSnapshotBar,
+  selectBestHistoricalBars,
+  type HistoricalPriceBar,
+} from '../utils/historicalPricing';
 import { Send, Sparkles, AlertCircle, RefreshCw, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 
 interface WorkspaceProps {
   activeScreen: string;
   selectedTicker: string;
   stocks: Record<string, StockData>;
+  trackedTickers?: string[];
+  corrSeedTicker?: { id: number; symbol: string } | null;
   currencies: CurrencyPair[];
   economics: EconomicIndicator[];
   fredMacroMetrics?: FredMacroMetric[];
@@ -283,6 +293,8 @@ export default function Workspace({
   activeScreen,
   selectedTicker,
   stocks,
+  trackedTickers = [],
+  corrSeedTicker = null,
   currencies,
   economics,
   fredMacroMetrics = [],
@@ -379,6 +391,19 @@ export default function Workspace({
   const [newsArticles, setNewsArticles] = useState<any[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<number>(0);
   const lastNewsTickerRef = useRef<string>('');
+
+  // Historical Price (HP) expanded hourly history state & per-symbol client cache (5-minute TTL)
+  interface HpCacheEntry {
+    symbol: string;
+    bars: HistoricalPriceBar[];
+    tradingDays: number;
+    fetchedAt: number;
+    warning: string | null;
+  }
+  const hpCacheRef = useRef<Map<string, HpCacheEntry>>(new Map());
+  const [hpSymbolData, setHpSymbolData] = useState<HpCacheEntry | null>(null);
+  const [hpLoading, setHpLoading] = useState<boolean>(false);
+  const [hpError, setHpError] = useState<string | null>(null);
 
   // Settings Screen States
   type SettingsKeyId =
@@ -684,6 +709,77 @@ export default function Workspace({
       }
     }
   }, [selectedTicker, activeScreen, lastRefreshed]);
+
+  // Load expanded hourly Historical Price archive on demand when HP screen is active (per-symbol cached)
+  useEffect(() => {
+    if (activeScreen !== 'HP') return;
+    const sym = (selectedTicker || '').trim().toUpperCase();
+    if (!sym) return;
+
+    const HP_CLIENT_CACHE_TTL_MS = 5 * 60 * 1000;
+    const cached = hpCacheRef.current.get(sym);
+    if (cached && cached.bars.length > 0) {
+      setHpSymbolData(cached);
+      setHpError(null);
+      if (Date.now() - cached.fetchedAt < HP_CLIENT_CACHE_TTL_MS) {
+        setHpLoading(false);
+        return;
+      }
+    } else {
+      setHpSymbolData(null);
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+    setHpLoading(true);
+    setHpError(null);
+
+    fetch(`/api/market/history?symbol=${encodeURIComponent(sym)}&interval=hp`, {
+      signal: controller.signal,
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const incoming: HistoricalPriceBar[] =
+          data?.success && Array.isArray(data.history) ? data.history : [];
+        const prevBars = hpCacheRef.current.get(sym)?.bars || [];
+        const bestBars = selectBestHistoricalBars(incoming, prevBars);
+
+        if (bestBars.length > 0) {
+          const entry: HpCacheEntry = {
+            symbol: sym,
+            bars: bestBars,
+            tradingDays:
+              typeof data?.tradingDays === 'number' && incoming.length === bestBars.length
+                ? data.tradingDays
+                : countDistinctTradingDays(bestBars),
+            fetchedAt: Date.now(),
+            warning: typeof data?.warning === 'string' ? data.warning : null,
+          };
+          hpCacheRef.current.set(sym, entry);
+          setHpSymbolData(entry);
+          setHpError(null);
+        } else {
+          setHpError(
+            typeof data?.error === 'string' && data.error
+              ? data.error
+              : `Unable to load expanded historical prices for ${sym}.`
+          );
+        }
+      })
+      .catch((err: any) => {
+        if (cancelled || err?.name === 'AbortError') return;
+        setHpError(err?.message || `Network error loading historical prices for ${sym}.`);
+      })
+      .finally(() => {
+        if (!cancelled) setHpLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [activeScreen, selectedTicker]);
 
   // Set up periodic check (every 60 seconds) to auto-update once an hour during market hours
   useEffect(() => {
@@ -1033,60 +1129,122 @@ export default function Workspace({
         </div>
       )}
 
-      {/* 2. HP: HISTORICAL PRICING TABLE */}
-      {activeScreen === 'HP' && (
-        <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-lg">
-          <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2 select-none">
-            <span className="text-white text-md font-bold uppercase tracking-wider">
-              {currentStock.symbol} Historical Price Log System
-            </span>
-            {renderTextSizeControl()}
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className={`w-full text-left ${activeBwriteFont.body} text-[#d4d4d4] border-collapse`}>
-              <thead>
-                <tr className={`border-b border-[#333] text-zinc-500 ${activeBwriteFont.heading} uppercase font-bold`}>
-                  <th className="py-2.5 pr-3 whitespace-nowrap">TIME</th>
-                  <th className="text-right px-3 whitespace-nowrap">OPEN VALUE</th>
-                  <th className="text-right px-3 whitespace-nowrap">HIGH VALUE</th>
-                  <th className="text-right px-3 whitespace-nowrap">LOW VALUE</th>
-                  <th className="text-right px-3 whitespace-nowrap">CLOSE VALUE</th>
-                  <th className="text-right px-3 whitespace-nowrap">ACCUMULATED VOLUME</th>
-                  <th className="text-right pl-3 whitespace-nowrap">DIFFERENTIAL</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(!currentStock.history || currentStock.history.length === 0) ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-zinc-500 font-mono uppercase tracking-wider">
-                      NO HISTORICAL TICK SESSIONS RECOVERED FROM ARCHIVE FOR {currentStock.symbol}.
-                    </td>
-                  </tr>
-                ) : (
-                  currentStock.history.map((h, i) => {
-                    const isUp = h.close >= h.open;
-                    const diffRatio = h.open > 0 ? (((h.close - h.open) / h.open) * 100) : 0;
-                    return (
-                      <tr key={i} className={`border-b border-[#222] hover:bg-[#111] ${activeBwriteFont.body} font-mono`}>
-                        <td className="py-2.5 pr-3 text-[#3498db] font-bold font-mono whitespace-nowrap">{h.date} (Intraday)</td>
-                        <td className="text-right px-3 font-mono whitespace-nowrap">${h.open.toFixed(2)}</td>
-                        <td className="text-right px-3 font-mono text-[#00ff00] whitespace-nowrap">${h.high.toFixed(2)}</td>
-                        <td className="text-right px-3 font-mono text-[#ff4444] whitespace-nowrap">${h.low.toFixed(2)}</td>
-                        <td className="text-right px-3 font-mono text-zinc-150 font-bold whitespace-nowrap">${h.close.toFixed(2)}</td>
-                        <td className="text-right px-3 text-zinc-500 font-mono whitespace-nowrap">{h.volume.toLocaleString()}</td>
-                        <td className={`text-right pl-3 font-bold font-mono whitespace-nowrap ${isUp ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
-                          {isUp ? '+' : ''}{diffRatio.toFixed(2)}%
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* 1B. CORR: CORRELATION ANALYZER SCREEN */}
+      {activeScreen === 'CORR' && (
+        <CorrelationAnalyzerScreen
+          stocks={stocks}
+          trackedTickers={trackedTickers}
+          seedTicker={corrSeedTicker}
+        />
       )}
+
+      {/* 2. HP: HISTORICAL PRICING TABLE */}
+      {activeScreen === 'HP' && (() => {
+        const activeHpSym = (currentStock.symbol || selectedTicker || '').toUpperCase();
+        const expandedBars =
+          hpSymbolData && hpSymbolData.symbol === activeHpSym ? hpSymbolData.bars : [];
+        const fallbackBars: HistoricalPriceBar[] = Array.isArray(currentStock.history)
+          ? currentStock.history
+          : [];
+        const displayBars =
+          expandedBars.length > 0
+            ? expandedBars
+            : deduplicateAndSortHistoricalBars(fallbackBars);
+        const tradingDaysCount =
+          hpSymbolData && hpSymbolData.symbol === activeHpSym && expandedBars.length > 0
+            ? hpSymbolData.tradingDays
+            : countDistinctTradingDays(displayBars);
+        const hpWarningMsg =
+          hpSymbolData && hpSymbolData.symbol === activeHpSym ? hpSymbolData.warning : null;
+
+        return (
+          <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-lg">
+            <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2 select-none">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="text-white text-md font-bold uppercase tracking-wider">
+                  {currentStock.symbol} Historical Price Log System
+                </span>
+                {displayBars.length > 0 && (
+                  <span className="text-[10px] text-zinc-500 font-mono uppercase tabular-nums">
+                    {displayBars.length.toLocaleString()} BARS • {tradingDaysCount}{' '}
+                    {tradingDaysCount === 1 ? 'DAY' : 'TRADING DAYS'} • 60M
+                  </span>
+                )}
+                {hpLoading && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-[#ff9900] font-mono uppercase">
+                    <RefreshCw size={10} className="animate-spin" />
+                    <span>LOADING ARCHIVE...</span>
+                  </span>
+                )}
+              </div>
+              {renderTextSizeControl()}
+            </div>
+
+            {hpWarningMsg && (
+              <div className="mb-3 px-3 py-2 rounded bg-amber-950/25 border border-amber-600/40 text-amber-300 text-[11px] font-mono flex items-center gap-2">
+                <AlertCircle size={12} className="shrink-0 text-amber-400" />
+                <span>{hpWarningMsg}</span>
+              </div>
+            )}
+
+            {hpError && displayBars.length === 0 && !hpLoading && (
+              <div className="mb-3 px-3 py-2 rounded bg-red-950/25 border border-red-800/40 text-red-300 text-[11px] font-mono flex items-center gap-2">
+                <AlertCircle size={12} className="shrink-0 text-[#ff4444]" />
+                <span>{hpError}</span>
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className={`w-full text-left ${activeBwriteFont.body} text-[#d4d4d4] border-collapse`}>
+                <thead>
+                  <tr className={`border-b border-[#333] text-zinc-500 ${activeBwriteFont.heading} uppercase font-bold`}>
+                    <th className="py-2.5 pr-3 whitespace-nowrap">TIME</th>
+                    <th className="text-right px-3 whitespace-nowrap">OPEN VALUE</th>
+                    <th className="text-right px-3 whitespace-nowrap">HIGH VALUE</th>
+                    <th className="text-right px-3 whitespace-nowrap">LOW VALUE</th>
+                    <th className="text-right px-3 whitespace-nowrap">CLOSE VALUE</th>
+                    <th className="text-right px-3 whitespace-nowrap">INTERVAL VOLUME</th>
+                    <th className="text-right pl-3 whitespace-nowrap">DIFFERENTIAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayBars.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-zinc-500 font-mono uppercase tracking-wider">
+                        {hpLoading
+                          ? `LOADING HISTORICAL HOURLY SESSIONS FOR ${currentStock.symbol}...`
+                          : `NO HISTORICAL TICK SESSIONS RECOVERED FROM ARCHIVE FOR ${currentStock.symbol}.`}
+                      </td>
+                    </tr>
+                  ) : (
+                    displayBars.map((h, i) => {
+                      const isUp = h.close >= h.open;
+                      const diffRatio = h.open > 0 ? (((h.close - h.open) / h.open) * 100) : 0;
+                      const isCloseSnapshot =
+                        h.isMarketCloseSnapshot ?? isClosingPriceSnapshotBar(h);
+                      return (
+                        <tr key={`${h.timestamp || h.date}-${i}`} className={`border-b border-[#222] hover:bg-[#111] ${activeBwriteFont.body} font-mono`}>
+                          <td className="py-2.5 pr-3 text-[#3498db] font-bold font-mono whitespace-nowrap">
+                            {h.date} {isCloseSnapshot ? '(Market Close)' : '(Intraday)'}
+                          </td>
+                          <td className="text-right px-3 font-mono whitespace-nowrap">${h.open.toFixed(2)}</td>
+                          <td className="text-right px-3 font-mono text-[#00ff00] whitespace-nowrap">${h.high.toFixed(2)}</td>
+                          <td className="text-right px-3 font-mono text-[#ff4444] whitespace-nowrap">${h.low.toFixed(2)}</td>
+                          <td className="text-right px-3 font-mono text-zinc-150 font-bold whitespace-nowrap">${h.close.toFixed(2)}</td>
+                          <td className="text-right px-3 text-zinc-500 font-mono whitespace-nowrap">{h.volume.toLocaleString()}</td>
+                          <td className={`text-right pl-3 font-bold font-mono whitespace-nowrap ${isUp ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
+                            {isUp ? '+' : ''}{diffRatio.toFixed(2)}%
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 3. DES: INTEL BIOGRAPHY AND DESCRIPTION OVERVIEWS */}
       {activeScreen === 'DES' && (
@@ -2307,6 +2465,11 @@ export default function Workspace({
                     command: 'GP',
                     module: 'Graph Price',
                     description: 'Interactive OHLCV candlestick/line/area + Volume & RSI charts',
+                  },
+                  {
+                    command: 'CORR',
+                    module: 'Correlation Analyzer',
+                    description: 'Security correlation & portfolio analysis',
                   },
                   {
                     command: 'HP',

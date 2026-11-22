@@ -92,6 +92,7 @@ export default function App() {
   // Custom global command input state
   const [currentCommand, setCurrentCommand] = useState<string>('');
   const [pendingAiQuery, setPendingAiQuery] = useState<{ id: number; text: string } | null>(null);
+  const [corrSeedTicker, setCorrSeedTicker] = useState<{ id: number; symbol: string } | null>(null);
   const [focusAskQuorixSignal, setFocusAskQuorixSignal] = useState<number>(0);
   const [tickTime, setTickTime] = useState<string>('');
   const [quoteLoadState, setQuoteLoadState] = useState<
@@ -334,7 +335,7 @@ export default function App() {
     const primary = parts[0];
     const secondary = parts.length > 1 ? parts[1] : null;
 
-    const directScreens = ['GP', 'HP', 'DES', 'ANR', 'INST', '13F', 'NEWS', 'CRNC', 'ECO', 'POLY', 'BWRITE', 'HELP', 'HLP', 'SETT', 'SETTINGS'];
+    const directScreens = ['GP', 'CORR', 'HP', 'DES', 'ANR', 'INST', '13F', 'NEWS', 'CRNC', 'ECO', 'POLY', 'BWRITE', 'HELP', 'HLP', 'SETT', 'SETTINGS'];
     const resolveScreenCode = (code: string): string => {
       if (code === 'SETTINGS' || code === 'SETT') return 'SETT';
       if (code === 'HLP') return 'HELP';
@@ -353,8 +354,12 @@ export default function App() {
 
     if (secondary && (stocks[secondary] || isSecondaryTickerPattern) && directScreens.includes(primary)) {
       const ticker = secondary.toUpperCase();
+      const targetScreen = resolveScreenCode(primary);
       setSelectedTicker(ticker);
-      setActiveScreen(resolveScreenCode(primary));
+      setActiveScreen(targetScreen);
+      if (targetScreen === 'CORR') {
+        setCorrSeedTicker({ id: Date.now(), symbol: ticker });
+      }
       if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker)) {
         ensureTickerSlot(ticker, false);
         fetchLiveQuote(ticker, false, true);
@@ -371,6 +376,9 @@ export default function App() {
 
       setSelectedTicker(ticker);
       setActiveScreen(targetScreen);
+      if (targetScreen === 'CORR') {
+        setCorrSeedTicker({ id: Date.now(), symbol: ticker });
+      }
       if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker)) {
         ensureTickerSlot(ticker, false);
         fetchLiveQuote(ticker, false, true);
@@ -446,6 +454,8 @@ export default function App() {
           activeScreen={activeScreen}
           selectedTicker={selectedTicker}
           stocks={stocks}
+          trackedTickers={trackedTickers}
+          corrSeedTicker={corrSeedTicker}
           currencies={currencies}
           economics={economics}
           fredMacroMetrics={fredMacroMetrics}

@@ -4,7 +4,23 @@ import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { enrichBarsWithStudies } from "./src/utils/technicalStudies";
-import { findValidYahooSearchEquity, isValidYahooChartMeta } from "./src/utils/equityValidation";
+import {
+  VALID_SECURITY_TYPES,
+  findValidYahooSearchEquity,
+  isValidYahooChartMeta,
+} from "./src/utils/equityValidation";
+import {
+  normalizeDailyPriceBars,
+  type DailyPricePoint,
+} from "./src/utils/correlation";
+import {
+  countDistinctTradingDays,
+  deduplicateAndSortHistoricalBars,
+  formatHistoricalHourlyTimestamp,
+  isClosingPriceSnapshotBar,
+  parseAlphaVantageIntradayBars,
+  type HistoricalPriceBar,
+} from "./src/utils/historicalPricing";
 import {
   ThreeSpreadError,
   clearThreeSpreadCache,
@@ -1453,12 +1469,13 @@ function extractYahooBars(
         windowSeconds?: number;
         todayOnly?: boolean;
         evenlySample?: boolean;
+        preserveAll?: boolean;
       } = 24
 ) {
   const opts =
     typeof maxBarsOrOpts === 'number'
-      ? { maxBars: maxBarsOrOpts, evenlySample: false, todayOnly: false }
-      : { maxBars: 36, evenlySample: false, todayOnly: false, ...maxBarsOrOpts };
+      ? { maxBars: maxBarsOrOpts, evenlySample: false, todayOnly: false, preserveAll: false }
+      : { maxBars: 36, evenlySample: false, todayOnly: false, preserveAll: false, ...maxBarsOrOpts };
 
   const timestamps: number[] = Array.isArray(result?.timestamp) ? result.timestamp : [];
   const quote = result?.indicators?.quote?.[0] || {};
@@ -1468,48 +1485,89 @@ function extractYahooBars(
   const closes: any[] = Array.isArray(quote.close) ? quote.close : [];
   const volumes: any[] = Array.isArray(quote.volume) ? quote.volume : [];
 
-  let bars: Array<{
-    date: string;
-    timestamp: number;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-    [key: string]: any;
-  }> = [];
+  // Detect whether timestamps span multiple calendar years (for unambiguous HP timestamps)
+  let includeYearInHourly = false;
+  if (opts.preserveAll && timestamps.length > 1) {
+    const firstYear = new Date(timestamps[0] * 1000).toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+    });
+    const lastYear = new Date(timestamps[timestamps.length - 1] * 1000).toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+    });
+    includeYearInHourly = firstYear !== lastYear;
+  }
+
+  const byTimestamp = new Map<
+    number,
+    {
+      date: string;
+      timestamp: number;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+      isMarketCloseSnapshot?: boolean;
+      [key: string]: any;
+    }
+  >();
+
   for (let i = 0; i < timestamps.length; i++) {
     const ts = timestamps[i];
     const o = opens[i];
     const h = highs[i];
     const l = lows[i];
     const c = closes[i];
-    if (typeof ts === 'number' && typeof o === 'number' && typeof h === 'number' && typeof l === 'number' && typeof c === 'number') {
-      bars.push({
-        date: formatYahooTimestamp(ts, interval),
+    if (
+      typeof ts === 'number' &&
+      typeof o === 'number' &&
+      typeof h === 'number' &&
+      typeof l === 'number' &&
+      typeof c === 'number' &&
+      Number.isFinite(ts) &&
+      Number.isFinite(o) &&
+      Number.isFinite(h) &&
+      Number.isFinite(l) &&
+      Number.isFinite(c)
+    ) {
+      const formattedDate = opts.preserveAll
+        ? formatHistoricalHourlyTimestamp(ts, includeYearInHourly)
+        : formatYahooTimestamp(ts, interval);
+      const bar = {
+        date: formattedDate,
         timestamp: ts,
         open: parseFloat(o.toFixed(3)),
         high: parseFloat(h.toFixed(3)),
         low: parseFloat(l.toFixed(3)),
         close: parseFloat(c.toFixed(3)),
-        volume: typeof volumes[i] === 'number' ? volumes[i] : 0
-      });
+        volume: typeof volumes[i] === 'number' && Number.isFinite(volumes[i]) ? volumes[i] : 0,
+        isMarketCloseSnapshot: false,
+      };
+      bar.isMarketCloseSnapshot = isClosingPriceSnapshotBar(bar);
+
+      const existing = byTimestamp.get(ts);
+      if (!existing || bar.volume > existing.volume) {
+        byTimestamp.set(ts, bar);
+      }
     }
   }
+
+  let bars = Array.from(byTimestamp.values());
 
   // Sort strictly chronologically (oldest first)
   bars.sort((a, b) => a.timestamp - b.timestamp);
 
   // Compute all technical studies over full continuous warmup series BEFORE window slicing
   const tz = result?.meta?.exchangeTimezoneName || 'America/New_York';
-  if (bars.length > 0) {
+  if (bars.length > 0 && !opts.preserveAll) {
     enrichBarsWithStudies(bars, tz);
   }
 
-  if (bars.length > 0) {
+  if (bars.length > 0 && !opts.preserveAll) {
     const latestTs = bars[bars.length - 1].timestamp;
     if (opts.todayOnly) {
-      const tz = result?.meta?.exchangeTimezoneName || 'America/New_York';
       const latestDay = new Date(latestTs * 1000).toLocaleDateString('en-US', { timeZone: tz });
       bars = bars.filter(
         (b) => new Date(b.timestamp * 1000).toLocaleDateString('en-US', { timeZone: tz }) === latestDay
@@ -1524,20 +1582,22 @@ function extractYahooBars(
     }
   }
 
-  const maxBars = opts.maxBars ?? 36;
-  if (bars.length > maxBars) {
-    if (opts.evenlySample) {
-      // Sample evenly while preserving earliest (index 0) and latest/current (index bars.length - 1)
-      const sampled: typeof bars = [];
-      for (let i = 0; i < maxBars; i++) {
-        const idx = Math.round((i / (maxBars - 1)) * (bars.length - 1));
-        if (sampled.length === 0 || sampled[sampled.length - 1].timestamp !== bars[idx].timestamp) {
-          sampled.push(bars[idx]);
+  if (!opts.preserveAll) {
+    const maxBars = opts.maxBars ?? 36;
+    if (bars.length > maxBars) {
+      if (opts.evenlySample) {
+        // Sample evenly while preserving earliest (index 0) and latest/current (index bars.length - 1)
+        const sampled: typeof bars = [];
+        for (let i = 0; i < maxBars; i++) {
+          const idx = Math.round((i / (maxBars - 1)) * (bars.length - 1));
+          if (sampled.length === 0 || sampled[sampled.length - 1].timestamp !== bars[idx].timestamp) {
+            sampled.push(bars[idx]);
+          }
         }
+        bars = sampled;
+      } else {
+        bars = bars.slice(bars.length - maxBars);
       }
-      bars = sampled;
-    } else {
-      bars = bars.slice(bars.length - maxBars);
     }
   }
 
@@ -1604,7 +1664,7 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
           const decimals = cacheKey === 'TNX' ? 3 : 2;
           const change = price > 0 || prevClose > 0 ? parseFloat((price - prevClose).toFixed(decimals)) : 0;
           const changePercent = prevClose > 0 && price > 0 ? parseFloat(((change / prevClose) * 100).toFixed(2)) : 0;
-          const history = extractYahooBars(result, '1h', 16);
+          const history = extractYahooBars(result, '1h', 40);
 
           const regularStart = meta.currentTradingPeriod?.regular?.start;
           let todayOpen = typeof meta.regularMarketOpen === 'number' ? meta.regularMarketOpen : 0;
@@ -1807,13 +1867,614 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
   }
 });
 
-// Real OHLCV history endpoint via Yahoo Finance for GP multi-interval charts
+// Dedicated server-side cache for Historical Price (HP) hourly datasets (5-minute TTL)
+const HP_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_HP_CACHE_ENTRIES = 120;
+const hpHistoryCache = new Map<
+  string,
+  {
+    timestamp: number;
+    history: HistoricalPriceBar[];
+    provider: string;
+    tradingDays: number;
+    warning: string | null;
+  }
+>();
+
+function setHpHistoryCache(
+  symbol: string,
+  entry: {
+    timestamp: number;
+    history: HistoricalPriceBar[];
+    provider: string;
+    tradingDays: number;
+    warning: string | null;
+  }
+) {
+  if (hpHistoryCache.size >= MAX_HP_CACHE_ENTRIES) {
+    const oldest = hpHistoryCache.keys().next().value;
+    if (oldest) hpHistoryCache.delete(oldest);
+  }
+  hpHistoryCache.set(symbol, entry);
+}
+
+// In-memory cache for 2-year daily adjusted-close series used by Correlation Analyzer (15-min TTL)
+const DAILY_ADJ_CACHE_TTL_MS = 15 * 60 * 1000;
+const MAX_DAILY_ADJ_CACHE_ENTRIES = 200;
+interface DailyAdjCacheEntry {
+  timestamp: number;
+  symbol: string;
+  resolvedSymbol: string;
+  name: string;
+  instrumentType: string;
+  exchange: string;
+  currency: string;
+  priceBasis: "adjclose" | "close";
+  adjustedCloseAvailable: boolean;
+  bars: DailyPricePoint[];
+  earliestDate: string | null;
+  latestDate: string | null;
+}
+const dailyAdjHistoryCache = new Map<string, DailyAdjCacheEntry>();
+
+function setDailyAdjHistoryCache(symbol: string, entry: DailyAdjCacheEntry) {
+  if (dailyAdjHistoryCache.size >= MAX_DAILY_ADJ_CACHE_ENTRIES) {
+    const oldest = dailyAdjHistoryCache.keys().next().value;
+    if (oldest) dailyAdjHistoryCache.delete(oldest);
+  }
+  dailyAdjHistoryCache.set(symbol, entry);
+}
+
+const MARKET_SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_MARKET_SEARCH_CACHE_ENTRIES = 200;
+const marketSearchCache = new Map<
+  string,
+  {
+    timestamp: number;
+    results: Array<{
+      symbol: string;
+      name: string;
+      instrumentType: string;
+      exchange: string;
+      supported: boolean;
+    }>;
+  }
+>();
+
+const MARKET_SEARCH_ALIASES: ReadonlyArray<{
+  symbol: string;
+  aliases: string[];
+  name: string;
+  instrumentType: string;
+  exchange: string;
+}> = [
+  { symbol: "SPX", aliases: ["SPX", "S&P 500", "S&P500", "^GSPC"], name: "S&P 500 Index", instrumentType: "INDEX", exchange: "SNP" },
+  { symbol: "DJI", aliases: ["DJI", "DOW JONES", "DJIA", "^DJI"], name: "Dow Jones Industrial Average", instrumentType: "INDEX", exchange: "DJI" },
+  { symbol: "IXIC", aliases: ["IXIC", "NASDAQ COMPOSITE", "^IXIC"], name: "NASDAQ Composite Index", instrumentType: "INDEX", exchange: "NIM" },
+  { symbol: "VIX", aliases: ["VIX", "VOLATILITY", "^VIX"], name: "CBOE Volatility Index", instrumentType: "INDEX", exchange: "WCB" },
+  { symbol: "RUT", aliases: ["RUT", "RUSSELL 2000", "^RUT"], name: "Russell 2000 Index", instrumentType: "INDEX", exchange: "WCB" },
+  { symbol: "GC", aliases: ["GC", "GOLD", "GC=F"], name: "Gold Futures (COMEX)", instrumentType: "FUTURE", exchange: "COMEX" },
+  { symbol: "CL", aliases: ["CL", "CRUDE OIL", "WTI", "CL=F"], name: "Crude Oil WTI Futures", instrumentType: "FUTURE", exchange: "NYMEX" },
+  { symbol: "TNX", aliases: ["TNX", "10Y TREASURY", "US10Y", "^TNX"], name: "US 10-Year Treasury Yield Index", instrumentType: "INDEX", exchange: "ICE" },
+  { symbol: "BTC", aliases: ["BTC", "BITCOIN", "BTC-USD"], name: "Bitcoin USD", instrumentType: "CRYPTOCURRENCY", exchange: "CCC" },
+  { symbol: "ETH", aliases: ["ETH", "ETHEREUM", "ETH-USD"], name: "Ethereum USD", instrumentType: "CRYPTOCURRENCY", exchange: "CCC" },
+  { symbol: "SOL", aliases: ["SOL", "SOLANA", "SOL-USD"], name: "Solana USD", instrumentType: "CRYPTOCURRENCY", exchange: "CCC" },
+  { symbol: "DXY", aliases: ["DXY", "US DOLLAR INDEX", "DX-Y.NYB"], name: "US Dollar Index", instrumentType: "INDEX", exchange: "ICE" },
+];
+
+function formatExchangeIsoDate(tsSeconds: number, timeZone: string): string {
+  const safeTz = timeZone && typeof timeZone === "string" ? timeZone : "America/New_York";
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: safeTz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date(tsSeconds * 1000));
+    const y = parts.find((p) => p.type === "year")?.value;
+    const m = parts.find((p) => p.type === "month")?.value;
+    const d = parts.find((p) => p.type === "day")?.value;
+    if (y && m && d) return `${y}-${m}-${d}`;
+  } catch {
+    // fall through to UTC ISO date
+  }
+  return new Date(tsSeconds * 1000).toISOString().slice(0, 10);
+}
+
+function extractYahooDailyAdjustedBars(result: any): {
+  bars: DailyPricePoint[];
+  adjustedCloseAvailable: boolean;
+  priceBasis: "adjclose" | "close";
+} {
+  const timestamps: unknown = result?.timestamp;
+  const closes: unknown = result?.indicators?.quote?.[0]?.close;
+  const adjCloses: unknown = result?.indicators?.adjclose?.[0]?.adjclose;
+  const tz = result?.meta?.exchangeTimezoneName || "America/New_York";
+
+  if (!Array.isArray(timestamps) || !Array.isArray(closes) || timestamps.length === 0) {
+    return { bars: [], adjustedCloseAvailable: false, priceBasis: "close" };
+  }
+
+  const adjArr = Array.isArray(adjCloses) ? adjCloses : [];
+  let validAdjCount = 0;
+  let validCloseCount = 0;
+  const rawBars: DailyPricePoint[] = [];
+
+  for (let i = 0; i < timestamps.length; i++) {
+    const ts = Number(timestamps[i]);
+    const closeVal = Number(closes[i]);
+    const adjVal = i < adjArr.length ? Number(adjArr[i]) : NaN;
+
+    if (!Number.isFinite(ts) || ts <= 0) continue;
+    const hasClose = Number.isFinite(closeVal) && closeVal > 0;
+    const hasAdj = Number.isFinite(adjVal) && adjVal > 0;
+    if (!hasClose && !hasAdj) continue;
+
+    if (hasClose) validCloseCount++;
+    if (hasAdj) validAdjCount++;
+
+    const isoDate = formatExchangeIsoDate(ts, tz);
+    rawBars.push({
+      date: isoDate,
+      timestamp: ts,
+      close: hasClose ? Number(closeVal.toFixed(6)) : Number(adjVal.toFixed(6)),
+      adjClose: hasAdj ? Number(adjVal.toFixed(6)) : Number(closeVal.toFixed(6)),
+      usedAdjustedClose: hasAdj,
+    });
+  }
+
+  const bars = normalizeDailyPriceBars(rawBars);
+  const adjustedCloseAvailable =
+    validAdjCount > 0 && validAdjCount >= Math.max(1, Math.floor(validCloseCount * 0.9));
+
+  return {
+    bars,
+    adjustedCloseAvailable,
+    priceBasis: adjustedCloseAvailable ? "adjclose" : "close",
+  };
+}
+
+async function fetchAlphaVantageHourlyHistory(
+  symbol: string
+): Promise<{
+  history: HistoricalPriceBar[];
+  provider: string;
+  warning: string | null;
+  error: string | null;
+}> {
+  const apiKey = getActiveApiKey("ALPHA_VANTAGE_API_KEY");
+  if (!apiKey) {
+    return { history: [], provider: "Alpha Vantage", warning: null, error: "Alpha Vantage API key not configured." };
+  }
+
+  const queryAv = async (outputsize: "full" | "compact") => {
+    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${encodeURIComponent(
+      symbol
+    )}&interval=60min&outputsize=${outputsize}&apikey=${encodeURIComponent(apiKey)}`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+    if (!resp.ok) {
+      throw new Error(`Alpha Vantage returned HTTP ${resp.status}`);
+    }
+    const raw = await resp.json();
+    return parseAlphaVantageIntradayBars(raw);
+  };
+
+  try {
+    const fullAttempt = await queryAv("full");
+    if (fullAttempt.bars.length > 0) {
+      return {
+        history: fullAttempt.bars,
+        provider: "Alpha Vantage (TIME_SERIES_INTRADAY 60min, full)",
+        warning: null,
+        error: null,
+      };
+    }
+
+    if (fullAttempt.premiumRestricted) {
+      const compactAttempt = await queryAv("compact");
+      if (compactAttempt.bars.length > 0) {
+        return {
+          history: compactAttempt.bars,
+          provider: "Alpha Vantage (TIME_SERIES_INTRADAY 60min, compact)",
+          warning:
+            "Alpha Vantage outputsize=full requires a premium subscription; displaying latest 100 hourly intervals (compact).",
+          error: null,
+        };
+      }
+      return {
+        history: [],
+        provider: "Alpha Vantage",
+        warning: null,
+        error: compactAttempt.notice
+          ? redactSecrets(compactAttempt.notice, { extraSecrets: [apiKey], maxLength: 200 })
+          : "Alpha Vantage intraday history unavailable.",
+      };
+    }
+
+    return {
+      history: [],
+      provider: "Alpha Vantage",
+      warning: null,
+      error: fullAttempt.notice
+        ? redactSecrets(fullAttempt.notice, { extraSecrets: [apiKey], maxLength: 200 })
+        : fullAttempt.errorMessage
+        ? redactSecrets(fullAttempt.errorMessage, { extraSecrets: [apiKey], maxLength: 200 })
+        : "No intraday records returned by Alpha Vantage.",
+    };
+  } catch (err) {
+    return {
+      history: [],
+      provider: "Alpha Vantage",
+      warning: null,
+      error: redactErrorMessage(err, "Alpha Vantage intraday request failed.", { extraSecrets: [apiKey] }),
+    };
+  }
+}
+
+// Real OHLCV history endpoint via Yahoo Finance for GP multi-interval charts and HP expanded hourly archive
 app.get("/api/market/history", async (req, res) => {
   try {
     const symbol = ((req.query.symbol as string) || "").toUpperCase().trim();
     const interval = ((req.query.interval as string) || "1h").trim();
+    const force = req.query.force === "true";
     if (!symbol) {
       return res.status(400).json({ success: false, error: "Symbol is required" });
+    }
+
+    // Expanded Historical Price (HP) hourly archive mode: 3 months of full 60-minute OHLCV bars (no artificial 16-bar cap)
+    if (interval === "hp") {
+      const now = Date.now();
+      const cached = hpHistoryCache.get(symbol);
+      if (!force && cached && now - cached.timestamp < HP_HISTORY_CACHE_TTL_MS) {
+        return res.json({
+          success: true,
+          symbol,
+          interval: "60m",
+          provider: cached.provider,
+          tradingDays: cached.tradingDays,
+          totalRecords: cached.history.length,
+          history: cached.history,
+          warning: cached.warning,
+          isCached: true,
+        });
+      }
+
+      const fetchYahooHp = async (targetYfSymbol: string) => {
+        const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+          targetYfSymbol
+        )}?interval=1h&range=3mo`;
+        return fetch(yfUrl, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          },
+          signal: AbortSignal.timeout(12_000),
+        });
+      };
+
+      let yahooError: string | null = null;
+      try {
+        let yfSymbol = mapToYahooSymbol(symbol);
+        let yfResponse = await fetchYahooHp(yfSymbol);
+
+        if (yfResponse.status === 404) {
+          const searchRes = await fetchYahooSearch(symbol, 5, 0);
+          const resolved = findValidYahooSearchEquity(searchRes.quotes, symbol, yfSymbol)?.symbol;
+          if (resolved && resolved.toUpperCase() !== yfSymbol.toUpperCase()) {
+            yfSymbol = resolved;
+            yfResponse = await fetchYahooHp(yfSymbol);
+          }
+        }
+
+        if (yfResponse.ok) {
+          const yfData = await yfResponse.json();
+          const result = yfData?.chart?.result?.[0];
+          if (result) {
+            const history = deduplicateAndSortHistoricalBars(
+              extractYahooBars(result, "1h", { preserveAll: true })
+            );
+            if (history.length > 0) {
+              const tradingDays = countDistinctTradingDays(history);
+              const entry = {
+                timestamp: now,
+                history,
+                provider: "Yahoo Finance (60m, 3mo)",
+                tradingDays,
+                warning: null,
+              };
+              setHpHistoryCache(symbol, entry);
+              return res.json({
+                success: true,
+                symbol,
+                interval: "60m",
+                provider: entry.provider,
+                tradingDays,
+                totalRecords: history.length,
+                history,
+                warning: null,
+                isCached: false,
+              });
+            }
+          }
+          yahooError = `No hourly historical bars returned for "${symbol}".`;
+        } else {
+          yahooError = `Market history provider returned HTTP ${yfResponse.status}.`;
+        }
+      } catch (err) {
+        yahooError = redactErrorMessage(err, "Primary hourly history request failed.");
+      }
+
+      // Secondary fallback: Alpha Vantage TIME_SERIES_INTRADAY (60min, outputsize=full with compact fallback)
+      const avResult = await fetchAlphaVantageHourlyHistory(symbol);
+      if (avResult.history.length > 0) {
+        const tradingDays = countDistinctTradingDays(avResult.history);
+        const entry = {
+          timestamp: now,
+          history: avResult.history,
+          provider: avResult.provider,
+          tradingDays,
+          warning: avResult.warning,
+        };
+        setHpHistoryCache(symbol, entry);
+        return res.json({
+          success: true,
+          symbol,
+          interval: "60m",
+          provider: entry.provider,
+          tradingDays,
+          totalRecords: avResult.history.length,
+          history: avResult.history,
+          warning: avResult.warning,
+          isCached: false,
+        });
+      }
+
+      // Preserve previously cached valid historical data rather than replacing it with an empty response
+      if (cached && cached.history.length > 0) {
+        return res.json({
+          success: true,
+          symbol,
+          interval: "60m",
+          provider: cached.provider,
+          tradingDays: cached.tradingDays,
+          totalRecords: cached.history.length,
+          history: cached.history,
+          warning: "Live historical refresh unavailable. Serving last valid cached dataset.",
+          isCached: true,
+        });
+      }
+
+      return res.json({
+        success: false,
+        symbol,
+        interval: "60m",
+        error: avResult.error || yahooError || `No historical data returned for "${symbol}".`,
+        history: [],
+      });
+    }
+
+    // Daily adjusted-close 2-year history mode for Correlation Analyzer (reuses Yahoo Finance chart API)
+    if (interval === "daily_adj") {
+      const now = Date.now();
+      const cached = dailyAdjHistoryCache.get(symbol);
+      if (!force && cached && now - cached.timestamp < DAILY_ADJ_CACHE_TTL_MS) {
+        return res.json({
+          success: true,
+          symbol: cached.symbol,
+          resolvedSymbol: cached.resolvedSymbol,
+          name: cached.name,
+          instrumentType: cached.instrumentType,
+          exchange: cached.exchange,
+          currency: cached.currency,
+          interval: "1d",
+          priceBasis: cached.priceBasis,
+          adjustedCloseAvailable: cached.adjustedCloseAvailable,
+          earliestDate: cached.earliestDate,
+          latestDate: cached.latestDate,
+          totalRecords: cached.bars.length,
+          bars: cached.bars,
+          isCached: true,
+        });
+      }
+
+      const fetchYahooDailyAdj = async (targetYfSymbol: string) => {
+        const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+          targetYfSymbol
+        )}?interval=1d&range=2y`;
+        return fetch(yfUrl, {
+          headers: {
+            "User-Agent": YAHOO_UA,
+            Accept: "application/json",
+          },
+          signal: AbortSignal.timeout(12_000),
+        });
+      };
+
+      try {
+        let yfSymbol = mapToYahooSymbol(symbol);
+        let yfResponse = await fetchYahooDailyAdj(yfSymbol);
+
+        if (yfResponse.status === 404) {
+          const searchRes = await fetchYahooSearch(symbol, 5, 0);
+          const resolved = findValidYahooSearchEquity(searchRes.quotes, symbol, yfSymbol)?.symbol;
+          if (resolved && resolved.toUpperCase() !== yfSymbol.toUpperCase()) {
+            yfSymbol = resolved;
+            yfResponse = await fetchYahooDailyAdj(yfSymbol);
+          }
+        }
+
+        if (yfResponse.status === 429) {
+          if (cached && cached.bars.length > 0) {
+            return res.json({
+              success: true,
+              symbol: cached.symbol,
+              resolvedSymbol: cached.resolvedSymbol,
+              name: cached.name,
+              instrumentType: cached.instrumentType,
+              exchange: cached.exchange,
+              currency: cached.currency,
+              interval: "1d",
+              priceBasis: cached.priceBasis,
+              adjustedCloseAvailable: cached.adjustedCloseAvailable,
+              earliestDate: cached.earliestDate,
+              latestDate: cached.latestDate,
+              totalRecords: cached.bars.length,
+              bars: cached.bars,
+              warning: "Market data rate limit encountered; serving cached historical prices.",
+              isCached: true,
+            });
+          }
+          return res.status(429).json({
+            success: false,
+            symbol,
+            rateLimited: true,
+            error: "Historical market data provider rate limit reached. Please retry shortly.",
+            bars: [],
+          });
+        }
+
+        if (yfResponse.status === 404) {
+          return res.json({
+            success: false,
+            symbol,
+            isInvalidTicker: true,
+            error: `Symbol "${symbol}" was not found in the market data directory.`,
+            bars: [],
+          });
+        }
+
+        if (!yfResponse.ok) {
+          if (cached && cached.bars.length > 0) {
+            return res.json({
+              success: true,
+              symbol: cached.symbol,
+              resolvedSymbol: cached.resolvedSymbol,
+              name: cached.name,
+              instrumentType: cached.instrumentType,
+              exchange: cached.exchange,
+              currency: cached.currency,
+              interval: "1d",
+              priceBasis: cached.priceBasis,
+              adjustedCloseAvailable: cached.adjustedCloseAvailable,
+              earliestDate: cached.earliestDate,
+              latestDate: cached.latestDate,
+              totalRecords: cached.bars.length,
+              bars: cached.bars,
+              warning: "Live historical refresh unavailable; serving cached daily prices.",
+              isCached: true,
+            });
+          }
+          return res.json({
+            success: false,
+            symbol,
+            error: `Historical market data provider returned HTTP ${yfResponse.status} for "${symbol}".`,
+            bars: [],
+          });
+        }
+
+        const yfData = await yfResponse.json();
+        const result = yfData?.chart?.result?.[0];
+        const meta = result?.meta;
+        if (!result || !isValidYahooChartMeta(meta)) {
+          return res.json({
+            success: false,
+            symbol,
+            isInvalidTicker: true,
+            error: `No valid security metadata returned for "${symbol}".`,
+            bars: [],
+          });
+        }
+
+        const instrumentType = String(meta?.instrumentType || "EQUITY").toUpperCase();
+        if (!VALID_SECURITY_TYPES.has(instrumentType)) {
+          return res.json({
+            success: false,
+            symbol,
+            unsupported: true,
+            instrumentType,
+            error: `Instrument "${symbol}" (${instrumentType}) is not supported for daily correlation analysis.`,
+            bars: [],
+          });
+        }
+
+        const extracted = extractYahooDailyAdjustedBars(result);
+        if (extracted.bars.length === 0) {
+          return res.json({
+            success: false,
+            symbol,
+            error: `No daily historical closing prices are available for "${symbol}".`,
+            bars: [],
+          });
+        }
+
+        const resolvedName = String(meta?.longName || meta?.shortName || symbol).trim();
+        const exchange = String(meta?.fullExchangeName || meta?.exchangeName || "US").trim();
+        const currency = String(meta?.currency || "USD").trim();
+        const earliestDate = extracted.bars[0]?.date || null;
+        const latestDate = extracted.bars[extracted.bars.length - 1]?.date || null;
+
+        const entry: DailyAdjCacheEntry = {
+          timestamp: now,
+          symbol,
+          resolvedSymbol: yfSymbol,
+          name: resolvedName,
+          instrumentType,
+          exchange,
+          currency,
+          priceBasis: extracted.priceBasis,
+          adjustedCloseAvailable: extracted.adjustedCloseAvailable,
+          bars: extracted.bars,
+          earliestDate,
+          latestDate,
+        };
+        setDailyAdjHistoryCache(symbol, entry);
+
+        return res.json({
+          success: true,
+          symbol: entry.symbol,
+          resolvedSymbol: entry.resolvedSymbol,
+          name: entry.name,
+          instrumentType: entry.instrumentType,
+          exchange: entry.exchange,
+          currency: entry.currency,
+          interval: "1d",
+          priceBasis: entry.priceBasis,
+          adjustedCloseAvailable: entry.adjustedCloseAvailable,
+          earliestDate: entry.earliestDate,
+          latestDate: entry.latestDate,
+          totalRecords: entry.bars.length,
+          bars: entry.bars,
+          isCached: false,
+        });
+      } catch (err: any) {
+        if (cached && cached.bars.length > 0) {
+          return res.json({
+            success: true,
+            symbol: cached.symbol,
+            resolvedSymbol: cached.resolvedSymbol,
+            name: cached.name,
+            instrumentType: cached.instrumentType,
+            exchange: cached.exchange,
+            currency: cached.currency,
+            interval: "1d",
+            priceBasis: cached.priceBasis,
+            adjustedCloseAvailable: cached.adjustedCloseAvailable,
+            earliestDate: cached.earliestDate,
+            latestDate: cached.latestDate,
+            totalRecords: cached.bars.length,
+            bars: cached.bars,
+            warning: "Live historical refresh failed; serving last valid cached daily prices.",
+            isCached: true,
+          });
+        }
+        const safeMsg = redactErrorMessage(err, `Failed to retrieve daily history for "${symbol}".`);
+        return res.json({
+          success: false,
+          symbol,
+          error: safeMsg,
+          bars: [],
+        });
+      }
     }
 
     const intervalMap: Record<
@@ -1884,8 +2545,87 @@ app.get("/api/market/history", async (req, res) => {
     });
     return res.json({ success: true, symbol, interval, history });
   } catch (err: any) {
-    console.log("History endpoint handled gracefully:", err.message);
-    return res.json({ success: false, error: err.message, history: [] });
+    const safeMsg = redactErrorMessage(err, "Unable to fetch market history.");
+    console.log("History endpoint handled gracefully:", safeMsg);
+    return res.json({ success: false, error: safeMsg, history: [] });
+  }
+});
+
+// Security search endpoint by ticker or company/instrument name (reuses Yahoo Finance search)
+app.get("/api/market/search", async (req, res) => {
+  try {
+    const rawQuery = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    if (!rawQuery) {
+      return res.json({ success: true, results: [] });
+    }
+    const queryKey = rawQuery.toUpperCase();
+    const now = Date.now();
+    const cached = marketSearchCache.get(queryKey);
+    if (cached && now - cached.timestamp < MARKET_SEARCH_CACHE_TTL_MS) {
+      return res.json({ success: true, results: cached.results, isCached: true });
+    }
+
+    const merged: Array<{
+      symbol: string;
+      name: string;
+      instrumentType: string;
+      exchange: string;
+      supported: boolean;
+    }> = [];
+    const seen = new Set<string>();
+
+    // Match terminal benchmark/commodity/index/crypto aliases first
+    for (const alias of MARKET_SEARCH_ALIASES) {
+      const matched =
+        alias.symbol === queryKey ||
+        alias.aliases.some((a) => a.includes(queryKey) || queryKey.includes(a)) ||
+        alias.name.toUpperCase().includes(queryKey);
+      if (matched && !seen.has(alias.symbol)) {
+        seen.add(alias.symbol);
+        merged.push({
+          symbol: alias.symbol,
+          name: alias.name,
+          instrumentType: alias.instrumentType,
+          exchange: alias.exchange,
+          supported: true,
+        });
+      }
+    }
+
+    const searchRes = await fetchYahooSearchDetailed(rawQuery, 10, 0);
+    if (searchRes.ok) {
+      for (const item of searchRes.quotes) {
+        if (!item || typeof item !== "object") continue;
+        if (item.isYahooFinance === false) continue;
+        const sym = typeof item.symbol === "string" ? item.symbol.toUpperCase().trim() : "";
+        if (!sym || seen.has(sym)) continue;
+        const quoteType = String(item.quoteType || "").toUpperCase().trim();
+        const name = String(item.longname || item.shortname || sym).trim();
+        const exchange = String(item.exchDisp || item.exchange || "US").trim();
+        const supported = VALID_SECURITY_TYPES.has(quoteType);
+
+        seen.add(sym);
+        merged.push({
+          symbol: sym,
+          name,
+          instrumentType: quoteType || "UNKNOWN",
+          exchange,
+          supported,
+        });
+        if (merged.length >= 10) break;
+      }
+    }
+
+    if (marketSearchCache.size >= MAX_MARKET_SEARCH_CACHE_ENTRIES) {
+      const oldest = marketSearchCache.keys().next().value;
+      if (oldest) marketSearchCache.delete(oldest);
+    }
+    marketSearchCache.set(queryKey, { timestamp: now, results: merged });
+
+    return res.json({ success: true, results: merged, isCached: false });
+  } catch (err: any) {
+    const safeMsg = redactErrorMessage(err, "Unable to search securities.");
+    return res.json({ success: false, error: safeMsg, results: [] });
   }
 });
 
@@ -2189,7 +2929,9 @@ app.post("/api/settings/keys", (req, res) => {
       continue;
     }
     if (result.updated) {
-      if (id === "NYT_API_KEY") {
+      if (id === "ALPHA_VANTAGE_API_KEY") {
+        hpHistoryCache.clear();
+      } else if (id === "NYT_API_KEY") {
         newsProviderCache.nyt = { timestamp: 0, items: [] };
         apiCooldowns.nyt = 0;
       } else if (id === "NEWS_API_KEY") {
