@@ -1240,7 +1240,7 @@ export default function Workspace({
         <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl">
           <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2">
             <span className="text-white text-md font-bold uppercase tracking-wider">
-              {currentStock.symbol} Description summary (SEC-DES)
+              Description Summary
             </span>
             {renderTextSizeControl()}
           </div>
