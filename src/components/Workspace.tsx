@@ -9,6 +9,7 @@ import {
 import { FredFeedStatus } from '../App';
 import ChartWidget from './ChartWidget';
 import CorrelationAnalyzerScreen from './CorrelationAnalyzerScreen';
+import { CurrenciesScreen } from './CurrenciesScreen';
 import PolymarketScreen from './PolymarketScreen';
 import InstitutionalActivityScreen from './InstitutionalActivityScreen';
 import {
@@ -1469,94 +1470,13 @@ export default function Workspace({
         </div>
       )}
 
-      {/* 6. CRNC: FX MATRIX BOARD SCREEN (FRED H.10) */}
+      {/* 6. CRNC: FX MARKET INTELLIGENCE WORKSPACE (FRED H.10 + BIS) */}
       {activeScreen === 'CRNC' && (
-        <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl select-none">
-          <div className="border-b border-[#333] pb-2 mb-4 flex justify-between items-center">
-            <span className="text-white text-md font-bold uppercase tracking-wider">
-              CRNC Foreign Exchange Rates Matrix (FRED H.10)
-            </span>
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] text-zinc-500 font-mono">
-                {fredCurrenciesStatus?.fetchedAt
-                  ? `SYNCED ${new Date(fredCurrenciesStatus.fetchedAt).toLocaleTimeString()}`
-                  : 'ST. LOUIS FED H.10'}
-              </span>
-              {onRefreshCurrencies && (
-                <button
-                  onClick={onRefreshCurrencies}
-                  disabled={fredCurrenciesStatus?.loading}
-                  className="text-zinc-500 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
-                  title="Refresh FRED FX rates"
-                >
-                  <RefreshCw size={12} className={fredCurrenciesStatus?.loading ? 'animate-spin' : ''} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {fredCurrenciesStatus?.requiresKey ? (
-            <div className="bg-black border border-[#ff9900]/40 p-4 rounded text-xs text-zinc-300 space-y-2">
-              <div className="flex items-center gap-2 text-[#ff9900] font-bold uppercase">
-                <AlertCircle size={14} />
-                <span>FRED_API_KEY Required</span>
-              </div>
-              <p className="text-zinc-400 leading-relaxed">
-                Add <span className="text-white font-bold">FRED_API_KEY</span> in AI Studio Secrets (or <span className="text-white font-bold">.env</span>) to load live Federal Reserve H.10 daily spot exchange rates.
-              </p>
-            </div>
-          ) : fredCurrenciesStatus?.loading && currencies.length === 0 ? (
-            <div className="flex flex-col items-center py-12 space-y-2 text-zinc-500 text-xs bg-black border border-[#333] rounded">
-              <RefreshCw className="animate-spin text-[#3498db]" size={20} />
-              <span>FETCHING FEDERAL RESERVE H.10 SPOT FX RATES...</span>
-            </div>
-          ) : fredCurrenciesStatus?.error ? (
-            <div className="bg-black border border-[#ff4444]/40 p-4 rounded text-xs text-[#ff4444] flex items-center gap-2">
-              <AlertCircle size={14} />
-              <span>{fredCurrenciesStatus.error}</span>
-            </div>
-          ) : currencies.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500 text-xs bg-black border border-[#333] rounded font-mono">
-              NO FRED FX OBSERVATIONS RETURNED.
-            </div>
-          ) : (
-            <table className="w-full text-left text-xs text-zinc-300 font-mono">
-              <thead>
-                <tr className="border-b border-[#333] text-zinc-500 text-[10px] uppercase font-bold">
-                  <th className="py-2.5">CURRENCY PAIR</th>
-                  <th>FRED SERIES</th>
-                  <th className="text-right">SPOT RATE</th>
-                  <th className="text-right">PREV OBS</th>
-                  <th className="text-right">DAY CHANGE</th>
-                  <th className="text-right">OBS DATE</th>
-                  <th className="text-right">FEED</th>
-                </tr>
-              </thead>
-              <tbody>
-                {currencies.map((curr, idx) => {
-                  const isPositive = curr.change >= 0;
-                  return (
-                    <tr key={curr.seriesId || idx} className="border-b border-[#222] hover:bg-[#111] text-[11px] font-mono">
-                      <td className="py-3 text-[#3498db] font-bold font-mono">{curr.pair}</td>
-                      <td className="text-zinc-500 font-mono text-[10px]">{curr.seriesId || '—'}</td>
-                      <td className="text-right font-bold text-white font-mono">{curr.rate.toFixed(4)}</td>
-                      <td className="text-right text-zinc-400 font-mono">
-                        {typeof curr.prevRate === 'number' ? curr.prevRate.toFixed(4) : '—'}
-                      </td>
-                      <td className={`text-right font-bold font-mono ${isPositive ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
-                        {isPositive ? '+' : ''}{curr.change.toFixed(4)}
-                      </td>
-                      <td className="text-right text-zinc-400 font-mono">{curr.date || '—'}</td>
-                      <td className="text-right font-mono text-[9px]">
-                        <span className="bg-zinc-950 border border-[#333] px-1.5 py-0.5 rounded text-[#00ff00] font-semibold uppercase">FRED H.10</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <CurrenciesScreen
+          currencies={currencies}
+          fredCurrenciesStatus={fredCurrenciesStatus}
+          onRefreshCurrencies={onRefreshCurrencies}
+        />
       )}
 
       {/* 7. ECO: ECONOMIC INDICATORS & CALENDAR (FRED) */}

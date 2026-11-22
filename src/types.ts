@@ -450,4 +450,64 @@ export interface SectorRotationResponse {
   };
 }
 
+export type MajorCurrencyCode = 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AUD' | 'CAD';
 
+export type FxTimeframeId = '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y';
+
+export interface FxObservation {
+  date: string;
+  value: number;
+}
+
+export interface FxPairHistory {
+  pair: string;
+  baseCurrency: MajorCurrencyCode;
+  quoteCurrency: MajorCurrencyCode;
+  seriesId: string;
+  title: string;
+  isDirectUsdQuote: boolean;
+  observations: FxObservation[];
+}
+
+export interface FxUsdIndexSeries {
+  seriesId: string;
+  name: string;
+  observations: FxObservation[];
+}
+
+export type MonetaryPolicyDirection = 'Increasing' | 'Decreasing' | 'Unchanged' | 'Unavailable';
+
+export interface CentralBankPolicyRate {
+  currency: MajorCurrencyCode;
+  centralBank: string;
+  shortName: string;
+  rateLabel: string;
+  currentRate: number | null;
+  previousRate: number | null;
+  lastDecisionBps: number | null;
+  lastDecisionLabel: string | null;
+  lastDecisionDate: string | null;
+  direction: MonetaryPolicyDirection;
+  nextMeetingDate: string | null;
+  nextMeetingNote: string;
+  latestObservationDate: string | null;
+  source: string;
+  seriesId: string;
+  available: boolean;
+  unavailableReason?: string | null;
+}
+
+export interface FxIntelligencePayload {
+  success: boolean;
+  requiresKey?: boolean;
+  error?: string | null;
+  fetchedAt: string | null;
+  isCached?: boolean;
+  currencies: CurrencyPair[];
+  pairHistories: FxPairHistory[];
+  usdIndex: FxUsdIndexSeries | null;
+  centralBanks: CentralBankPolicyRate[];
+  centralBanksFetchedAt: string | null;
+  centralBanksSource: string | null;
+  centralBanksError?: string | null;
+}

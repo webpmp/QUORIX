@@ -22,6 +22,13 @@ import {
   type HistoricalPriceBar,
 } from "./src/utils/historicalPricing";
 import {
+  CENTRAL_BANK_DIRECTORY,
+  deriveCentralBankPolicySummary,
+  normalizeObservations as normalizeFxObservations,
+  parseBisPolicyCsv,
+  shiftIsoDate,
+} from "./src/utils/fxAnalytics";
+import {
   ThreeSpreadError,
   clearThreeSpreadCache,
   getAvailableReportingPeriods,
@@ -83,8 +90,19 @@ const newsProviderCache: {
 
 // In-memory cache for FRED API responses (5 minute TTL)
 const FRED_CACHE_TTL_MS = 5 * 60 * 1000;
+const BIS_POLICY_CACHE_TTL_MS = 30 * 60 * 1000;
 let fredEconomicsCache: { timestamp: number; data: any } | null = null;
 let fredCurrenciesCache: { timestamp: number; data: any } | null = null;
+let fredFxIntelligenceCache: { timestamp: number; data: any } | null = null;
+let bisCentralBanksCache: {
+  timestamp: number;
+  data: {
+    centralBanks: any[];
+    fetchedAt: string;
+    source: string | null;
+    error: string | null;
+  };
+} | null = null;
 
 function getFredApiKey(): string {
   return getActiveApiKey("FRED_API_KEY");
@@ -93,12 +111,21 @@ function getFredApiKey(): string {
 async function fetchFredObservations(
   seriesId: string,
   apiKey: string,
-  options: { units?: "lin" | "pc1"; limit?: number } = {}
+  options: {
+    units?: "lin" | "pc1";
+    limit?: number;
+    observationStart?: string;
+    sortOrder?: "asc" | "desc";
+  } = {}
 ): Promise<Array<{ date: string; value: number }>> {
-  const { units = "lin", limit = 6 } = options;
+  const { units = "lin", limit = 6, observationStart, sortOrder = "desc" } = options;
+  const startParam =
+    observationStart && /^\d{4}-\d{2}-\d{2}$/.test(observationStart)
+      ? `&observation_start=${encodeURIComponent(observationStart)}`
+      : "";
   const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(
     seriesId
-  )}&api_key=${encodeURIComponent(apiKey)}&file_type=json&sort_order=desc&limit=${limit}&units=${units}`;
+  )}&api_key=${encodeURIComponent(apiKey)}&file_type=json&sort_order=${sortOrder}&limit=${limit}&units=${units}${startParam}`;
 
   const res = await fetch(url);
   if (!res.ok) {
@@ -112,6 +139,109 @@ async function fetchFredObservations(
       date: o.date as string,
       value: parseFloat(o.value),
     }));
+}
+
+async function fetchCentralBankPolicyRates(
+  fredApiKey: string,
+  force = false
+): Promise<{
+  centralBanks: any[];
+  fetchedAt: string;
+  source: string | null;
+  error: string | null;
+}> {
+  const now = Date.now();
+  if (!force && bisCentralBanksCache && now - bisCentralBanksCache.timestamp < BIS_POLICY_CACHE_TTL_MS) {
+    return bisCentralBanksCache.data;
+  }
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const startPeriod = shiftIsoDate(todayIso, -1100); // ~3 years of daily policy rate history
+
+  let bisByArea: Record<string, Array<{ date: string; value: number }>> = {};
+  let bisError: string | null = null;
+
+  try {
+    // Allowlisted static BIS SDMX v2 dataflow URL (Central Bank Policy Rates, daily)
+    const bisUrl = `https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.US+XM+GB+JP+AU+CA?startPeriod=${encodeURIComponent(
+      startPeriod
+    )}&detail=dataonly&format=csv`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const resp = await fetch(bisUrl, {
+        headers: { Accept: "text/csv" },
+        signal: controller.signal,
+      });
+      if (!resp.ok) {
+        throw new Error(`BIS WS_CBPOL returned status ${resp.status}`);
+      }
+      const csvText = await resp.text();
+      bisByArea = parseBisPolicyCsv(csvText);
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (err: any) {
+    bisError = redactErrorMessage(err, "BIS central bank policy rate feed temporarily unavailable.");
+    console.warn("BIS policy rates fetch failed:", bisError);
+  }
+
+  const usedSources = new Set<string>();
+  const centralBanks = await Promise.all(
+    CENTRAL_BANK_DIRECTORY.map(async (meta) => {
+      const bisObs = bisByArea[meta.bisArea];
+      if (bisObs && bisObs.length > 0) {
+        usedSources.add("BIS WS_CBPOL");
+        return deriveCentralBankPolicySummary(
+          bisObs,
+          meta,
+          "BIS WS_CBPOL",
+          `D.${meta.bisArea}`
+        );
+      }
+
+      // Fallback to FRED policy rate series if BIS data is missing and FRED_API_KEY is available
+      if (fredApiKey) {
+        try {
+          const fredObs = await fetchFredObservations(meta.fredFallbackSeriesId, fredApiKey, {
+            units: "lin",
+            limit: 1200,
+            observationStart: startPeriod,
+            sortOrder: "asc",
+          });
+          if (fredObs.length > 0) {
+            usedSources.add("FRED");
+            return deriveCentralBankPolicySummary(
+              fredObs,
+              meta,
+              "FRED",
+              meta.fredFallbackSeriesId
+            );
+          }
+        } catch (err: any) {
+          console.warn(
+            `FRED fallback policy series ${meta.fredFallbackSeriesId} error:`,
+            redactErrorMessage(err, "FRED policy rate fallback failed.", { extraSecrets: [fredApiKey] })
+          );
+        }
+      }
+
+      return deriveCentralBankPolicySummary([], meta, "BIS WS_CBPOL", `D.${meta.bisArea}`);
+    })
+  );
+
+  const anyAvailable = centralBanks.some((cb) => cb.available);
+  const payload = {
+    centralBanks,
+    fetchedAt: new Date().toISOString(),
+    source: usedSources.size > 0 ? Array.from(usedSources).join(" / ") : null,
+    error: anyAvailable ? null : bisError || "Central bank policy rates are currently unavailable.",
+  };
+
+  if (anyAvailable) {
+    bisCentralBanksCache = { timestamp: now, data: payload };
+  }
+  return payload;
 }
 
 const FRED_RELEASES_CATALOG_TTL_MS = 60 * 60 * 1000;
@@ -2742,6 +2872,203 @@ app.get("/api/fred/currencies", async (req, res) => {
   }
 });
 
+// FRED H.10 + BIS Central Bank Policy Rates: Comprehensive FX Market Intelligence Workspace
+app.get("/api/fred/fx-intelligence", async (req, res) => {
+  try {
+    const apiKey = getFredApiKey();
+    const force = req.query.force === "true";
+    const now = Date.now();
+
+    // Central bank policy rates come primarily from public BIS WS_CBPOL daily feed
+    // (with FRED fallback when configured), so they can load even if FRED_API_KEY is absent.
+    const centralBankPromise = fetchCentralBankPolicyRates(apiKey, force);
+
+    if (!apiKey) {
+      const cbData = await centralBankPromise;
+      return res.json({
+        success: false,
+        requiresKey: true,
+        error: "FRED_API_KEY is not configured. Add FRED_API_KEY to AI Studio Secrets or .env.",
+        fetchedAt: null,
+        isCached: false,
+        currencies: [],
+        pairHistories: [],
+        usdIndex: null,
+        centralBanks: cbData.centralBanks,
+        centralBanksFetchedAt: cbData.fetchedAt,
+        centralBanksSource: cbData.source,
+        centralBanksError: cbData.error,
+      });
+    }
+
+    if (
+      !force &&
+      fredFxIntelligenceCache &&
+      now - fredFxIntelligenceCache.timestamp < FRED_CACHE_TTL_MS
+    ) {
+      const cbData = await centralBankPromise;
+      return res.json({
+        success: true,
+        ...fredFxIntelligenceCache.data,
+        centralBanks: cbData.centralBanks,
+        centralBanksFetchedAt: cbData.fetchedAt,
+        centralBanksSource: cbData.source,
+        centralBanksError: cbData.error,
+        isCached: true,
+      });
+    }
+
+    const todayIso = new Date().toISOString().slice(0, 10);
+    // ~5.2 years of business-day observations to cleanly cover 5Y historical window without interpolation
+    const observationStart = shiftIsoDate(todayIso, -1900);
+
+    const fxPairSpecs = [
+      {
+        pair: "EUR/USD",
+        baseCurrency: "EUR",
+        quoteCurrency: "USD",
+        seriesId: "DEXUSEU",
+        title: "U.S. Dollars to One Euro",
+        isDirectUsdQuote: true,
+      },
+      {
+        pair: "USD/JPY",
+        baseCurrency: "USD",
+        quoteCurrency: "JPY",
+        seriesId: "DEXJPUS",
+        title: "Japanese Yen to One U.S. Dollar",
+        isDirectUsdQuote: false,
+      },
+      {
+        pair: "GBP/USD",
+        baseCurrency: "GBP",
+        quoteCurrency: "USD",
+        seriesId: "DEXUSUK",
+        title: "U.S. Dollars to One U.K. Pound",
+        isDirectUsdQuote: true,
+      },
+      {
+        pair: "AUD/USD",
+        baseCurrency: "AUD",
+        quoteCurrency: "USD",
+        seriesId: "DEXUSAL",
+        title: "U.S. Dollars to One Australian Dollar",
+        isDirectUsdQuote: true,
+      },
+      {
+        pair: "USD/CAD",
+        baseCurrency: "USD",
+        quoteCurrency: "CAD",
+        seriesId: "DEXCAUS",
+        title: "Canadian Dollars to One U.S. Dollar",
+        isDirectUsdQuote: false,
+      },
+    ] as const;
+
+    const [pairResults, usdIndexObs, cbData] = await Promise.all([
+      Promise.all(
+        fxPairSpecs.map(async (spec) => {
+          try {
+            const rawObs = await fetchFredObservations(spec.seriesId, apiKey, {
+              units: "lin",
+              limit: 2000,
+              observationStart,
+              sortOrder: "asc",
+            });
+            const observations = normalizeFxObservations(rawObs);
+            return { ...spec, observations };
+          } catch (err: any) {
+            console.warn(
+              `FRED FX history ${spec.seriesId} error:`,
+              redactErrorMessage(err, "FRED FX history error.", { extraSecrets: [apiKey] })
+            );
+            return { ...spec, observations: [] as Array<{ date: string; value: number }> };
+          }
+        })
+      ),
+      (async () => {
+        try {
+          const rawObs = await fetchFredObservations("DTWEXBGS", apiKey, {
+            units: "lin",
+            limit: 2000,
+            observationStart,
+            sortOrder: "asc",
+          });
+          return normalizeFxObservations(rawObs);
+        } catch (err: any) {
+          console.warn(
+            "FRED DTWEXBGS error:",
+            redactErrorMessage(err, "FRED Broad USD Index error.", { extraSecrets: [apiKey] })
+          );
+          return [] as Array<{ date: string; value: number }>;
+        }
+      })(),
+      centralBankPromise,
+    ]);
+
+    const currencies = pairResults
+      .map((item) => {
+        if (item.observations.length === 0) return null;
+        const latest = item.observations[item.observations.length - 1];
+        const prev =
+          item.observations.length >= 2
+            ? item.observations[item.observations.length - 2]
+            : latest;
+        return {
+          pair: item.pair,
+          seriesId: item.seriesId,
+          rate: latest.value,
+          prevRate: prev.value,
+          change: parseFloat((latest.value - prev.value).toFixed(4)),
+          date: latest.date,
+        };
+      })
+      .filter(Boolean);
+
+    const fetchedAt = new Date().toISOString();
+    const fredPayload = {
+      currencies,
+      pairHistories: pairResults,
+      usdIndex: {
+        seriesId: "DTWEXBGS",
+        name: "Nominal Broad U.S. Dollar Index",
+        observations: usdIndexObs,
+      },
+      fetchedAt,
+    };
+
+    fredFxIntelligenceCache = { timestamp: now, data: fredPayload };
+    if (currencies.length > 0) {
+      fredCurrenciesCache = { timestamp: now, data: { currencies, fetchedAt } };
+    }
+
+    return res.json({
+      success: true,
+      ...fredPayload,
+      centralBanks: cbData.centralBanks,
+      centralBanksFetchedAt: cbData.fetchedAt,
+      centralBanksSource: cbData.source,
+      centralBanksError: cbData.error,
+      isCached: false,
+    });
+  } catch (err: any) {
+    const safeMsg = redactErrorMessage(err, "Failed to retrieve FX Market Intelligence data.");
+    console.error("FRED FX intelligence error:", safeMsg);
+    return res.json({
+      success: false,
+      error: safeMsg,
+      fetchedAt: null,
+      currencies: [],
+      pairHistories: [],
+      usdIndex: null,
+      centralBanks: [],
+      centralBanksFetchedAt: null,
+      centralBanksSource: null,
+      centralBanksError: safeMsg,
+    });
+  }
+});
+
 // Proxy endpoint for Polymarket API focused on individual stocks, earnings, equities, and market catalysts
 app.get("/api/polymarket/events", async (req, res) => {
   try {
@@ -2943,6 +3270,7 @@ app.post("/api/settings/keys", (req, res) => {
       } else if (id === "FRED_API_KEY") {
         fredEconomicsCache = null;
         fredCurrenciesCache = null;
+        fredFxIntelligenceCache = null;
       } else if (id === "3SPREAD_API_KEY") {
         clearThreeSpreadCache();
         clearSectorRotationCache();
