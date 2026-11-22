@@ -86,6 +86,64 @@ const BAND_TOOLTIP_DESCRIPTIONS: Record<CorrelationBandId, string> = {
     'Insufficient overlapping daily return observations or zero return variance to compute Pearson correlation.',
 };
 
+export const CORR_USAGE_WORKFLOW_STEPS = [
+  {
+    step: '1. Start with your existing holdings',
+    detail: 'Add the securities you currently own to the Security Selection area.',
+  },
+  {
+    step: '2. Examine the Correlation Matrix',
+    detail:
+      'Look for clusters of strongly positive correlations. These identify holdings that may provide overlapping exposure.',
+  },
+  {
+    step: '3. Investigate negative and low correlations',
+    detail: 'Identify securities that might diversify your existing positions.',
+  },
+  {
+    step: '4. Inspect individual pairs',
+    detail:
+      'Select two securities and examine their rolling correlation, normalized performance, and return distribution.',
+  },
+  {
+    step: '5. Check whether relationships are changing',
+    detail:
+      'Compare 30-day, 90-day, and 180-day periods. A relationship that looks strong over six months may have weakened recently.',
+  },
+  {
+    step: '6. Make decisions using additional evidence',
+    detail:
+      'Combine correlation with volatility, fundamentals, valuation, liquidity, and your investment objectives.',
+  },
+] as const;
+
+const CORR_USAGE_ARIA_TEXT = [
+  'How do I use the CORR Workspace?',
+  'Here is a practical workflow for analyzing your portfolio.',
+  ...CORR_USAGE_WORKFLOW_STEPS.map((item) => `${item.step}: ${item.detail}`),
+].join(' ');
+
+const CORR_USAGE_TOOLTIP_CONTENT = (
+  <div className="space-y-2.5 p-0.5">
+    <div className="border-b border-[#262626] pb-2 space-y-1">
+      <div className="text-[11px] font-bold text-[#ff9900] tracking-wide">
+        How do I use the CORR Workspace?
+      </div>
+      <p className="text-[10.5px] text-zinc-300 leading-relaxed">
+        Here is a practical workflow for analyzing your portfolio.
+      </p>
+    </div>
+    <ol className="space-y-2">
+      {CORR_USAGE_WORKFLOW_STEPS.map((item) => (
+        <li key={item.step} className="space-y-0.5">
+          <div className="text-[10.5px] font-bold text-zinc-100">{item.step}</div>
+          <p className="text-[10px] text-zinc-400 leading-relaxed">{item.detail}</p>
+        </li>
+      ))}
+    </ol>
+  </div>
+);
+
 export interface CorrelationAnalyzerScreenProps {
   stocks: Record<string, StockData>;
   trackedTickers?: string[];
@@ -1388,6 +1446,15 @@ export default function CorrelationAnalyzerScreen({
             CORRELATION ANALYZER
           </h1>
           <div className="flex items-center gap-2 shrink-0">
+            <InfoTooltipIcon
+              label="How do I use the CORR Workspace?"
+              ariaText={CORR_USAGE_ARIA_TEXT}
+              content={CORR_USAGE_TOOLTIP_CONTENT}
+              maxWidth={400}
+              size={13}
+              scrollable={true}
+              buttonClassName="p-1.5 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-400 hover:text-[#ff9900] focus:text-[#ff9900] focus:border-[#ff9900] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] inline-flex items-center justify-center transition-colors cursor-help shrink-0"
+            />
             <button
               type="button"
               onClick={handleRefreshAll}

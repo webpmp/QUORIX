@@ -519,6 +519,31 @@ test('Workspace SETT screen renders 3SPREAD API KEY password field immediately a
   assert.equal(testButtonMatches.length, 6);
   const readyBadges = html.match(/>READY<\/span>/g) || [];
   assert.equal(readyBadges.length, 6);
+
+  // SYSTEM ARCHITECTURE & DATA ROUTING notice renders at the bottom of SETT after Diagnostic & Test Pipelines
+  const diagIdx = html.indexOf('DIAGNOSTIC &amp; TEST PIPELINES');
+  const archIdx = html.indexOf('SYSTEM ARCHITECTURE &amp; DATA ROUTING');
+  assert.ok(diagIdx > -1 && archIdx > diagIdx, 'SYSTEM ARCHITECTURE & DATA ROUTING must appear at the bottom of SETT');
+  assert.equal(
+    html.includes(
+      'Quorix routes external market data, economic indicators, foreign exchange rates, news, and AI requests through server-side API endpoints. This architecture centralizes external service integrations and helps protect API credentials from exposure in the browser.'
+    ),
+    true
+  );
+
+  // Original COMPLIANCE & SYSTEM INFORMATION notice must be completely removed from HELP
+  const helpHtml = renderToStaticMarkup(
+    React.createElement(Workspace, {
+      activeScreen: 'HELP',
+      selectedTicker: 'AAPL',
+      stocks: {},
+      currencies: [],
+      economics: [],
+      onExecuteCommand: () => {},
+    })
+  );
+  assert.equal(helpHtml.includes('COMPLIANCE &amp; SYSTEM INFORMATION'), false);
+  assert.equal(helpHtml.includes('Terminal v1.0 routes live market'), false);
 });
 
 test('apiDiagnostics redacts secrets and handles missing, invalid, and valid provider responses', async () => {

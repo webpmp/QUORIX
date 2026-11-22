@@ -2395,6 +2395,13 @@ export default function Workspace({
               })}
             </div>
           </div>
+
+          <div className="mt-5 bg-[#050505] border border-[#333] p-3 rounded text-[10px] text-zinc-500/90 leading-relaxed select-none">
+            <span className="text-white font-bold block mb-1 uppercase">
+              SYSTEM ARCHITECTURE &amp; DATA ROUTING
+            </span>
+            Quorix routes external market data, economic indicators, foreign exchange rates, news, and AI requests through server-side API endpoints. This architecture centralizes external service integrations and helps protect API credentials from exposure in the browser.
+          </div>
         </div>
       )}
 
@@ -2537,18 +2544,13 @@ export default function Workspace({
             </table>
           </div>
 
-          <p className="text-zinc-400 mb-6 leading-relaxed">
+          <p className="text-zinc-400 leading-relaxed">
             <span className="text-zinc-200 font-bold">Chained Commands:</span> Prefix a ticker symbol with a screen command, e.g.{' '}
             <span className="text-[#3498db] font-bold">NVDA GP</span>,{' '}
             <span className="text-[#3498db] font-bold">TSLA DES</span>,{' '}
             <span className="text-[#3498db] font-bold">BTC HP</span>, or type a ticker symbol (
             <span className="text-[#3498db] font-bold">AAPL</span>) to switch the active security.
           </p>
-
-          <div className="bg-[#050505] border border-[#333] p-3 rounded text-[10px] text-zinc-500/90 leading-relaxed select-none">
-            <span className="text-white font-bold block mb-1">COMPLIANCE &amp; SYSTEM INFORMATION:</span>
-            Terminal v1.0 routes live market, FRED macro/FX, news, and Gemini requests through server-side proxy endpoints.
-          </div>
         </div>
       )}
     </div>

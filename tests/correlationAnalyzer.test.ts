@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import CommandPanel from '../src/components/CommandPanel.tsx';
 import Workspace from '../src/components/Workspace.tsx';
 import CorrelationAnalyzerScreen, {
+  CORR_USAGE_WORKFLOW_STEPS,
   computeResponsiveChartWidth,
 } from '../src/components/CorrelationAnalyzerScreen.tsx';
 import {
@@ -382,6 +383,19 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
       true,
       `Missing expected tooltip text: ${fragment}`
     );
+  }
+
+  // Portfolio usage help tooltip appears immediately to the LEFT of REFRESH DATA with exact 6-step content
+  const helpBtnMarker = 'aria-label="How do I use the CORR Workspace?"';
+  const refreshBtnMarker = '<span>REFRESH DATA</span>';
+  const helpIdx = populatedHtml.indexOf(helpBtnMarker);
+  const refreshIdx = populatedHtml.indexOf(refreshBtnMarker);
+  assert.ok(helpIdx > -1 && refreshIdx > helpIdx, 'Help icon must appear to the left of REFRESH DATA');
+  assert.equal(populatedHtml.includes('Here is a practical workflow for analyzing your portfolio.'), true);
+  assert.equal(CORR_USAGE_WORKFLOW_STEPS.length, 6);
+  for (const item of CORR_USAGE_WORKFLOW_STEPS) {
+    assert.equal(populatedHtml.includes(item.step), true, `Missing workflow step heading: ${item.step}`);
+    assert.equal(populatedHtml.includes(item.detail), true, `Missing workflow step detail: ${item.detail}`);
   }
 
   // 2. Empty state (0 securities)

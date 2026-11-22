@@ -24,6 +24,7 @@ interface TooltipCoords {
   width: number;
   arrowLeft: number;
   placement: 'top' | 'bottom';
+  maxHeight: number;
 }
 
 /**
@@ -65,8 +66,9 @@ export const TerminalTooltip: React.FC<TerminalTooltipProps> = ({
     const placement: 'top' | 'bottom' =
       spaceBelow < 130 && spaceAbove > spaceBelow ? 'top' : 'bottom';
     const top = placement === 'bottom' ? rect.bottom + 7 : rect.top - 7;
+    const maxHeight = Math.max(140, (placement === 'bottom' ? spaceBelow : spaceAbove) - 18);
 
-    setCoords({ top, left: clampedLeft, width, arrowLeft, placement });
+    setCoords({ top, left: clampedLeft, width, arrowLeft, placement, maxHeight });
   }, [maxWidth]);
 
   const cancelClose = useCallback(() => {
@@ -180,23 +182,30 @@ export const TerminalTooltip: React.FC<TerminalTooltipProps> = ({
 export interface InfoTooltipIconProps {
   label: string;
   title?: string;
-  content: string;
+  content: React.ReactNode;
+  ariaText?: string;
   maxWidth?: number;
   size?: number;
+  scrollable?: boolean;
+  buttonClassName?: string;
 }
 
 /**
- * Keyboard-accessible, touch-friendly Info icon trigger for section headings and metric labels.
+ * Keyboard-accessible, touch-friendly Info icon trigger for section headings, metric labels, and header help.
  */
 export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
   label,
   title,
   content,
+  ariaText,
   maxWidth = 260,
   size = 11,
+  scrollable = false,
+  buttonClassName,
 }) => {
   const [touchOpen, setTouchOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   const tooltipId = useId();
   const [coords, setCoords] = useState<TooltipCoords | null>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -218,8 +227,9 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
     const placement: 'top' | 'bottom' =
       spaceBelow < 130 && spaceAbove > spaceBelow ? 'top' : 'bottom';
     const top = placement === 'bottom' ? rect.bottom + 7 : rect.top - 7;
+    const maxHeight = Math.max(160, (placement === 'bottom' ? spaceBelow : spaceAbove) - 18);
 
-    setCoords({ top, left: clampedLeft, width, arrowLeft, placement });
+    setCoords({ top, left: clampedLeft, width, arrowLeft, placement, maxHeight });
   }, [maxWidth]);
 
   const cancelClose = useCallback(() => {
@@ -255,12 +265,22 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
     if (!touchOpen) return;
     updatePosition();
     const onResize = () => updatePosition();
-    const onScroll = () => setTouchOpen(false);
+    const onScroll = (e: Event) => {
+      if (tooltipRef.current && e.target instanceof Node && tooltipRef.current.contains(e.target)) {
+        return;
+      }
+      setTouchOpen(false);
+    };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setTouchOpen(false);
     };
     const onOutsideDown = (e: MouseEvent) => {
-      if (btnRef.current && !btnRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        btnRef.current &&
+        !btnRef.current.contains(target) &&
+        (!tooltipRef.current || !tooltipRef.current.contains(target))
+      ) {
         setTouchOpen(false);
       }
     };
@@ -276,6 +296,9 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
     };
   }, [touchOpen, updatePosition]);
 
+  const defaultButtonClass =
+    'inline-flex items-center justify-center text-zinc-500 hover:text-[#ff9900] focus:text-[#ff9900] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] rounded-sm transition-colors cursor-help align-middle shrink-0';
+
   return (
     <>
       <button
@@ -284,7 +307,7 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
         aria-label={label}
         aria-describedby={touchOpen ? tooltipId : undefined}
         aria-expanded={touchOpen}
-        data-tooltip-text={content}
+        data-tooltip-text={ariaText || (typeof content === 'string' ? content : title || label)}
         onMouseEnter={openTip}
         onMouseLeave={scheduleClose}
         onFocus={openTip}
@@ -297,7 +320,7 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
             openTip();
           }
         }}
-        className="inline-flex items-center justify-center text-zinc-500 hover:text-[#ff9900] focus:text-[#ff9900] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] rounded-sm transition-colors cursor-help align-middle shrink-0"
+        className={buttonClassName || defaultButtonClass}
       >
         <Info size={size} aria-hidden="true" />
       </button>
@@ -306,6 +329,7 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
         typeof document !== 'undefined' &&
         createPortal(
           <div
+            ref={tooltipRef}
             id={tooltipId}
             role="tooltip"
             onMouseEnter={cancelClose}
@@ -329,12 +353,17 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
                   : '-bottom-[5px] border-r border-b border-[#444]'
               }`}
             />
-            {title && (
-              <div className="text-[9.5px] font-bold uppercase tracking-wider text-[#ff9900] mb-1">
-                {title}
-              </div>
-            )}
-            <div className="text-zinc-300">{content}</div>
+            <div
+              style={scrollable ? { maxHeight: `${coords.maxHeight}px` } : undefined}
+              className={scrollable ? 'overflow-y-auto pr-1' : undefined}
+            >
+              {title && (
+                <div className="text-[9.5px] font-bold uppercase tracking-wider text-[#ff9900] mb-1">
+                  {title}
+                </div>
+              )}
+              <div className="text-zinc-300">{content}</div>
+            </div>
           </div>,
           document.body
         )}
