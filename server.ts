@@ -20,6 +20,10 @@ import {
   setRuntimeThreeSpreadApiKey,
 } from "./src/server/threeSpreadService";
 import {
+  clearSectorRotationCache,
+  getSectorRotationData,
+} from "./src/server/sectorRotationService";
+import {
   DIAGNOSTIC_PROVIDER_SET,
   runProviderConnectionTest,
   type DiagnosticProviderId,
@@ -2199,6 +2203,7 @@ app.post("/api/settings/keys", (req, res) => {
         fredCurrenciesCache = null;
       } else if (id === "3SPREAD_API_KEY") {
         clearThreeSpreadCache();
+        clearSectorRotationCache();
       }
     }
   }
@@ -3026,6 +3031,24 @@ app.get("/api/institutional/changes", async (req, res) => {
     return res.json({ success: true, provider: "3spread", ...data });
   } catch (err) {
     return handleInstitutionalError(res, err, "changes");
+  }
+});
+
+app.get("/api/institutional/sector-rotation", async (req, res) => {
+  try {
+    const data = await getSectorRotationData({
+      period: typeof req.query.period === "string" ? req.query.period : undefined,
+      windowDays: req.query.windowDays ? Number(req.query.windowDays) : 90,
+      force: req.query.force === "true",
+    });
+    return res.json({ success: true, ...data });
+  } catch (err) {
+    const safeMsg = redactErrorMessage(err, "Failed to load Sector Rotation data.");
+    console.error("Institutional sector-rotation API error:", safeMsg);
+    return res.status(500).json({
+      success: false,
+      error: safeMsg,
+    });
   }
 });
 

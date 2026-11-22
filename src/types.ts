@@ -270,3 +270,184 @@ export interface InstitutionalDataFreshness {
   fetchedAt: string;
 }
 
+export type SectorPerformancePeriod = '1W' | '1M' | '3M' | '6M';
+
+export type SectorId =
+  | 'TECHNOLOGY'
+  | 'FINANCIALS'
+  | 'HEALTHCARE'
+  | 'CONSUMER_DISCRETIONARY'
+  | 'CONSUMER_STAPLES'
+  | 'ENERGY'
+  | 'INDUSTRIALS'
+  | 'MATERIALS'
+  | 'UTILITIES'
+  | 'REAL_ESTATE'
+  | 'COMMUNICATION_SERVICES';
+
+export type SectorRotationStatus =
+  | 'LEADING'
+  | 'IMPROVING'
+  | 'WEAKENING'
+  | 'LAGGING'
+  | 'INSUFFICIENT_DATA';
+
+export type SectorInstitutionalTrend =
+  | 'ACCUMULATING'
+  | 'DISTRIBUTING'
+  | 'NEUTRAL'
+  | 'INSUFFICIENT_DATA';
+
+export type SectorInsiderSentimentStatus =
+  | 'NET_BUYING'
+  | 'BALANCED'
+  | 'NET_SELLING'
+  | 'UNAVAILABLE';
+
+export interface SectorPeriodReturnPoint {
+  returnPct: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  startPrice: number | null;
+  endPrice: number | null;
+}
+
+export interface SectorPriceHistoryPoint {
+  date: string;
+  close: number;
+}
+
+export interface SectorMarketPerformance {
+  etfTicker: string;
+  etfName: string;
+  latestPrice: number | null;
+  latestDate: string | null;
+  returns: Record<SectorPerformancePeriod, SectorPeriodReturnPoint>;
+  relativeStrength: Record<SectorPerformancePeriod, number | null>;
+  relativeStrengthRank: Record<SectorPerformancePeriod, number | null>;
+  rotationStatus: Record<SectorPerformancePeriod, SectorRotationStatus>;
+  history: SectorPriceHistoryPoint[];
+  unavailableReason: string | null;
+}
+
+export interface SectorInstitutionalSummary {
+  available: boolean;
+  reportingPeriod: string | null;
+  previousPeriod: string | null;
+  comparableManagersTotal: number;
+  activeManagersCount: number;
+  managersIncreasing: number;
+  managersDecreasing: number;
+  managersUnchanged: number;
+  newPositions: number;
+  exitedPositions: number;
+  increasedPositions: number;
+  decreasedPositions: number;
+  classifiedSecuritiesCount: number;
+  priorTotalShares: number;
+  currentTotalShares: number;
+  netShareChange: number;
+  netPercentChange: number | null;
+  aggregateValueUsd: number;
+  priorAggregateValueUsd: number;
+  valueChangePct: number | null;
+  trend: SectorInstitutionalTrend;
+  topSecurities: InstitutionalAccumulationRow[];
+  largestIncreases: InstitutionalPositionChangeRow[];
+  largestDecreases: InstitutionalPositionChangeRow[];
+  recentNewPositions: InstitutionalPositionChangeRow[];
+  recentExits: InstitutionalPositionChangeRow[];
+}
+
+export interface SectorInsiderSentiment {
+  available: boolean;
+  buysDollars: number | null;
+  sellsDollars: number | null;
+  buysCount: number | null;
+  sellsCount: number | null;
+  buySellRatio: number | null;
+  since: string | null;
+  until: string | null;
+  windowDays: number;
+  sicCodesQueried: string[];
+  sicCodesWithActivity: number;
+  sentiment: SectorInsiderSentimentStatus;
+  unavailableReason: string | null;
+}
+
+export interface SectorRotationItem {
+  id: SectorId;
+  name: string;
+  shortName: string;
+  etfTicker: string;
+  etfName: string;
+  market: SectorMarketPerformance;
+  institutional: SectorInstitutionalSummary;
+  insider: SectorInsiderSentiment;
+}
+
+export interface SectorClassificationCoverage {
+  totalSecuritiesInCohort: number;
+  classifiedSecuritiesCount: number;
+  unclassifiedSecuritiesCount: number;
+  unclassifiedFundOrEtfCount: number;
+  unclassifiedUnknownCount: number;
+  classifiedValueUsd: number;
+  unclassifiedValueUsd: number;
+  classifiedValuePct: number | null;
+  threeSpreadSicMatchedCount: number;
+  marketSectorMatchedCount: number;
+  directSectorEtfMatchedCount: number;
+}
+
+export interface SectorRotationOverviewByPeriod {
+  strongestSector: { id: SectorId; name: string; etfTicker: string; returnPct: number; relativeStrengthPct: number | null } | null;
+  weakestSector: { id: SectorId; name: string; etfTicker: string; returnPct: number; relativeStrengthPct: number | null } | null;
+  outperformingCount: number;
+  underperformingCount: number;
+  improvingSectors: Array<{ id: SectorId; name: string; etfTicker: string }>;
+  weakeningSectors: Array<{ id: SectorId; name: string; etfTicker: string }>;
+}
+
+export interface SectorRotationResponse {
+  success: boolean;
+  fetchedAt: string;
+  benchmark: {
+    ticker: string;
+    name: string;
+    latestPrice: number | null;
+    latestDate: string | null;
+    returns: Record<SectorPerformancePeriod, SectorPeriodReturnPoint>;
+    history: SectorPriceHistoryPoint[];
+    unavailableReason: string | null;
+  };
+  overviewByPeriod: Record<SectorPerformancePeriod, SectorRotationOverviewByPeriod>;
+  sectors: SectorRotationItem[];
+  institutionalMeta: {
+    available: boolean;
+    requiresKey: boolean;
+    rateLimited: boolean;
+    error: string | null;
+    reportingPeriod: string | null;
+    previousPeriod: string | null;
+    availablePeriods: string[];
+    managersAnalyzed: number;
+    freshness: InstitutionalDataFreshness | null;
+    coverage: SectorClassificationCoverage;
+  };
+  insiderMeta: {
+    available: boolean;
+    windowDays: number;
+    since: string | null;
+    until: string | null;
+    note: string;
+  };
+  methodology: {
+    marketPerformance: string;
+    rotationClassification: string;
+    institutionalPositioning: string;
+    insiderSentiment: string;
+  };
+}
+
+

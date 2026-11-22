@@ -166,7 +166,7 @@ function enforceRateLimitGuard(): void {
   requestTimestamps.push(now);
 }
 
-async function fetchThreeSpreadJson<T>(
+export async function fetchThreeSpreadJson<T>(
   endpointPath: string,
   queryParams?: Record<string, string | number | boolean | undefined | null>
 ): Promise<T> {
@@ -915,7 +915,7 @@ export async function getInstitutionalHoldingsData(params: {
   };
 }
 
-interface CohortSnapshot {
+export interface CohortSnapshot {
   reportingPeriod: string;
   previousPeriod: string;
   managersAnalyzed: number;
@@ -932,7 +932,7 @@ interface CohortSnapshot {
  * consecutive reporting periods, fetching their full holdings (non-truncated, <=500 entries),
  * and aggregating security-level accumulation + categorized position changes.
  */
-async function getComparableCohortSnapshot(
+export async function getComparableCohortSnapshot(
   requestedPeriod?: string,
   force = false
 ): Promise<CohortSnapshot> {

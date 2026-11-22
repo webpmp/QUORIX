@@ -13,6 +13,7 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
+  Compass,
 } from 'lucide-react';
 import type {
   InstitutionalAccumulationRow,
@@ -23,6 +24,7 @@ import type {
   InstitutionalManagerDirectoryItem,
   InstitutionalPositionChangeRow,
   InstitutionalPositionStatus,
+  SectorRotationResponse,
   StockData,
 } from '../types';
 import {
@@ -32,6 +34,7 @@ import {
   formatQuarterLabel,
   formatSignedPercent,
 } from '../utils/institutionalActivity';
+import SectorRotationPanel from './SectorRotationPanel';
 
 interface InstitutionalActivityScreenProps {
   selectedTicker: string;
@@ -39,7 +42,7 @@ interface InstitutionalActivityScreenProps {
   onSelectTicker?: (ticker: string) => void;
 }
 
-type InstitutionalTab = 'HOLDINGS' | 'ACCUMULATION' | 'INVESTORS' | 'CHANGES';
+type InstitutionalTab = 'HOLDINGS' | 'ACCUMULATION' | 'INVESTORS' | 'CHANGES' | 'SECTOR_ROTATION';
 
 const EXCLUDED_QUICK_TICKERS = new Set(['SPX', 'DJI', 'IXIC', 'GC', 'CL', 'TNX', 'BTC']);
 
@@ -215,6 +218,12 @@ export default function InstitutionalActivityScreen({
     previousPeriod: string | null;
     managersAnalyzed: number | null;
   } | null>(null);
+
+  // Section E: Sector Rotation state
+  const [sectorWindowDays, setSectorWindowDays] = useState<number>(90);
+  const [sectorLoading, setSectorLoading] = useState<boolean>(false);
+  const [sectorError, setSectorError] = useState<string | null>(null);
+  const [sectorData, setSectorData] = useState<SectorRotationResponse | null>(null);
 
   const quickTickers = useMemo(() => {
     const tracked = Object.keys(stocks || {}).filter((s) => !EXCLUDED_QUICK_TICKERS.has(s));
@@ -503,6 +512,46 @@ export default function InstitutionalActivityScreen({
     ]
   );
 
+  // Fetch Section E: Sector Rotation (Market SPDR ETFs + Institutional 13F Cohort + Form 4 Insiders)
+  const fetchSectorRotation = useCallback(
+    async (force = false) => {
+      setSectorLoading(true);
+      setSectorError(null);
+      try {
+        const qs = new URLSearchParams();
+        if (selectedPeriod) qs.set('period', selectedPeriod);
+        qs.set('windowDays', String(sectorWindowDays));
+        if (force) qs.set('force', 'true');
+
+        const res = await fetch(`/api/institutional/sector-rotation?${qs.toString()}`);
+        const data = await res.json();
+        if (!res.ok || !data?.success) {
+          setSectorError(data?.error || 'Failed to load Sector Rotation data.');
+          return;
+        }
+        setSectorData(data as SectorRotationResponse);
+        if (data?.institutionalMeta?.freshness) {
+          setFreshness(data.institutionalMeta.freshness);
+        }
+        if (
+          Array.isArray(data?.institutionalMeta?.availablePeriods) &&
+          data.institutionalMeta.availablePeriods.length > 0
+        ) {
+          setAvailablePeriods(data.institutionalMeta.availablePeriods);
+        }
+        if (!selectedPeriod && data?.institutionalMeta?.reportingPeriod) {
+          setSelectedPeriod(data.institutionalMeta.reportingPeriod);
+        }
+        setLastRefreshedAt(new Date().toLocaleTimeString());
+      } catch (err: any) {
+        setSectorError(err?.message || 'Network error loading Sector Rotation data.');
+      } finally {
+        setSectorLoading(false);
+      }
+    },
+    [selectedPeriod, sectorWindowDays]
+  );
+
   // Trigger active tab fetch
   useEffect(() => {
     if (activeTab === 'HOLDINGS') {
@@ -533,6 +582,12 @@ export default function InstitutionalActivityScreen({
       void fetchChanges(false);
     }
   }, [activeTab, fetchChanges]);
+
+  useEffect(() => {
+    if (activeTab === 'SECTOR_ROTATION') {
+      void fetchSectorRotation(false);
+    }
+  }, [activeTab, fetchSectorRotation]);
 
   const handleHoldingsSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -580,6 +635,8 @@ export default function InstitutionalActivityScreen({
       if (selectedManagerCik) void fetchInvestorProfile(selectedManagerCik, selectedManagerPeriod, true);
     } else if (activeTab === 'CHANGES') {
       void fetchChanges(true);
+    } else if (activeTab === 'SECTOR_ROTATION') {
+      void fetchSectorRotation(true);
     }
   };
 
@@ -601,7 +658,7 @@ export default function InstitutionalActivityScreen({
   }, [investorProfile, profileHoldingsFilter, profileStatusFilter]);
 
   const isAnyLoading =
-    holdingsLoading || accLoading || managersLoading || profileLoading || changesLoading;
+    holdingsLoading || accLoading || managersLoading || profileLoading || changesLoading || sectorLoading;
 
   const activeReportingPeriodDisplay =
     activeTab === 'HOLDINGS'
@@ -610,6 +667,8 @@ export default function InstitutionalActivityScreen({
       ? accMeta?.reportingPeriod || selectedPeriod
       : activeTab === 'INVESTORS'
       ? investorProfile?.reportingPeriod || selectedPeriod
+      : activeTab === 'SECTOR_ROTATION'
+      ? sectorData?.institutionalMeta?.reportingPeriod || selectedPeriod
       : changesMeta?.reportingPeriod || selectedPeriod;
 
   const holdingsTotalPages = Math.max(1, Math.ceil(holdingsTotalRows / 50));
@@ -809,6 +868,7 @@ export default function InstitutionalActivityScreen({
               { id: 'ACCUMULATION', label: 'ACCUMULATION SCREENER', icon: TrendingUp },
               { id: 'INVESTORS', label: 'INVESTOR PROFILES', icon: Building2 },
               { id: 'CHANGES', label: 'POSITION CHANGES', icon: Activity },
+              { id: 'SECTOR_ROTATION', label: 'SECTOR ROTATION', icon: Compass },
             ] as const
           ).map((tab) => {
             const Icon = tab.icon;
@@ -857,7 +917,7 @@ export default function InstitutionalActivityScreen({
       </div>
 
       {/* 4. SERVER API KEY MISSING OR RATE-LIMIT STATE */}
-      {requiresKey ? (
+      {requiresKey && activeTab !== 'SECTOR_ROTATION' ? (
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="max-w-xl w-full bg-black border border-[#333] rounded p-5 space-y-3">
             <div className="flex items-center gap-2 text-[#ff9900] font-extrabold text-xs uppercase tracking-wider">
@@ -2111,6 +2171,23 @@ export default function InstitutionalActivityScreen({
                 )}
               </div>
             </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* SECTION E: SECTOR ROTATION                                     */}
+          {/* ============================================================== */}
+          {activeTab === 'SECTOR_ROTATION' && (
+            <SectorRotationPanel
+              data={sectorData}
+              loading={sectorLoading}
+              error={sectorError}
+              windowDays={sectorWindowDays}
+              onWindowDaysChange={(days) => setSectorWindowDays(days)}
+              onRefresh={() => void fetchSectorRotation(true)}
+              onInspectSecurity={openSecurityHoldingsFromTable}
+              onInspectInvestor={openInvestorProfileFromTable}
+              onSelectEtfTicker={onSelectTicker}
+            />
           )}
         </div>
       )}
