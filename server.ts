@@ -3472,6 +3472,97 @@ async function fetchYahooTickerRssIntros(
   return { byGuid, byTitle, items };
 }
 
+function normalizeNewsUrl(rawUrl?: string): string {
+  if (!rawUrl || typeof rawUrl !== "string") return "";
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return "";
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    const pathname = parsed.pathname.replace(/\/+$/, "") || "/";
+    const keptParams = new URLSearchParams();
+    parsed.searchParams.forEach((value, key) => {
+      const lowerKey = key.toLowerCase();
+      if (
+        lowerKey.startsWith("utm_") ||
+        lowerKey === "fbclid" ||
+        lowerKey === "gclid" ||
+        lowerKey === "ref" ||
+        lowerKey === "src" ||
+        lowerKey === "ocid" ||
+        lowerKey === "guccounter" ||
+        lowerKey === "guce_referrer" ||
+        lowerKey === "guce_referrer_sig"
+      ) {
+        return;
+      }
+      keptParams.append(key, value);
+    });
+    const query = keptParams.toString();
+    return `${host}${pathname}${query ? `?${query}` : ""}`;
+  } catch {
+    return trimmed.toLowerCase().replace(/\/+$/, "");
+  }
+}
+
+function normalizeNewsTitle(rawTitle?: string): string {
+  if (!rawTitle || typeof rawTitle !== "string") return "";
+  return decodeNewsText(rawTitle)
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const NEWS_DEDUP_STOPWORDS = new Set([
+  "with", "that", "from", "this", "have", "been", "about", "will",
+  "after", "over", "amid", "says", "near", "under", "into",
+]);
+
+function extractSignificantNewsWords(title: string): string[] {
+  return normalizeNewsTitle(title)
+    .split(" ")
+    .filter((w) => w.length > 3 && !NEWS_DEDUP_STOPWORDS.has(w));
+}
+
+function deduplicateNewsItems<T extends { title?: string; url?: string }>(items: T[]): T[] {
+  const seenUrls = new Set<string>();
+  const seenTitles = new Set<string>();
+  const keptWordSets: string[][] = [];
+  const result: T[] = [];
+
+  for (const item of items) {
+    const normTitle = normalizeNewsTitle(item?.title);
+    if (!normTitle) continue;
+    const normUrl = normalizeNewsUrl(item?.url);
+
+    if (normUrl && seenUrls.has(normUrl)) continue;
+    if (seenTitles.has(normTitle)) continue;
+
+    const words = extractSignificantNewsWords(item?.title || "");
+    let isTopicDup = false;
+    if (words.length > 0) {
+      for (const existingWords of keptWordSets) {
+        if (existingWords.length === 0) continue;
+        const common = words.filter((w) => existingWords.includes(w));
+        const overlap = common.length / Math.min(words.length, existingWords.length);
+        if (overlap > 0.5) {
+          isTopicDup = true;
+          break;
+        }
+      }
+    }
+    if (isTopicDup) continue;
+
+    if (normUrl) seenUrls.add(normUrl);
+    seenTitles.add(normTitle);
+    keptWordSets.push(words);
+    result.push(item);
+  }
+
+  return result;
+}
+
 function analyzeNewsSentiment(_text: string): "positive" | "negative" | "neutral" {
   // News sentiment scoring temporarily disabled until accuracy is improved
   /*
@@ -3681,7 +3772,9 @@ app.get("/api/news/ticker", async (req, res) => {
           url: art.url || "https://www.nytimes.com/section/business",
           publishedAt: art.published_date || art.created_date || new Date().toISOString()
         }));
-        const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+        const filtered = deduplicateNewsItems(
+          mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content))
+        ).slice(0, 15);
         newsProviderCache.nyt = { timestamp: Date.now(), items: filtered };
         return filtered;
       }
@@ -3729,7 +3822,9 @@ app.get("/api/news/ticker", async (req, res) => {
           url: art.url || "https://newsapi.org",
           publishedAt: art.publishedAt || new Date().toISOString()
         }));
-        const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+        const filtered = deduplicateNewsItems(
+          mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content))
+        ).slice(0, 15);
         newsProviderCache.newsapi = { timestamp: Date.now(), items: filtered };
         return filtered;
       }
@@ -3774,7 +3869,9 @@ app.get("/api/news/ticker", async (req, res) => {
           url: art.link || "https://newsdata.io",
           publishedAt: art.pubDate || new Date().toISOString()
         }));
-        const filtered = mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content)).slice(0, 15);
+        const filtered = deduplicateNewsItems(
+          mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content))
+        ).slice(0, 15);
         newsProviderCache.newsdata = { timestamp: Date.now(), items: filtered };
         return filtered;
       }
@@ -3831,9 +3928,10 @@ app.get("/api/news/ticker", async (req, res) => {
         });
         if (parsedItems.length >= 15) break;
       }
-      if (parsedItems.length > 0) {
-        newsProviderCache.yahoo = { timestamp: Date.now(), items: parsedItems };
-        return parsedItems;
+      const dedupedYahoo = deduplicateNewsItems(parsedItems).slice(0, 15);
+      if (dedupedYahoo.length > 0) {
+        newsProviderCache.yahoo = { timestamp: Date.now(), items: dedupedYahoo };
+        return dedupedYahoo;
       }
       return newsProviderCache.yahoo.items;
     } catch (err: any) {
@@ -3884,68 +3982,34 @@ app.get("/api/news/ticker", async (req, res) => {
       });
     }
 
-    // Sort all real news by publication date descending (newest first)
-    const sortedNews = [...newsItems].sort((a, b) => {
-      const pubA = a.publishedAt || a.published_date || a.pubDate || '';
-      const pubB = b.publishedAt || b.published_date || b.pubDate || '';
-      if (!pubA) return 1;
-      if (!pubB) return -1;
-      return new Date(pubB).getTime() - new Date(pubA).getTime();
-    });
+    // Sort all real news by publication date descending (newest first) and deduplicate strictly
+    const sortedNews = deduplicateNewsItems(
+      [...newsItems].sort((a, b) => {
+        const pubA = a.publishedAt || a.published_date || a.pubDate || '';
+        const pubB = b.publishedAt || b.published_date || b.pubDate || '';
+        if (!pubA) return 1;
+        if (!pubB) return -1;
+        return new Date(pubB).getTime() - new Date(pubA).getTime();
+      })
+    );
 
-    // Determine today's date in New York (ET), where the stock markets trade
-    const nowETStr = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    const nowET = new Date(nowETStr);
-    const todayYear = nowET.getFullYear();
-    const todayMonth = nowET.getMonth();
-    const todayDate = nowET.getDate();
-
-    // Filter for the current calendar date in ET (today)
-    const filteredNews = sortedNews.filter(item => {
+    // Prefer headlines published within a rolling 24-hour window (avoids midnight-ET cliff
+    // collapsing a 15-article feed down to 1 headline right after 00:00 ET).
+    const nowMs = Date.now();
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    const FUTURE_SKEW_MS = 12 * 60 * 60 * 1000;
+    const recentNews = sortedNews.filter((item) => {
       const pubStr = item.publishedAt || item.published_date || item.pubDate;
       if (!pubStr) return false;
-      try {
-        const itemDate = new Date(pubStr);
-        const itemETStr = itemDate.toLocaleString("en-US", { timeZone: "America/New_York" });
-        const itemET = new Date(itemETStr);
-        return itemET.getFullYear() === todayYear &&
-               itemET.getMonth() === todayMonth &&
-               itemET.getDate() === todayDate;
-      } catch {
-        return false;
-      }
+      const itemMs = new Date(pubStr).getTime();
+      if (Number.isNaN(itemMs)) return false;
+      const ageMs = nowMs - itemMs;
+      return ageMs >= -FUTURE_SKEW_MS && ageMs <= ONE_DAY_MS;
     });
 
-    const finalNewsPool = filteredNews.length > 0 ? filteredNews : sortedNews;
-
-    // Deduplicate headlines for the same topic (using keyword overlap)
-    const deduplicatedNews: any[] = [];
-    for (const art of finalNewsPool) {
-      let isDup = false;
-      for (const existing of deduplicatedNews) {
-        const getWords = (t: string) => t.toLowerCase()
-          .replace(/[^\w\s]/g, '')
-          .split(/\s+/)
-          .filter(w => w.length > 3 && !['with', 'that', 'from', 'this', 'have', 'been', 'about', 'will', 'after', 'over', 'amid', 'says', 'near', 'under', 'into'].includes(w));
-        
-        const w1 = getWords(art.title);
-        const w2 = getWords(existing.title);
-        
-        if (w1.length > 0 && w2.length > 0) {
-          const common = w1.filter(w => w2.includes(w));
-          const overlap = common.length / Math.min(w1.length, w2.length);
-          if (overlap > 0.5) {
-            isDup = true;
-            break;
-          }
-        }
-      }
-      if (!isDup) {
-        deduplicatedNews.push(art);
-      }
-    }
-
-    const finalNewsSlice = deduplicatedNews.slice(0, 40);
+    const minFreshCount = rotateMode ? 6 : 1;
+    const finalNewsPool = recentNews.length >= minFreshCount ? recentNews : sortedNews;
+    const finalNewsSlice = finalNewsPool.slice(0, 40);
 
     return res.json({
       success: true,

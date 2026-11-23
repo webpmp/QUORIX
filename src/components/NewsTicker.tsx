@@ -23,6 +23,65 @@ function getCurrentRotationSlot(): number {
   return Math.floor(Date.now() / ROTATION_INTERVAL_MS);
 }
 
+function normalizeTickerUrl(rawUrl?: string): string {
+  if (!rawUrl) return '';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    const pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+    const keptParams = new URLSearchParams();
+    parsed.searchParams.forEach((value, key) => {
+      const lowerKey = key.toLowerCase();
+      if (
+        lowerKey.startsWith('utm_') ||
+        lowerKey === 'fbclid' ||
+        lowerKey === 'gclid' ||
+        lowerKey === 'ref' ||
+        lowerKey === 'src' ||
+        lowerKey === 'ocid'
+      ) {
+        return;
+      }
+      keptParams.append(key, value);
+    });
+    const query = keptParams.toString();
+    return `${host}${pathname}${query ? `?${query}` : ''}`;
+  } catch {
+    return trimmed.toLowerCase().replace(/\/+$/, '');
+  }
+}
+
+function normalizeTickerTitle(rawTitle?: string): string {
+  if (!rawTitle) return '';
+  return rawTitle
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function deduplicateTickerNews(items: NewsItem[]): NewsItem[] {
+  const seenUrls = new Set<string>();
+  const seenTitles = new Set<string>();
+  const unique: NewsItem[] = [];
+
+  for (const item of items) {
+    const normTitle = normalizeTickerTitle(item?.title);
+    if (!normTitle) continue;
+    const normUrl = normalizeTickerUrl(item?.url);
+    if (normUrl && seenUrls.has(normUrl)) continue;
+    if (seenTitles.has(normTitle)) continue;
+
+    if (normUrl) seenUrls.add(normUrl);
+    seenTitles.add(normTitle);
+    unique.push(item);
+  }
+
+  return unique;
+}
+
 export default function NewsTicker() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [configuredSources, setConfiguredSources] = useState<{
@@ -35,7 +94,7 @@ export default function NewsTicker() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState<boolean>(false);
-  const [repeatCount, setRepeatCount] = useState<number>(1);
+  const [viewportWidth, setViewportWidth] = useState<number>(0);
   const [marqueeDurationSec, setMarqueeDurationSec] = useState<number>(150);
   const [feedVersion, setFeedVersion] = useState<number>(0);
   const lastSlotRef = React.useRef<number>(getCurrentRotationSlot());
@@ -97,13 +156,13 @@ export default function NewsTicker() {
       const result: NewsTickerResponse = JSON.parse(rawText);
       if (result.success && Array.isArray(result.data)) {
         setError(null);
+        const uniqueNews = deduplicateTickerNews(result.data);
         const nextSource = result.activeSource ?? null;
-        const nextSig = `${nextSource || ''}|${result.data.map((item) => `${item.id}:${item.title}`).join('|')}`;
+        const nextSig = `${nextSource || ''}|${uniqueNews.map((item) => `${item.id}:${item.title}:${item.url || ''}`).join('|')}`;
         if (nextSig !== lastFeedSigRef.current) {
           lastFeedSigRef.current = nextSig;
-          newsCountRef.current = result.data.length;
-          setRepeatCount(1);
-          setNews(result.data);
+          newsCountRef.current = uniqueNews.length;
+          setNews(uniqueNews);
           setFeedVersion((v) => v + 1);
         }
         if (result.configuredSources) {
@@ -162,24 +221,17 @@ export default function NewsTicker() {
     const vpEl = viewportRef.current;
     if (!seqEl || !vpEl || news.length === 0) return;
 
-    const seqWidth = seqEl.getBoundingClientRect().width;
-    const vpWidth = vpEl.getBoundingClientRect().width;
-    if (seqWidth <= 0) return;
-
-    if (vpWidth > 0 && seqWidth < vpWidth + 100 && repeatCount < 20) {
-      const singlePassWidth = seqWidth / repeatCount;
-      if (singlePassWidth > 0) {
-        const needed = Math.min(20, Math.max(repeatCount + 1, Math.ceil((vpWidth + 200) / singlePassWidth)));
-        if (needed > repeatCount) {
-          setRepeatCount(needed);
-          return;
-        }
-      }
+    const vpWidth = Math.ceil(vpEl.getBoundingClientRect().width);
+    if (vpWidth > 0) {
+      setViewportWidth((prev) => (Math.abs(prev - vpWidth) > 1 ? vpWidth : prev));
     }
+
+    const seqWidth = Math.max(seqEl.getBoundingClientRect().width, vpWidth);
+    if (seqWidth <= 0) return;
 
     const nextDuration = Math.max(1, Number((seqWidth / TICKER_SPEED_PX_PER_SEC).toFixed(2)));
     setMarqueeDurationSec((prev) => (Math.abs(prev - nextDuration) > 0.05 ? nextDuration : prev));
-  }, [news.length, repeatCount]);
+  }, [news.length]);
 
   React.useLayoutEffect(() => {
     updateMarqueeMetrics();
@@ -199,15 +251,6 @@ export default function NewsTicker() {
     return () => observer.disconnect();
   }, [updateMarqueeMetrics, feedVersion]);
 
-  const repeatedNews = React.useMemo(() => {
-    if (repeatCount <= 1 || news.length === 0) return news;
-    const expanded: NewsItem[] = [];
-    for (let i = 0; i < repeatCount; i++) {
-      expanded.push(...news);
-    }
-    return expanded;
-  }, [news, repeatCount]);
-
   return (
     <div className="bg-[#0b0b0b] border-t border-[#333] select-none text-xs font-mono py-1 flex items-center relative z-20 h-9 overflow-hidden w-full">
       {/* Styles for continuous marquee animation */}
@@ -225,6 +268,9 @@ export default function NewsTicker() {
           width: max-content;
           will-change: transform;
           animation: marquee-scroll ${marqueeDurationSec}s linear infinite;
+        }
+        .marquee-sequence {
+          min-width: ${viewportWidth > 0 ? `${viewportWidth}px` : '100%'};
         }
         .animate-marquee-continuous:hover,
         .animate-marquee-paused {
@@ -312,8 +358,8 @@ export default function NewsTicker() {
             className={`animate-marquee-continuous${isPaused ? ' animate-marquee-paused' : ''}`}
           >
             {/* First sequence */}
-            <div ref={firstSequenceRef} className="flex items-center gap-12 pr-12">
-              {repeatedNews.map((item, index) => {
+            <div ref={firstSequenceRef} className="marquee-sequence flex items-center gap-12 pr-12">
+              {news.map((item, index) => {
                 /* Sentiment temporarily disabled until accuracy is improved
                 const sentimentColor = 
                   item.sentiment === 'positive' ? 'text-[#00ff00]' : 
@@ -353,8 +399,8 @@ export default function NewsTicker() {
             </div>
 
             {/* Identical cloned second sequence for seamless loop */}
-            <div className="flex items-center gap-12 pr-12">
-              {repeatedNews.map((item, index) => {
+            <div className="marquee-sequence flex items-center gap-12 pr-12" aria-hidden="true">
+              {news.map((item, index) => {
                 /* Sentiment temporarily disabled until accuracy is improved
                 const sentimentColor = 
                   item.sentiment === 'positive' ? 'text-[#00ff00]' : 
@@ -370,6 +416,7 @@ export default function NewsTicker() {
                     href={item.url}
                     target="_blank"
                     referrerPolicy="no-referrer"
+                    tabIndex={-1}
                     className="flex items-center gap-2 hover:bg-zinc-900/60 py-0.5 px-2 rounded border border-transparent hover:border-[#333] transition-all group whitespace-nowrap shrink-0"
                     title={item.title}
                   >

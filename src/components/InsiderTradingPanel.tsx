@@ -176,16 +176,6 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
           <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
             INSIDER TRADING
           </h2>
-          {normalizedTicker && (
-            <>
-              <span className="text-zinc-700 text-[10px]">·</span>
-              <span className="text-[10px] text-zinc-300 font-bold uppercase">
-                {normalizedTicker}
-              </span>
-            </>
-          )}
-          <span className="text-zinc-700 text-[10px]">·</span>
-          <span className="text-[10px] text-zinc-500 uppercase">SEC FORM 3/4/5 · 3SPREAD</span>
         </div>
 
         <div className="flex items-center gap-2 text-[10px] text-zinc-500">

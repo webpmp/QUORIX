@@ -347,7 +347,7 @@ export default function Workspace({
 
   const renderTextSizeControl = () => (
     <div className="flex items-center gap-1.5 font-mono select-none shrink-0">
-      <span className="text-[10px] text-zinc-500 uppercase tracking-wider hidden sm:inline mr-0.5">
+      <span className="hidden sm:inline-flex items-center text-[10px] leading-none text-zinc-500 uppercase tracking-wider mr-0.5">
         TEXT SIZE
       </span>
       <button
@@ -356,11 +356,11 @@ export default function Workspace({
         disabled={bwriteFontIdx === 0}
         title="Decrease text size"
         aria-label="Decrease text size"
-        className="px-2 py-0.5 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] font-bold transition-colors cursor-pointer"
+        className="inline-flex items-center justify-center px-2 py-1 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] leading-none font-bold transition-colors cursor-pointer"
       >
         A-
       </button>
-      <span className="text-[10px] text-[#ff9900] font-bold min-w-[34px] text-center">
+      <span className="inline-flex items-center justify-center text-[10px] leading-none text-[#ff9900] font-bold min-w-[34px] text-center">
         {activeBwriteFont.label}
       </span>
       <button
@@ -369,7 +369,7 @@ export default function Workspace({
         disabled={bwriteFontIdx === BWRITE_FONT_SCALES.length - 1}
         title="Increase text size"
         aria-label="Increase text size"
-        className="px-2 py-0.5 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] font-bold transition-colors cursor-pointer"
+        className="inline-flex items-center justify-center px-2 py-1 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] leading-none font-bold transition-colors cursor-pointer"
       >
         A+
       </button>
@@ -1068,7 +1068,7 @@ export default function Workspace({
           {/* Ticker Headlines */}
           <div className="bg-[#050505] border border-[#333] p-3 rounded">
             <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block border-b border-[#333] pb-1.5 mb-2 select-none">
-              {selectedTicker} Headlines (24H)
+              {selectedTicker} Headlines
             </span>
             {newsLoading ? (
               <div className="flex items-center gap-1.5 py-3 text-[10px] text-zinc-500 font-mono">
@@ -1124,6 +1124,7 @@ export default function Workspace({
           stocks={stocks}
           trackedTickers={trackedTickers}
           seedTicker={corrSeedTicker}
+          onExecuteCommand={onExecuteCommand}
         />
       )}
 

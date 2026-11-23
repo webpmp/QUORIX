@@ -69,6 +69,8 @@ export interface NewsItem {
   sentiment: 'positive' | 'negative' | 'neutral';
   classification?: string;
   content?: string;
+  url?: string;
+  publishedAt?: string;
 }
 
 export interface EconomicIndicator {

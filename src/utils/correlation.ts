@@ -828,6 +828,8 @@ export interface CorrelationInsight {
   title: string;
   summary: string;
   metricLabel: string;
+  metricTickers?: string[];
+  metricValue?: string;
   tone: 'positive' | 'negative' | 'warning' | 'neutral';
 }
 
@@ -871,6 +873,8 @@ export function generateCorrelationInsights(
       title: 'Strong Relationship',
       summary: `${strongestPos.a} and ${strongestPos.b} exhibit a ${band.label.toLowerCase()} linear correlation (${formatCorrelationValue(strongestPos.r)}) across ${strongestPos.n} overlapping daily sessions over the ${cfg.label} lookback.`,
       metricLabel: `${strongestPos.a} / ${strongestPos.b}: ${formatCorrelationValue(strongestPos.r)}`,
+      metricTickers: [strongestPos.a, strongestPos.b],
+      metricValue: formatCorrelationValue(strongestPos.r),
       tone: 'positive',
     });
   }
@@ -886,6 +890,8 @@ export function generateCorrelationInsights(
       title: 'Inverse Co-Movement',
       summary: `${strongestNeg.a} and ${strongestNeg.b} show a ${band.label.toLowerCase()} relationship (${formatCorrelationValue(strongestNeg.r)}) over ${strongestNeg.n} overlapping daily sessions, tending to move in opposite directions during this window.`,
       metricLabel: `${strongestNeg.a} / ${strongestNeg.b}: ${formatCorrelationValue(strongestNeg.r)}`,
+      metricTickers: [strongestNeg.a, strongestNeg.b],
+      metricValue: formatCorrelationValue(strongestNeg.r),
       tone: 'negative',
     });
   }
@@ -968,6 +974,8 @@ export function generateCorrelationInsights(
         title: 'Lower Historical Co-Movement',
         summary: `${lowest.symbol} exhibits the lowest average historical correlation with the other ${lowest.peerCount} selected securities (mean ${formatCorrelationValue(lowest.meanSigned)}, mean |r| ${lowest.meanAbs.toFixed(2)} over ${cfg.label}). Historical independence can break down during market stress.`,
         metricLabel: `${lowest.symbol} avg r: ${formatCorrelationValue(lowest.meanSigned)}`,
+        metricTickers: [lowest.symbol],
+        metricValue: `avg r: ${formatCorrelationValue(lowest.meanSigned)}`,
         tone: 'neutral',
       });
     }

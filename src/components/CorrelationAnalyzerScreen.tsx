@@ -152,6 +152,7 @@ export interface CorrelationAnalyzerScreenProps {
   initialSeriesMap?: Record<string, SecurityHistorySeries>;
   initialLookback?: LookbackPeriodId;
   initialRollingWindow?: number;
+  onExecuteCommand?: (cmd: string) => void;
 }
 
 interface SearchCandidate {
@@ -1046,6 +1047,7 @@ export default function CorrelationAnalyzerScreen({
   initialSeriesMap,
   initialLookback = DEFAULT_LOOKBACK_PERIOD,
   initialRollingWindow = DEFAULT_ROLLING_WINDOW,
+  onExecuteCommand,
 }: CorrelationAnalyzerScreenProps) {
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>(() => {
     if (Array.isArray(initialSymbols)) {
@@ -1332,6 +1334,19 @@ export default function CorrelationAnalyzerScreen({
     await handleAddSymbol(upper);
   };
 
+  const handlePopulateTickerInput = useCallback(
+    (symbol: string) => {
+      const normalized = normalizeTickerSymbol(symbol);
+      if (!normalized) return;
+      onExecuteCommand?.(normalized);
+      const terminalInput = document.getElementById('terminal-input') as HTMLInputElement | null;
+      if (terminalInput) {
+        terminalInput.focus();
+      }
+    },
+    [onExecuteCommand]
+  );
+
   const handleRemoveSymbol = (sym: string) => {
     setSelectionNotice(null);
     setSelectedSymbols((prev) => prev.filter((s) => s !== sym));
@@ -1580,10 +1595,10 @@ export default function CorrelationAnalyzerScreen({
               <button
                 type="submit"
                 disabled={!searchQuery.trim() || validatingSymbol !== null}
-                className="px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] uppercase flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
+                className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] leading-none uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
               >
-                <Plus size={11} />
-                <span>{validatingSymbol ? 'VALIDATING...' : 'ADD'}</span>
+                <Plus size={11} className="shrink-0" />
+                <span className="leading-none">{validatingSymbol ? 'VALIDATING...' : 'ADD'}</span>
               </button>
             </form>
 
@@ -2473,7 +2488,45 @@ export default function CorrelationAnalyzerScreen({
                     <p className="text-[11px] text-zinc-300 leading-relaxed">{item.summary}</p>
                   </div>
                   <div className="text-[10.5px] font-bold text-zinc-200 tabular-nums whitespace-nowrap shrink-0">
-                    {item.metricLabel}
+                    {item.metricTickers && item.metricTickers.length === 2 && item.metricValue ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handlePopulateTickerInput(item.metricTickers![0])}
+                          title={`Populate ticker input with ${item.metricTickers[0]}`}
+                          aria-label={`Populate ticker input with ${item.metricTickers[0]}`}
+                          className="text-[#3498db] hover:text-[#ff9900] focus-visible:text-[#ff9900] font-bold cursor-pointer transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] rounded-xs"
+                        >
+                          {item.metricTickers[0]}
+                        </button>
+                        <span className="text-zinc-500"> / </span>
+                        <button
+                          type="button"
+                          onClick={() => handlePopulateTickerInput(item.metricTickers![1])}
+                          title={`Populate ticker input with ${item.metricTickers[1]}`}
+                          aria-label={`Populate ticker input with ${item.metricTickers[1]}`}
+                          className="text-[#3498db] hover:text-[#ff9900] focus-visible:text-[#ff9900] font-bold cursor-pointer transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] rounded-xs"
+                        >
+                          {item.metricTickers[1]}
+                        </button>
+                        <span>: {item.metricValue}</span>
+                      </>
+                    ) : item.metricTickers && item.metricTickers.length === 1 && item.metricValue ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handlePopulateTickerInput(item.metricTickers![0])}
+                          title={`Populate ticker input with ${item.metricTickers[0]}`}
+                          aria-label={`Populate ticker input with ${item.metricTickers[0]}`}
+                          className="text-[#3498db] hover:text-[#ff9900] focus-visible:text-[#ff9900] font-bold cursor-pointer transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] rounded-xs"
+                        >
+                          {item.metricTickers[0]}
+                        </button>
+                        <span> {item.metricValue}</span>
+                      </>
+                    ) : (
+                      item.metricLabel
+                    )}
                   </div>
                 </div>
               ))}
