@@ -48,6 +48,13 @@ import {
   getSectorRotationData,
 } from "./src/server/sectorRotationService";
 import {
+  SECTOR_BY_ID,
+  isBroadMarketOrMultiSectorFund,
+  mapMarketSectorToGicsSector,
+  matchDirectSectorEtf,
+} from "./src/utils/sectorRotation";
+import type { PortfolioSecurityMetadata } from "./src/types";
+import {
   DIAGNOSTIC_PROVIDER_SET,
   runProviderConnectionTest,
   type DiagnosticProviderId,
@@ -2757,6 +2764,262 @@ app.get("/api/market/search", async (req, res) => {
   } catch (err: any) {
     const safeMsg = redactErrorMessage(err, "Unable to search securities.");
     return res.json({ success: false, error: safeMsg, results: [] });
+  }
+});
+
+// Batch portfolio security metadata endpoint (price + name + verified sector/industry; reuses Yahoo chart/search & quoteCache)
+const portfolioMetaCache = new Map<string, { timestamp: number; data: PortfolioSecurityMetadata }>();
+const PORTFOLIO_META_CACHE_TTL_MS = 10 * 60 * 1000;
+const PORTFOLIO_PRICE_FRESH_TTL_MS = 60 * 1000;
+const MAX_PORTFOLIO_META_CACHE = 400;
+
+async function resolveSinglePortfolioMetadata(
+  rawSymbol: string,
+  force = false
+): Promise<PortfolioSecurityMetadata> {
+  const sym = rawSymbol.toUpperCase().trim();
+  const now = Date.now();
+  const cachedMeta = portfolioMetaCache.get(sym);
+
+  if (
+    !force &&
+    cachedMeta &&
+    now - cachedMeta.timestamp < PORTFOLIO_PRICE_FRESH_TTL_MS
+  ) {
+    return cachedMeta.data;
+  }
+
+  const yfSymbol = mapToYahooSymbol(sym);
+
+  // 1. Live price & basic instrument info (reuse existing quoteCache when fresh)
+  let price: number | null = null;
+  let prevClose: number | null = null;
+  let changePercent: number | null = null;
+  let name = cachedMeta?.data.name || sym;
+  let exchange = cachedMeta?.data.exchange || "";
+  let instrumentType = cachedMeta?.data.instrumentType || "EQUITY";
+  let chartValid = false;
+
+  const existingQuote = quoteCache[sym];
+  if (!force && existingQuote && now - existingQuote.timestamp < CACHE_TTL_MS) {
+    const q = existingQuote.quote;
+    if (typeof q?.price === "number" && Number.isFinite(q.price) && q.price > 0) {
+      price = q.price;
+      prevClose = typeof q.prevClose === "number" && Number.isFinite(q.prevClose) ? q.prevClose : null;
+      changePercent =
+        typeof q.changePercent === "number" && Number.isFinite(q.changePercent) ? q.changePercent : null;
+      name = String(q.name || name).trim() || sym;
+      exchange = String(q.exchange || exchange).trim();
+      instrumentType = String(q.instrumentType || instrumentType).toUpperCase();
+      chartValid = true;
+    }
+  }
+
+  if (!chartValid) {
+    try {
+      const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+        yfSymbol
+      )}?interval=1d&range=5d`;
+      const yfResp = await fetch(yfUrl, {
+        headers: { "User-Agent": YAHOO_UA, Accept: "application/json" },
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (yfResp.ok) {
+        const yfData = await yfResp.json();
+        const result = yfData?.chart?.result?.[0];
+        if (result && isValidYahooChartMeta(result.meta)) {
+          const meta = result.meta;
+          chartValid = true;
+          const p =
+            typeof meta.regularMarketPrice === "number" && Number.isFinite(meta.regularMarketPrice) && meta.regularMarketPrice > 0
+              ? meta.regularMarketPrice
+              : null;
+          const pc =
+            typeof meta.regularMarketPreviousClose === "number" && Number.isFinite(meta.regularMarketPreviousClose)
+              ? meta.regularMarketPreviousClose
+              : typeof meta.chartPreviousClose === "number" && Number.isFinite(meta.chartPreviousClose)
+              ? meta.chartPreviousClose
+              : null;
+          price = p;
+          prevClose = pc;
+          changePercent =
+            p !== null && pc !== null && pc > 0
+              ? Number((((p - pc) / pc) * 100).toFixed(2))
+              : null;
+          name = String(meta.longName || meta.shortName || name || sym).trim();
+          exchange = String(meta.fullExchangeName || meta.exchangeName || exchange || "").trim().toUpperCase();
+          if (typeof meta.instrumentType === "string" && meta.instrumentType.trim()) {
+            instrumentType = meta.instrumentType.trim().toUpperCase();
+          }
+        }
+      }
+    } catch {
+      // Fall through to search/cached metadata
+    }
+  }
+
+  // 2. Sector & industry classification (cached for 10 min; reuse Yahoo Search without inventing missing values)
+  let sector: string | null = cachedMeta?.data.sector ?? null;
+  let gicsSectorId = cachedMeta?.data.gicsSectorId ?? null;
+  let industry: string | null = cachedMeta?.data.industry ?? null;
+  let classificationMethod: PortfolioSecurityMetadata["classificationMethod"] =
+    cachedMeta?.data.classificationMethod ?? "unavailable";
+  let searchValid = Boolean(cachedMeta?.data.valid);
+
+  const needsClassificationRefresh =
+    force || !cachedMeta || now - cachedMeta.timestamp >= PORTFOLIO_META_CACHE_TTL_MS;
+
+  if (needsClassificationRefresh) {
+    const searchRes = await fetchYahooSearchDetailed(sym, 6, 0);
+    const matched = searchRes.ok
+      ? searchRes.quotes.find((q: any) => {
+          if (!q || typeof q !== "object" || q.isYahooFinance === false) return false;
+          const qSym = String(q.symbol || "").toUpperCase().trim();
+          return qSym === sym || qSym === yfSymbol.toUpperCase();
+        })
+      : null;
+
+    if (matched) {
+      const qType = String(matched.quoteType || "").toUpperCase().trim();
+      if (VALID_SECURITY_TYPES.has(qType)) {
+        searchValid = true;
+        instrumentType = qType || instrumentType;
+        name = String(matched.longname || matched.shortname || name || sym).trim();
+        exchange = String(matched.exchDisp || matched.exchange || exchange || "").trim().toUpperCase();
+      }
+
+      const rawSector = typeof matched.sectorDisp === "string" && matched.sectorDisp.trim()
+        ? matched.sectorDisp.trim()
+        : typeof matched.sector === "string" && matched.sector.trim()
+        ? matched.sector.trim()
+        : null;
+      const rawIndustry = typeof matched.industryDisp === "string" && matched.industryDisp.trim()
+        ? matched.industryDisp.trim()
+        : typeof matched.industry === "string" && matched.industry.trim()
+        ? matched.industry.trim()
+        : null;
+
+      const directSectorId = matchDirectSectorEtf(name, sym);
+      if (directSectorId) {
+        gicsSectorId = directSectorId;
+        sector = SECTOR_BY_ID[directSectorId].name;
+        industry = rawIndustry || `${SECTOR_BY_ID[directSectorId].name} Sector ETF`;
+        classificationMethod = "sector_etf";
+      } else if (
+        qType === "ETF" ||
+        qType === "MUTUALFUND" ||
+        qType === "INDEX" ||
+        isBroadMarketOrMultiSectorFund(name)
+      ) {
+        gicsSectorId = null;
+        sector = null;
+        industry = null;
+        classificationMethod = "unclassified_fund";
+      } else if (rawSector) {
+        const mappedGics = mapMarketSectorToGicsSector(rawSector);
+        gicsSectorId = mappedGics;
+        sector = mappedGics ? SECTOR_BY_ID[mappedGics].name : rawSector;
+        industry = rawIndustry;
+        classificationMethod = "yahoo_search";
+      } else {
+        gicsSectorId = null;
+        sector = null;
+        industry = null;
+        classificationMethod = "unavailable";
+      }
+    } else if (chartValid) {
+      const directSectorId = matchDirectSectorEtf(name, sym);
+      if (directSectorId) {
+        gicsSectorId = directSectorId;
+        sector = SECTOR_BY_ID[directSectorId].name;
+        industry = `${SECTOR_BY_ID[directSectorId].name} Sector ETF`;
+        classificationMethod = "sector_etf";
+      } else if (
+        instrumentType === "ETF" ||
+        instrumentType === "MUTUALFUND" ||
+        instrumentType === "INDEX" ||
+        isBroadMarketOrMultiSectorFund(name)
+      ) {
+        classificationMethod = "unclassified_fund";
+      } else {
+        classificationMethod = "unavailable";
+      }
+    }
+  }
+
+  const valid = chartValid || searchValid;
+  const record: PortfolioSecurityMetadata = {
+    symbol: sym,
+    valid,
+    name: valid ? name : sym,
+    exchange,
+    instrumentType,
+    price,
+    prevClose,
+    changePercent,
+    sector,
+    gicsSectorId,
+    industry,
+    classificationMethod,
+    fetchedAt: new Date(now).toISOString(),
+    error: valid ? null : `Symbol "${sym}" could not be verified as a valid market security.`,
+  };
+
+  if (valid) {
+    if (portfolioMetaCache.size >= MAX_PORTFOLIO_META_CACHE) {
+      const oldest = portfolioMetaCache.keys().next().value;
+      if (oldest) portfolioMetaCache.delete(oldest);
+    }
+    portfolioMetaCache.set(sym, { timestamp: now, data: record });
+  }
+
+  return record;
+}
+
+app.get("/api/portfolio/metadata", async (req, res) => {
+  try {
+    const rawSymbols = typeof req.query.symbols === "string" ? req.query.symbols : "";
+    const force = req.query.force === "true";
+    const parsedSymbols = Array.from(
+      new Set(
+        rawSymbols
+          .split(",")
+          .map((s) => s.toUpperCase().trim())
+          .filter((s) => /^[A-Z0-9^][A-Z0-9.-]{0,11}$/.test(s))
+      )
+    ).slice(0, 40);
+
+    if (parsedSymbols.length === 0) {
+      return res.json({ success: true, metadata: {} });
+    }
+
+    // Bounded concurrency of 6 to stay polite to upstream Yahoo endpoints
+    const results = new Array<PortfolioSecurityMetadata>(parsedSymbols.length);
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < parsedSymbols.length) {
+        const idx = cursor++;
+        results[idx] = await resolveSinglePortfolioMetadata(parsedSymbols[idx], force);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(6, parsedSymbols.length) }, () => worker())
+    );
+
+    const metadata: Record<string, PortfolioSecurityMetadata> = {};
+    for (const item of results) {
+      metadata[item.symbol] = item;
+    }
+
+    return res.json({
+      success: true,
+      metadata,
+      benchmarkSectorWeightsAvailable: false,
+      fetchedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    const safeMsg = redactErrorMessage(err, "Unable to retrieve portfolio security metadata.");
+    return res.status(500).json({ success: false, error: safeMsg, metadata: {} });
   }
 });
 

@@ -565,3 +565,61 @@ export interface InsiderTradingResponse {
   error?: string | null;
 }
 
+export type PortfolioHoldingSource = 'manual' | 'csv' | 'tracked_watchlist';
+
+export interface PortfolioHolding {
+  id: string;
+  ticker: string;
+  shares: number;
+  avgCostBasis: number | null;
+  source: PortfolioHoldingSource;
+  updatedAt: string;
+}
+
+export interface PortfolioAccount {
+  id: string;
+  name: string;
+  cashBalance: number;
+  holdings: PortfolioHolding[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PortfolioStoreState {
+  version: 1;
+  activePortfolioId: string | null;
+  portfolios: PortfolioAccount[];
+}
+
+export interface PortfolioRiskThresholds {
+  maxSinglePositionPct: number;
+  minPositionPct: number;
+  maxTop5Pct: number;
+  maxSectorPct: number;
+  highCorrelationThreshold: number;
+}
+
+export type SecurityClassificationMethod =
+  | 'yahoo_search'
+  | 'sector_etf'
+  | 'unclassified_fund'
+  | 'unavailable';
+
+export interface PortfolioSecurityMetadata {
+  symbol: string;
+  valid: boolean;
+  name: string;
+  exchange: string;
+  instrumentType: string;
+  price: number | null;
+  prevClose: number | null;
+  changePercent: number | null;
+  sector: string | null;
+  gicsSectorId: SectorId | null;
+  industry: string | null;
+  classificationMethod: SecurityClassificationMethod;
+  fetchedAt: string;
+  error?: string | null;
+}
+
+

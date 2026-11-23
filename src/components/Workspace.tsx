@@ -13,6 +13,7 @@ import { CurrenciesScreen } from './CurrenciesScreen';
 import { InsiderTradingPanel } from './InsiderTradingPanel';
 import PolymarketScreen from './PolymarketScreen';
 import InstitutionalActivityScreen from './InstitutionalActivityScreen';
+import PortfolioRiskMonitorScreen from './PortfolioRiskMonitorScreen';
 import {
   countDistinctTradingDays,
   deduplicateAndSortHistoricalBars,
@@ -37,6 +38,7 @@ interface WorkspaceProps {
   onRefreshEconomics?: () => void;
   onRefreshCurrencies?: () => void;
   onExecuteCommand: (cmd: string) => void;
+  onSelectScreen?: (screenCode: string) => void;
   onSelectTicker?: (ticker: string) => void;
   pendingAiQuery?: { id: number; text: string } | null;
   onClearPendingAiQuery?: () => void;
@@ -306,6 +308,7 @@ export default function Workspace({
   onRefreshEconomics,
   onRefreshCurrencies,
   onExecuteCommand,
+  onSelectScreen,
   onSelectTicker,
   pendingAiQuery,
   onClearPendingAiQuery,
@@ -1125,6 +1128,23 @@ export default function Workspace({
           trackedTickers={trackedTickers}
           seedTicker={corrSeedTicker}
           onExecuteCommand={onExecuteCommand}
+        />
+      )}
+
+      {/* 1C. PRM: PORTFOLIO RISK MONITOR SCREEN */}
+      {activeScreen === 'PRM' && (
+        <PortfolioRiskMonitorScreen
+          stocks={stocks}
+          trackedTickers={trackedTickers}
+          onSelectTicker={onSelectTicker}
+          onExecuteCommand={onExecuteCommand}
+          onOpenCorrWorkspace={() => {
+            if (onSelectScreen) {
+              onSelectScreen('CORR');
+            } else {
+              onExecuteCommand('CORR');
+            }
+          }}
         />
       )}
 
@@ -2342,7 +2362,7 @@ export default function Workspace({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1 border-b border-[#222]/35">
               <span className="text-[#3498db] font-bold">DIRECTORY_CODES</span>
-              <span className="text-zinc-200">INST, CRNC, ECO, POLY, BWRITE, HELP</span>
+              <span className="text-zinc-200">CORR, PRM, INST, CRNC, ECO, POLY, BWRITE, HELP</span>
               <span className="text-zinc-500">Instant directory modules access directly.</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1">
@@ -2391,6 +2411,11 @@ export default function Workspace({
                     command: 'CORR',
                     module: 'Correlation Analyzer',
                     description: 'Security correlation & portfolio analysis',
+                  },
+                  {
+                    command: 'PRM',
+                    module: 'Portfolio Risk Monitor',
+                    description: 'Personal portfolio exposure, concentration, volatility, correlation & downside stress testing',
                   },
                   {
                     command: 'HP',

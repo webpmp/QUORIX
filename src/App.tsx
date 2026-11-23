@@ -335,7 +335,7 @@ export default function App() {
     const primary = parts[0];
     const secondary = parts.length > 1 ? parts[1] : null;
 
-    const directScreens = ['GP', 'CORR', 'HP', 'DES', 'ANR', 'INST', '13F', 'NEWS', 'CRNC', 'ECO', 'POLY', 'BWRITE', 'HELP', 'HLP', 'SETT', 'SETTINGS'];
+    const directScreens = ['GP', 'CORR', 'PRM', 'HP', 'DES', 'ANR', 'INST', '13F', 'NEWS', 'CRNC', 'ECO', 'POLY', 'BWRITE', 'HELP', 'HLP', 'SETT', 'SETTINGS'];
     const resolveScreenCode = (code: string): string => {
       if (code === 'SETTINGS' || code === 'SETT') return 'SETT';
       if (code === 'HLP') return 'HELP';
@@ -467,6 +467,7 @@ export default function App() {
           onExecuteCommand={(cmd) => {
             setCurrentCommand(cmd);
           }}
+          onSelectScreen={handleSelectScreen}
           onSelectTicker={(ticker) => {
             handleSelectTicker(ticker);
             setActiveScreen('GP');

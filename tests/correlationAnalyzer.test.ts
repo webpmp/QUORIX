@@ -91,7 +91,7 @@ function makeDummyStock(symbol = 'AAPL'): StockData {
   };
 }
 
-test('CommandPanel renders CORR immediately after GP and displays 13 ACTIVE while keeping all existing commands', () => {
+test('CommandPanel renders CORR immediately after GP and displays 14 ACTIVE while keeping all existing commands', () => {
   const html = renderToStaticMarkup(
     React.createElement(CommandPanel, {
       stocks: { AAPL: makeDummyStock('AAPL') },
@@ -106,17 +106,18 @@ test('CommandPanel renders CORR immediately after GP and displays 13 ACTIVE whil
     })
   );
 
-  assert.equal(html.includes('13 ACTIVE'), true);
+  assert.equal(html.includes('14 ACTIVE'), true);
   assert.equal(html.includes('CORRELATION ANALYZER'), true);
   assert.equal(html.includes('Correlation &amp; portfolio analysis'), true);
   assert.equal(html.includes('Security correlation &amp; portfolio analysis'), false);
   assert.equal(html.includes('id="cmd-shortcut-CORR"'), true);
 
-  // Verify exact order: GP immediately followed by CORR, immediately followed by HP
+  // Verify exact order: GP followed by CORR, PRM, and HP
   const gpIdx = html.indexOf('id="cmd-shortcut-GP"');
   const corrIdx = html.indexOf('id="cmd-shortcut-CORR"');
+  const prmIdx = html.indexOf('id="cmd-shortcut-PRM"');
   const hpIdx = html.indexOf('id="cmd-shortcut-HP"');
-  assert.ok(gpIdx > -1 && corrIdx > gpIdx && hpIdx > corrIdx);
+  assert.ok(gpIdx > -1 && corrIdx > gpIdx && prmIdx > corrIdx && hpIdx > prmIdx);
 
   // Verify existing commands remain intact
   for (const code of ['BWRITE', 'NEWS', 'GP', 'CORR', 'HP', 'DES', 'ANR', 'INST', 'CRNC', 'ECO', 'POLY', 'SETT', 'HELP']) {
