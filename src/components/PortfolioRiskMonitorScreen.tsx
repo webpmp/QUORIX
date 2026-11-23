@@ -50,6 +50,10 @@ import {
   type EnrichedPortfolioPosition,
 } from '../utils/portfolioRiskEngine';
 import { PortfolioManagerPanel, type PortfolioManagerTab } from './PortfolioManagerPanel';
+import {
+  IndustryAllocationPieChart,
+  getIndustryColorMap,
+} from './IndustryAllocationPieChart';
 import { InfoTooltipIcon, TerminalTooltip } from './TerminalTooltip';
 
 export interface PortfolioRiskMonitorScreenProps {
@@ -342,6 +346,11 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
       setNewShockTicker(analysis.positions[0].ticker);
     }
   }, [analysis, customSectorName, newShockTicker]);
+
+  const industryColorMap = useMemo(
+    () => (analysis ? getIndustryColorMap(analysis.sectorExposure.industries) : {}),
+    [analysis]
+  );
 
   // Custom scenario results
   const customSectorScenario: DownsideScenarioResult | null = useMemo(() => {
@@ -1265,7 +1274,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 </div>
               )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="space-y-3">
               {/* Sector Allocation Visual Chart & Table */}
               <div className="bg-black border border-[#242424] rounded p-3 space-y-3">
                 <div className="text-[10px] text-zinc-400 uppercase font-bold">
@@ -1317,17 +1326,17 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                   <table className="w-full text-left text-[10.5px] border-collapse">
                     <thead>
                       <tr className="border-b border-[#2a2a2a] text-zinc-500 text-[9.5px] uppercase">
-                        <th className="py-1.5 pr-2">Sector</th>
-                        <th className="py-1.5 px-2 text-right">Port %</th>
-                        <th className="py-1.5 px-2 text-right">Value</th>
-                        <th className="py-1.5 px-2">Largest Holdings</th>
-                        <th className="py-1.5 pl-2 text-right">Status</th>
+                        <th className="py-1.5 pr-3 whitespace-nowrap">Sector</th>
+                        <th className="py-1.5 px-3 text-right whitespace-nowrap">Port %</th>
+                        <th className="py-1.5 px-3 text-right whitespace-nowrap">Value</th>
+                        <th className="py-1.5 px-3">Largest Holdings</th>
+                        <th className="py-1.5 pl-3 text-right whitespace-nowrap">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#181818]">
                       {analysis.sectorExposure.sectors.map((sec, idx) => (
                         <tr key={sec.sector} className="hover:bg-[#101010]">
-                          <td className="py-1.5 pr-2 font-semibold text-zinc-100 whitespace-nowrap">
+                          <td className="py-1.5 pr-3 font-semibold text-zinc-100 whitespace-nowrap">
                             <svg
                               width="8"
                               height="8"
@@ -1348,18 +1357,18 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                             </svg>
                             {sec.sector}
                           </td>
-                          <td className="py-1.5 px-2 text-right tabular-nums font-bold text-white">
+                          <td className="py-1.5 px-3 text-right tabular-nums font-bold text-white whitespace-nowrap">
                             {sec.portfolioWeightPct.toFixed(1)}%
                           </td>
-                          <td className="py-1.5 px-2 text-right tabular-nums text-zinc-300">
+                          <td className="py-1.5 px-3 text-right tabular-nums text-zinc-300 whitespace-nowrap">
                             {formatUsd(sec.marketValue, true)}
                           </td>
-                          <td className="py-1.5 px-2 text-zinc-400">
+                          <td className="py-1.5 px-3 text-zinc-400">
                             {sec.largestHoldings
                               .map((h) => `${h.ticker} (${h.weightPct.toFixed(1)}%)`)
                               .join(', ')}
                           </td>
-                          <td className="py-1.5 pl-2 text-right">
+                          <td className="py-1.5 pl-3 text-right whitespace-nowrap">
                             <span
                               className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${
                                 sec.status === 'overweight'
@@ -1378,15 +1387,19 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                       ))}
                       {analysis.cashBalance > 0 && (
                         <tr className="hover:bg-[#101010]">
-                          <td className="py-1.5 pr-2 font-semibold text-[#3498db]">Cash (USD)</td>
-                          <td className="py-1.5 px-2 text-right tabular-nums font-bold text-[#3498db]">
+                          <td className="py-1.5 pr-3 font-semibold text-[#3498db] whitespace-nowrap">
+                            Cash (USD)
+                          </td>
+                          <td className="py-1.5 px-3 text-right tabular-nums font-bold text-[#3498db] whitespace-nowrap">
                             {analysis.cashWeightPct.toFixed(1)}%
                           </td>
-                          <td className="py-1.5 px-2 text-right tabular-nums text-zinc-300">
+                          <td className="py-1.5 px-3 text-right tabular-nums text-zinc-300 whitespace-nowrap">
                             {formatUsd(analysis.cashBalance, true)}
                           </td>
-                          <td className="py-1.5 px-2 text-zinc-500">Liquid Reserve</td>
-                          <td className="py-1.5 pl-2 text-right text-[9px] text-zinc-500 uppercase">CASH</td>
+                          <td className="py-1.5 px-3 text-zinc-500">Liquid Reserve</td>
+                          <td className="py-1.5 pl-3 text-right text-[9px] text-zinc-500 uppercase whitespace-nowrap">
+                            CASH
+                          </td>
                         </tr>
                       )}
                     </tbody>
@@ -1394,34 +1407,67 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 </div>
               </div>
 
-              {/* Industry Breakdown Table */}
-              <div className="bg-black border border-[#242424] rounded p-3 space-y-2.5">
+              {/* Industry Breakdown Pie Chart & Table */}
+              <div className="bg-black border border-[#242424] rounded p-3 space-y-3">
                 <div className="text-[10px] text-zinc-400 uppercase font-bold">
                   INDUSTRY ALLOCATION BREAKDOWN ({analysis.sectorExposure.industries.length})
                 </div>
-                <div className="overflow-x-auto max-h-72 overflow-y-auto">
+
+                <IndustryAllocationPieChart
+                  industries={analysis.sectorExposure.industries}
+                  colorMap={industryColorMap}
+                  cashWeightPct={analysis.cashWeightPct}
+                />
+
+                <div
+                  className={
+                    analysis.sectorExposure.industries.length > 25
+                      ? 'overflow-x-auto max-h-[640px] overflow-y-auto'
+                      : 'overflow-x-auto'
+                  }
+                >
                   <table className="w-full text-left text-[10.5px] border-collapse">
                     <thead>
                       <tr className="border-b border-[#2a2a2a] text-zinc-500 text-[9.5px] uppercase">
-                        <th className="py-1.5 pr-2">Industry</th>
-                        <th className="py-1.5 px-2">Sector</th>
-                        <th className="py-1.5 px-2 text-right">Weight</th>
-                        <th className="py-1.5 pl-2">Holdings</th>
+                        <th className="py-1.5 pr-3">Industry</th>
+                        <th className="py-1.5 px-3 whitespace-nowrap">Sector</th>
+                        <th className="py-1.5 px-3 text-right whitespace-nowrap">Weight</th>
+                        <th className="py-1.5 pl-3">Holdings</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#181818]">
-                      {analysis.sectorExposure.industries.map((ind) => (
-                        <tr key={`${ind.sector}-${ind.industry}`} className="hover:bg-[#101010]">
-                          <td className="py-1.5 pr-2 text-zinc-100 font-medium">{ind.industry}</td>
-                          <td className="py-1.5 px-2 text-zinc-500">{ind.sector}</td>
-                          <td className="py-1.5 px-2 text-right tabular-nums font-bold text-white">
-                            {ind.portfolioWeightPct.toFixed(1)}%
-                          </td>
-                          <td className="py-1.5 pl-2 text-[#3498db] font-bold">
-                            {ind.tickers.join(', ')}
-                          </td>
-                        </tr>
-                      ))}
+                      {analysis.sectorExposure.industries.map((ind) => {
+                        const indKey = `${ind.sector}::${ind.industry}`;
+                        const swatchColor =
+                          ind.portfolioWeightPct > 0
+                            ? industryColorMap[indKey] ?? '#64748b'
+                            : '#3f3f46';
+                        return (
+                          <tr key={`${ind.sector}-${ind.industry}`} className="hover:bg-[#101010]">
+                            <td className="py-1.5 pr-3 text-zinc-100 font-medium">
+                              <svg
+                                width="8"
+                                height="8"
+                                viewBox="0 0 8 8"
+                                className="inline-block mr-1.5 align-middle shrink-0"
+                                aria-hidden="true"
+                              >
+                                <rect width="8" height="8" rx="1.5" fill={swatchColor} />
+                              </svg>
+                              {ind.industry}
+                            </td>
+                            <td className="py-1.5 px-3 text-zinc-500 whitespace-nowrap">
+                              {ind.sector}
+                            </td>
+                            <td className="py-1.5 px-3 text-right tabular-nums font-bold text-white whitespace-nowrap">
+                              {ind.portfolioWeightPct.toFixed(1)}%
+                            </td>
+                            <td className="py-1.5 pl-3 text-[#3498db] font-bold">
+                              {ind.tickers.join(', ')}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1922,8 +1968,8 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           {/* SECTION 6: PORTFOLIO DIVERSIFICATION (CORR INTEGRATION)          */}
           {/* ================================================================ */}
           <section id="prm-diversification" className="bg-[#050505] border border-[#333] rounded p-3.5 space-y-3">
-            <div className="border-b border-[#2a2a2a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
+            <div className="border-b border-[#2a2a2a] pb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   PORTFOLIO DIVERSIFICATION &amp; CORRELATION RISK
                 </h2>
@@ -1933,14 +1979,47 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                   content="Reuses Quorix's CORR Pearson daily-return correlation engine directly to identify correlated clusters, sector overlap, and holdings offering limited diversification."
                 />
               </div>
-              <div className="flex items-center gap-2 text-[10px]">
-                <span
-                  className={`px-2 py-0.5 rounded border font-bold uppercase ${toneBadgeClass(
-                    analysis.diversification.assessmentTone
-                  )}`}
-                >
-                  {analysis.diversification.assessmentLabel}
-                </span>
+              <span
+                className={`px-3 py-1 rounded border text-sm font-extrabold uppercase tracking-wider leading-none shrink-0 ${toneBadgeClass(
+                  analysis.diversification.assessmentTone
+                )}`}
+              >
+                {analysis.diversification.assessmentLabel}
+              </span>
+            </div>
+
+            <div className="bg-black border border-[#242424] rounded p-3 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="space-y-1.5 max-w-3xl min-w-0">
+                <div className={`text-xs font-bold ${toneTextClass(analysis.diversification.assessmentTone)}`}>
+                  {analysis.diversification.assessmentSummary}
+                </div>
+                <ul className="list-disc pl-4 space-y-1 text-[10px] leading-relaxed text-zinc-400 marker:text-zinc-500">
+                  {analysis.diversification.assessmentDrivers.map((d, i) => (
+                    <li key={i}>{d}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="flex flex-col items-start sm:items-end gap-2.5 shrink-0">
+                <div className="flex items-center gap-4 text-left sm:text-right tabular-nums">
+                  <div>
+                    <div className="text-[9.5px] text-zinc-500 uppercase">Weighted Avg r</div>
+                    <div className="text-sm font-bold text-white">
+                      {formatCorrelationValue(analysis.diversification.weightedAvgPairwiseCorrelation)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9.5px] text-zinc-500 uppercase">Clustered Weight</div>
+                    <div
+                      className={`text-sm font-bold ${
+                        analysis.diversification.concentratedCorrelatedWeightPct >= 50
+                          ? 'text-[#ff4444]'
+                          : 'text-zinc-100'
+                      }`}
+                    >
+                      {formatPct(analysis.diversification.concentratedCorrelatedWeightPct)}
+                    </div>
+                  </div>
+                </div>
                 {(onOpenCorrWorkspace || onExecuteCommand) && (
                   <button
                     type="button"
@@ -1951,44 +2030,11 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         onExecuteCommand('CORR');
                       }
                     }}
-                    className="text-[#3498db] hover:text-[#ff9900] font-bold uppercase cursor-pointer"
+                    className="text-[10px] text-[#3498db] hover:text-[#ff9900] font-bold uppercase tracking-wider cursor-pointer transition-colors"
                   >
                     OPEN IN CORR →
                   </button>
                 )}
-              </div>
-            </div>
-
-            <div className="bg-black border border-[#242424] rounded p-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="space-y-1 max-w-3xl">
-                <div className={`text-xs font-bold ${toneTextClass(analysis.diversification.assessmentTone)}`}>
-                  {analysis.diversification.assessmentSummary}
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-zinc-400">
-                  {analysis.diversification.assessmentDrivers.map((d, i) => (
-                    <span key={i}>• {d}</span>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center gap-4 text-right tabular-nums">
-                <div>
-                  <div className="text-[9.5px] text-zinc-500 uppercase">Weighted Avg r</div>
-                  <div className="text-sm font-bold text-white">
-                    {formatCorrelationValue(analysis.diversification.weightedAvgPairwiseCorrelation)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[9.5px] text-zinc-500 uppercase">Clustered Weight</div>
-                  <div
-                    className={`text-sm font-bold ${
-                      analysis.diversification.concentratedCorrelatedWeightPct >= 50
-                        ? 'text-[#ff4444]'
-                        : 'text-zinc-100'
-                    }`}
-                  >
-                    {formatPct(analysis.diversification.concentratedCorrelatedWeightPct)}
-                  </div>
-                </div>
               </div>
             </div>
 

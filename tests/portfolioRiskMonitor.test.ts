@@ -6,6 +6,10 @@ import CommandPanel from '../src/components/CommandPanel';
 import Workspace from '../src/components/Workspace';
 import PortfolioRiskMonitorScreen from '../src/components/PortfolioRiskMonitorScreen';
 import {
+  buildIndustryPieSlices,
+  IndustryAllocationPieChart,
+} from '../src/components/IndustryAllocationPieChart';
+import {
   DEFAULT_PORTFOLIO_THRESHOLDS,
   addPortfolioToStore,
   createEmptyPortfolioStore,
@@ -610,4 +614,125 @@ test('PortfolioRiskMonitorScreen renders empty onboarding state and complete 7-s
 
   // Verify Concentration Warnings container has expanded max-height while retaining overflow scrolling
   assert.match(fullHtml, /space-y-1\.5 max-h-\[272px\] overflow-y-auto/);
+
+  // Verify Section 3 (#prm-sectors): vertical stack, pie chart above industry table, no max-h-72 scrolling
+  const sectorsStart = fullHtml.indexOf('id="prm-sectors"');
+  const positionsStart = fullHtml.indexOf('id="prm-positions"');
+  assert.ok(sectorsStart > 0 && positionsStart > sectorsStart);
+  const sectorsSectionHtml = fullHtml.slice(sectorsStart, positionsStart);
+
+  assert.doesNotMatch(sectorsSectionHtml, /lg:grid-cols-2/);
+  assert.match(sectorsSectionHtml, /<div class="space-y-3">/);
+
+  const sectorBreakdownIdx = sectorsSectionHtml.indexOf('SECTOR ALLOCATION BREAKDOWN');
+  const industryBreakdownIdx = sectorsSectionHtml.indexOf('INDUSTRY ALLOCATION BREAKDOWN');
+  const pieChartIdx = sectorsSectionHtml.indexOf('data-testid="industry-pie-chart-container"');
+  const industryTableHeaderIdx = sectorsSectionHtml.indexOf('>Industry</th>');
+
+  assert.ok(sectorBreakdownIdx > 0);
+  assert.ok(industryBreakdownIdx > sectorBreakdownIdx, 'Sector panel must appear above Industry panel');
+  assert.ok(pieChartIdx > industryBreakdownIdx, 'Pie chart must appear inside Industry panel');
+  assert.ok(industryTableHeaderIdx > pieChartIdx, 'Pie chart must appear above Industry table');
+  assert.doesNotMatch(sectorsSectionHtml, /max-h-72 overflow-y-auto/);
+
+  // Pie chart displays exact portfolio weights matching the table (AAPL 50.0%, MSFT 30.0%, TLT 10.0%)
+  assert.match(sectorsSectionHtml, /Consumer Electronics/);
+  assert.match(sectorsSectionHtml, /Software - Infrastructure/);
+  assert.match(sectorsSectionHtml, />50\.0%</);
+  assert.match(sectorsSectionHtml, />30\.0%</);
+  assert.match(sectorsSectionHtml, />10\.0%</);
+
+  // Verify Section 6 (#prm-diversification): larger status badge in header, OPEN IN CORR moved out of header into summary panel, and vertical bullet list
+  const divStart = fullHtml.indexOf('id="prm-diversification"');
+  const scenStart = fullHtml.indexOf('id="prm-scenarios"');
+  assert.ok(divStart > 0 && scenStart > divStart);
+  const divSectionHtml = fullHtml.slice(divStart, scenStart);
+
+  const summaryPanelStart = divSectionHtml.indexOf('bg-black border border-[#242424] rounded p-3 flex flex-col sm:flex-row');
+  const matrixStart = divSectionHtml.indexOf('PORTFOLIO CORRELATION MATRIX');
+  assert.ok(summaryPanelStart > 0 && matrixStart > summaryPanelStart);
+
+  const divHeaderHtml = divSectionHtml.slice(0, summaryPanelStart);
+  const divSummaryHtml = divSectionHtml.slice(summaryPanelStart, matrixStart);
+
+  // Header has enlarged badge and NO OPEN IN CORR button
+  assert.match(divHeaderHtml, /px-3 py-1 rounded border text-sm font-extrabold uppercase tracking-wider leading-none shrink-0/);
+  assert.doesNotMatch(divHeaderHtml, /OPEN IN CORR/);
+
+  // Summary panel contains OPEN IN CORR and vertical semantic <ul>/<li> drivers
+  assert.match(divSummaryHtml, /OPEN IN CORR/);
+  assert.match(divSummaryHtml, /<ul class="list-disc pl-4 space-y-1 text-\[10px\] leading-relaxed text-zinc-400 marker:text-zinc-500"><li>/);
+  assert.doesNotMatch(divSummaryHtml, /flex flex-wrap gap-x-4/);
+});
+
+test('IndustryAllocationPieChart builds proportional slices matching table data and handles zero-weight, single-industry, unclassified, and cash updates', () => {
+  const { portfolio, metadataMap, historyMap, spySeries } = makeFixtureData();
+
+  const analysis = computePortfolioRiskAnalysis({
+    portfolio,
+    metadataMap,
+    stocksMap: {},
+    historyMap,
+    spySeries,
+    lookbackPeriod: '90D',
+    thresholds: DEFAULT_PORTFOLIO_THRESHOLDS,
+  });
+
+  // 1. Direct parity with analysis.sectorExposure.industries (AAPL 50%, MSFT 30%, TLT Unclassified 10%, Cash 10%)
+  const slices = buildIndustryPieSlices(analysis.sectorExposure.industries);
+  assert.equal(slices.length, analysis.sectorExposure.industries.length);
+  const totalSweep = slices.reduce((sum, s) => sum + s.sweepAngleDeg, 0);
+  assert.ok(Math.abs(totalSweep - 360) < 1e-6, `Expected sweep sum 360, got ${totalSweep}`);
+
+  for (let i = 0; i < slices.length; i++) {
+    assert.equal(slices[i].industry, analysis.sectorExposure.industries[i].industry);
+    assert.equal(slices[i].portfolioWeightPct, analysis.sectorExposure.industries[i].portfolioWeightPct);
+    assert.equal(slices[i].marketValue, analysis.sectorExposure.industries[i].marketValue);
+  }
+  // Proportional ratio: 50% slice angle / 10% slice angle === 5.0
+  assert.ok(Math.abs(slices[0].sweepAngleDeg / slices[2].sweepAngleDeg - 5) < 1e-6);
+
+  // 2. Zero-weight industry rows are omitted from pie geometry
+  const withZero = [
+    ...analysis.sectorExposure.industries,
+    {
+      industry: 'Zero Weight Industry',
+      sector: 'Utilities',
+      isClassified: true,
+      marketValue: 0,
+      portfolioWeightPct: 0,
+      holdingCount: 1,
+      tickers: ['ZERO'],
+    },
+  ];
+  const filteredSlices = buildIndustryPieSlices(withZero);
+  assert.equal(filteredSlices.length, analysis.sectorExposure.industries.length);
+  assert.ok(!filteredSlices.some((s) => s.industry === 'Zero Weight Industry'));
+
+  // 3. Single positive industry renders a full circle rather than a degenerate arc path
+  const singleSlices = buildIndustryPieSlices([analysis.sectorExposure.industries[0]]);
+  assert.equal(singleSlices.length, 1);
+  assert.equal(singleSlices[0].isFullCircle, true);
+  const singleHtml = renderToStaticMarkup(
+    React.createElement(IndustryAllocationPieChart, {
+      industries: [analysis.sectorExposure.industries[0]],
+    })
+  );
+  assert.match(singleHtml, /<circle /);
+
+  // 4. Cash balance increase updates industry portfolioWeightPct consistently across engine & pie slices
+  const higherCashPortfolio = setPortfolioCashBalance(portfolio, 110000); // Total portfolio = $200,000
+  const higherCashAnalysis = computePortfolioRiskAnalysis({
+    portfolio: higherCashPortfolio,
+    metadataMap,
+    stocksMap: {},
+    historyMap,
+    spySeries,
+    lookbackPeriod: '90D',
+    thresholds: DEFAULT_PORTFOLIO_THRESHOLDS,
+  });
+  const higherCashSlices = buildIndustryPieSlices(higherCashAnalysis.sectorExposure.industries);
+  assert.equal(higherCashSlices[0].portfolioWeightPct, 25); // $50k / $200k = 25%
+  assert.equal(higherCashSlices[1].portfolioWeightPct, 15); // $30k / $200k = 15%
+  assert.equal(higherCashSlices[2].portfolioWeightPct, 5); // $10k / $200k = 5%
 });
