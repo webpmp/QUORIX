@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { FredFeedStatus } from '../App';
 import ChartWidget from './ChartWidget';
+import ErrorBoundary from './ErrorBoundary';
 import CorrelationAnalyzerScreen from './CorrelationAnalyzerScreen';
 import { CurrenciesScreen } from './CurrenciesScreen';
 import { InsiderTradingPanel } from './InsiderTradingPanel';
@@ -1066,7 +1067,13 @@ export default function Workspace({
       {/* 1. GP: CHART GRAPH SCREEN */}
       {activeScreen === 'GP' && (
         <div className="space-y-4 animate-fade-in">
-          <ChartWidget stock={currentStock} onTickTimeChange={onTickTimeChange} />
+          <ErrorBoundary
+            compact
+            fallbackTitle="PRICE CHART RENDER ERROR"
+            resetKey={selectedTicker}
+          >
+            <ChartWidget stock={currentStock} onTickTimeChange={onTickTimeChange} />
+          </ErrorBoundary>
 
           {/* Ticker Headlines */}
           <div className="bg-[#050505] border border-[#333] p-3 rounded">

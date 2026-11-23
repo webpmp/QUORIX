@@ -8,21 +8,556 @@ export const RSI_NATURAL_MAX = 100;
 export const RSI_MIN_VISIBLE_SPAN = 10;
 
 export function clampZoomFactor(factor: number): number {
+  if (!Number.isFinite(factor) || factor <= 0) return 1;
   return Math.max(0.05, Math.min(20, factor));
 }
 
 export function wheelDeltaToZoomFactor(deltaY: number): number {
+  if (!Number.isFinite(deltaY)) return 1;
   const clampedDelta = Math.max(-180, Math.min(180, deltaY));
   return Math.exp(-clampedDelta * 0.0022);
 }
 
 export function dragDeltaToZoomFactor(dy: number): number {
+  if (!Number.isFinite(dy)) return 1;
   return Math.exp(-dy * 0.0085);
+}
+
+export const DEFAULT_EDGE_PADDING_RATIO = 0.12;
+export const PRICE_AUTO_PADDING_RATIO = 0.14;
+export const PRICE_ZOOM_EDGE_PADDING_RATIO = 0.04;
+export const PRICE_PREV_CLOSE_MAX_GAP_RATIO = 0.35;
+export const BASE_PRICE_HEIGHT = 260;
+export const MAX_PRICE_EXPANSION_PX = 60;
+export const PRICE_MIN_CANDLE_HEIGHT_RATIO = 0.25;
+export const PRICE_MIN_CANDLE_HEIGHT_PX = 40;
+export const REFERENCE_LABEL_MIN_GAP_PX = 11;
+
+export interface PriceZoomLimits {
+  minVisibleSpan: number;
+  maxVisibleSpan: number;
+  minCandleHeightPx: number;
+  minCandleHeightRatio: number;
+  minZoomFactor: number;
+}
+
+/**
+ * Computes vertical price-axis zoom limits dynamically from the displayed candlestick
+ * high-to-low range and available plot height so zooming out can never flatten candlesticks
+ * below the configured minimum height ratio (~25% of plot height) or pixel floor.
+ */
+export function computePriceZoomLimits(params: {
+  candleLow: number;
+  candleHigh: number;
+  autoMinPrice: number;
+  autoMaxPrice: number;
+  plotHeightPx: number;
+  minCandleHeightRatio?: number;
+  minCandleHeightPx?: number;
+}): PriceZoomLimits {
+  const safePlotHeight =
+    Number.isFinite(params.plotHeightPx) && params.plotHeightPx > 0
+      ? params.plotHeightPx
+      : BASE_PRICE_HEIGHT - 36;
+  const targetRatio =
+    typeof params.minCandleHeightRatio === 'number' && Number.isFinite(params.minCandleHeightRatio)
+      ? Math.max(0.05, Math.min(0.85, params.minCandleHeightRatio))
+      : PRICE_MIN_CANDLE_HEIGHT_RATIO;
+  const targetMinPx =
+    typeof params.minCandleHeightPx === 'number' && Number.isFinite(params.minCandleHeightPx)
+      ? Math.max(1, params.minCandleHeightPx)
+      : PRICE_MIN_CANDLE_HEIGHT_PX;
+
+  const requiredCandleHeightPx = Math.min(
+    safePlotHeight * 0.85,
+    Math.max(safePlotHeight * targetRatio, targetMinPx)
+  );
+  const effectiveMinRatio = requiredCandleHeightPx / safePlotHeight;
+
+  const hasAuto =
+    Number.isFinite(params.autoMinPrice) &&
+    Number.isFinite(params.autoMaxPrice) &&
+    params.autoMaxPrice > params.autoMinPrice;
+  const autoSpan = hasAuto ? Math.max(params.autoMaxPrice - params.autoMinPrice, 0.0001) : 1;
+  const autoMid = hasAuto ? (params.autoMinPrice + params.autoMaxPrice) / 2 : 1;
+
+  const hasCandles =
+    Number.isFinite(params.candleLow) &&
+    Number.isFinite(params.candleHigh) &&
+    params.candleHigh >= params.candleLow;
+  const rawCandleSpan = hasCandles ? Math.max(0, params.candleHigh - params.candleLow) : 0;
+
+  // For flat/zero-range candles, derive an effective span from autoSpan so flat sessions
+  // still have a finite, consistent maximum zoom-out limit.
+  const effectiveCandleSpan =
+    rawCandleSpan > 0
+      ? rawCandleSpan
+      : autoSpan / (1 + 2 * PRICE_AUTO_PADDING_RATIO);
+
+  const minVisibleSpan = Math.max(autoSpan * 0.15, Math.abs(autoMid) * 0.002, 0.02);
+  const maxSpanFromCandles = effectiveCandleSpan / Math.max(effectiveMinRatio, 0.05);
+  const maxVisibleSpan = Math.max(maxSpanFromCandles, autoSpan, minVisibleSpan);
+  const minZoomFactor = autoSpan / Math.max(maxVisibleSpan, 0.0001);
+
+  return {
+    minVisibleSpan,
+    maxVisibleSpan,
+    minCandleHeightPx: requiredCandleHeightPx,
+    minCandleHeightRatio: effectiveMinRatio,
+    minZoomFactor,
+  };
+}
+
+export interface ReferenceLevelLabelInput {
+  id: 'HI' | 'LO' | 'PC';
+  lineY: number;
+  priority: number;
+}
+
+export interface ReferenceLevelLabelLayout {
+  id: 'HI' | 'LO' | 'PC';
+  lineY: number;
+  labelY: number;
+  displaced: boolean;
+}
+
+/**
+ * Resolves non-overlapping vertical label positions for HI, LO, and in-range PC labels
+ * within [minY, maxY] using minimum-displacement isotonic separation (PAVA) so reference
+ * labels remain readable without altering the chart price scale or line positions.
+ */
+export function resolveReferenceLevelLabels(params: {
+  items: ReferenceLevelLabelInput[];
+  minY: number;
+  maxY: number;
+  minGapPx?: number;
+}): ReferenceLevelLabelLayout[] {
+  const validItems = params.items.filter(
+    (item) => typeof item.lineY === 'number' && Number.isFinite(item.lineY)
+  );
+  if (validItems.length === 0) return [];
+
+  const safeMinY = Number.isFinite(params.minY) ? params.minY : 0;
+  const safeMaxY = Number.isFinite(params.maxY) ? Math.max(safeMinY, params.maxY) : safeMinY;
+  const requestedGap =
+    typeof params.minGapPx === 'number' && Number.isFinite(params.minGapPx) && params.minGapPx > 0
+      ? params.minGapPx
+      : REFERENCE_LABEL_MIN_GAP_PX;
+
+  const sorted = [...validItems].sort(
+    (a, b) => a.lineY - b.lineY || a.priority - b.priority
+  );
+  const n = sorted.length;
+  const availableSpan = Math.max(0, safeMaxY - safeMinY);
+  const gap = n > 1 ? Math.min(requestedGap, availableSpan / (n - 1)) : 0;
+
+  const lowerBound = safeMinY;
+  const upperBound = Math.max(lowerBound, safeMaxY - (n - 1) * gap);
+
+  // Pool-Adjacent-Violators Algorithm on transformed targets z[i] = lineY[i] - i * gap
+  const blocks: Array<{ sum: number; count: number; start: number; end: number }> = [];
+  for (let i = 0; i < n; i++) {
+    const z = sorted[i].lineY - i * gap;
+    blocks.push({ sum: z, count: 1, start: i, end: i });
+    while (blocks.length >= 2) {
+      const prev = blocks[blocks.length - 2];
+      const curr = blocks[blocks.length - 1];
+      if (prev.sum / prev.count > curr.sum / curr.count) {
+        prev.sum += curr.sum;
+        prev.count += curr.count;
+        prev.end = curr.end;
+        blocks.pop();
+      } else {
+        break;
+      }
+    }
+  }
+
+  const resolvedYs = new Array<number>(n);
+  for (const block of blocks) {
+    const avg = Math.max(lowerBound, Math.min(upperBound, block.sum / block.count));
+    for (let i = block.start; i <= block.end; i++) {
+      resolvedYs[i] = avg + i * gap;
+    }
+  }
+
+  return sorted.map((item, i) => ({
+    id: item.id,
+    lineY: item.lineY,
+    labelY: resolvedYs[i],
+    displaced: Math.abs(resolvedYs[i] - item.lineY) >= 1.5,
+  }));
+}
+
+export interface OffscalePcBadgeLayout {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  side: 'right' | 'left';
+  direction: 'above' | 'below';
+}
+
+/**
+ * Positions the pinned off-scale Previous Close badge inside the chart plot boundary
+ * and automatically shifts it to the left edge if HI or LO reference labels/lines
+ * occupy the same vertical band along the right edge.
+ */
+export function computeOffscalePcBadgeLayout(params: {
+  isAbove: boolean;
+  labelText: string;
+  plotLeft: number;
+  plotRight: number;
+  plotTop: number;
+  plotBottom: number;
+  avoidRightEdgeYs?: number[];
+}): OffscalePcBadgeLayout {
+  const height = 13;
+  const plotWidth = Math.max(40, params.plotRight - params.plotLeft);
+  const rawWidth = Math.max(66, Math.round(params.labelText.length * 5.2 + 12));
+  const width = Math.min(rawWidth, Math.max(40, plotWidth - 4));
+  const y = params.isAbove
+    ? params.plotTop + 2
+    : Math.max(params.plotTop + 2, params.plotBottom - height - 2);
+
+  const rightX = Math.max(params.plotLeft + 2, params.plotRight - width - 2);
+  const leftX = params.plotLeft + 4;
+
+  const avoids = params.avoidRightEdgeYs ?? [];
+  const collidesRightBand = avoids.some(
+    (ay) => Number.isFinite(ay) && ay >= y - 5 && ay <= y + height + 5
+  );
+  const canShiftLeft = leftX + width < rightX - 4;
+  const side: 'right' | 'left' = collidesRightBand && canShiftLeft ? 'left' : 'right';
+  const x = side === 'left' ? leftX : rightX;
+
+  return {
+    x,
+    y,
+    width,
+    height,
+    side,
+    direction: params.isAbove ? 'above' : 'below',
+  };
+}
+
+export interface AutoPriceRangeResult {
+  min: number;
+  max: number;
+  coreLow: number;
+  coreHigh: number;
+  includesPrevClose: boolean;
+}
+
+/**
+ * Computes the automatic Y-axis price domain from actual candlestick highs/lows (plus
+ * live currentPrice when plausible). Only incorporates prevClose when it is close enough
+ * not to distort or compress candlestick price action; large gaps are left off-scale so
+ * the chart can display a pinned Previous Close edge indicator instead.
+ */
+export function computeAutoPriceRange(params: {
+  candleLow: number;
+  candleHigh: number;
+  currentPrice?: number;
+  prevClose?: number | null;
+  paddingRatio?: number;
+  maxPrevCloseGapRatio?: number;
+}): AutoPriceRangeResult {
+  const {
+    candleLow,
+    candleHigh,
+    currentPrice,
+    prevClose,
+    paddingRatio = PRICE_AUTO_PADDING_RATIO,
+    maxPrevCloseGapRatio = PRICE_PREV_CLOSE_MAX_GAP_RATIO,
+  } = params;
+
+  const hasFiniteLow = typeof candleLow === 'number' && Number.isFinite(candleLow);
+  const hasFiniteHigh = typeof candleHigh === 'number' && Number.isFinite(candleHigh);
+  const hasFiniteCurrent =
+    typeof currentPrice === 'number' && Number.isFinite(currentPrice) && currentPrice > 0;
+  const hasPrevClose =
+    typeof prevClose === 'number' && Number.isFinite(prevClose) && prevClose > 0;
+
+  let rawLow: number;
+  let rawHigh: number;
+  if (hasFiniteLow && hasFiniteHigh) {
+    rawLow = Math.min(candleLow, candleHigh);
+    rawHigh = Math.max(candleLow, candleHigh);
+  } else if (hasFiniteLow) {
+    rawLow = candleLow;
+    rawHigh = candleLow;
+  } else if (hasFiniteHigh) {
+    rawLow = candleHigh;
+    rawHigh = candleHigh;
+  } else if (hasFiniteCurrent) {
+    rawLow = currentPrice;
+    rawHigh = currentPrice;
+  } else if (hasPrevClose) {
+    rawLow = prevClose;
+    rawHigh = prevClose;
+  } else {
+    rawLow = 1;
+    rawHigh = 1;
+  }
+
+  const hasPlausibleCurrent =
+    hasFiniteCurrent &&
+    (rawHigh <= 0 || (currentPrice >= rawLow * 0.5 && currentPrice <= rawHigh * 1.5));
+
+  const coreLow = hasPlausibleCurrent ? Math.min(rawLow, currentPrice) : rawLow;
+  const coreHigh = hasPlausibleCurrent ? Math.max(rawHigh, currentPrice) : rawHigh;
+  const coreSpan = Math.max(coreHigh - coreLow, 0);
+  const coreMid = (coreLow + coreHigh) / 2;
+  const minNaturalSpan = Math.max(Math.abs(coreMid) * 0.0005, 0.02);
+  const baseSpan = Math.max(coreSpan, minNaturalSpan);
+
+  const safeGapRatio =
+    typeof maxPrevCloseGapRatio === 'number' && Number.isFinite(maxPrevCloseGapRatio)
+      ? Math.max(0, maxPrevCloseGapRatio)
+      : PRICE_PREV_CLOSE_MAX_GAP_RATIO;
+  const prevCloseGap = hasPrevClose
+    ? Math.max(0, prevClose - coreHigh, coreLow - prevClose)
+    : Number.POSITIVE_INFINITY;
+  const includesPrevClose = hasPrevClose && prevCloseGap <= baseSpan * safeGapRatio;
+
+  const scaleLow = includesPrevClose ? Math.min(coreLow, prevClose) : coreLow;
+  const scaleHigh = includesPrevClose ? Math.max(coreHigh, prevClose) : coreHigh;
+  const scaleSpan = Math.max(scaleHigh - scaleLow, 0);
+
+  let min: number;
+  let max: number;
+  if (scaleSpan <= 0) {
+    const half = minNaturalSpan / 2;
+    min = scaleLow - half;
+    max = scaleHigh + half;
+  } else {
+    const rawPadRatio =
+      typeof paddingRatio === 'number' && Number.isFinite(paddingRatio)
+        ? paddingRatio
+        : PRICE_AUTO_PADDING_RATIO;
+    const safePadRatio = Math.max(0.02, Math.min(0.4, rawPadRatio));
+    const pad = Math.max(scaleSpan * safePadRatio, minNaturalSpan * 0.25);
+    min = scaleLow - pad;
+    max = scaleHigh + pad;
+  }
+
+  if (coreLow >= 0 && min < 0) {
+    min = 0;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+    min = Number.isFinite(coreLow) ? coreLow - minNaturalSpan / 2 : 0;
+    max = min + minNaturalSpan;
+  }
+
+  return {
+    min,
+    max,
+    coreLow,
+    coreHigh,
+    includesPrevClose,
+  };
+}
+
+/**
+ * Adjusts a [min, max] range by the smallest shift (or minimal span expansion when the
+ * focus band itself exceeds the current span) needed to keep [focusMin, focusMax] and
+ * anchorValue comfortably inside the visible band with vertical edge padding.
+ */
+export function ensureRangeIncludesFocusBand(params: {
+  range: YRange;
+  focusMin?: number;
+  focusMax?: number;
+  anchorValue?: number;
+  minVisibleSpan: number;
+  maxVisibleSpan: number;
+  boundMin?: number;
+  boundMax?: number;
+  edgePaddingRatio?: number;
+}): YRange {
+  const {
+    range,
+    focusMin,
+    focusMax,
+    anchorValue,
+    minVisibleSpan,
+    maxVisibleSpan,
+    boundMin,
+    boundMax,
+    edgePaddingRatio = DEFAULT_EDGE_PADDING_RATIO,
+  } = params;
+
+  const hasAnchor = typeof anchorValue === 'number' && Number.isFinite(anchorValue);
+  const hasFocusMin = typeof focusMin === 'number' && Number.isFinite(focusMin);
+  const hasFocusMax = typeof focusMax === 'number' && Number.isFinite(focusMax);
+  const safeBoundMin =
+    typeof boundMin === 'number' && Number.isFinite(boundMin) ? boundMin : undefined;
+  const safeBoundMax =
+    typeof boundMax === 'number' && Number.isFinite(boundMax) ? boundMax : undefined;
+
+  let targetLow: number | undefined;
+  let targetHigh: number | undefined;
+  if (hasFocusMin && hasFocusMax) {
+    targetLow = Math.min(focusMin, focusMax);
+    targetHigh = Math.max(focusMin, focusMax);
+    if (hasAnchor) {
+      targetLow = Math.min(targetLow, anchorValue);
+      targetHigh = Math.max(targetHigh, anchorValue);
+    }
+  } else if (hasAnchor) {
+    targetLow = anchorValue;
+    targetHigh = anchorValue;
+  }
+
+  const rawPadRatio =
+    typeof edgePaddingRatio === 'number' && Number.isFinite(edgePaddingRatio)
+      ? edgePaddingRatio
+      : DEFAULT_EDGE_PADDING_RATIO;
+  const safePadRatio = Math.max(0, Math.min(0.4, rawPadRatio));
+  const focusSpan =
+    targetLow !== undefined && targetHigh !== undefined
+      ? Math.max(0, targetHigh - targetLow)
+      : 0;
+  const requiredSpanForFocus =
+    focusSpan > 0 ? focusSpan / Math.max(0.2, 1 - 2 * safePadRatio) : 0;
+
+  const boundSpan =
+    safeBoundMin !== undefined && safeBoundMax !== undefined
+      ? Math.max(0, safeBoundMax - safeBoundMin)
+      : undefined;
+
+  const safeMinSpanInput =
+    typeof minVisibleSpan === 'number' && Number.isFinite(minVisibleSpan) && minVisibleSpan > 0
+      ? minVisibleSpan
+      : 0.02;
+  const safeMaxSpanInput =
+    typeof maxVisibleSpan === 'number' && Number.isFinite(maxVisibleSpan) && maxVisibleSpan > 0
+      ? maxVisibleSpan
+      : Math.max(safeMinSpanInput * 2, 1);
+
+  let effectiveMinSpan = Math.max(safeMinSpanInput, requiredSpanForFocus);
+  let effectiveMaxSpan = Math.max(safeMaxSpanInput, effectiveMinSpan);
+  if (boundSpan !== undefined && boundSpan > 0) {
+    effectiveMinSpan = Math.min(effectiveMinSpan, boundSpan);
+    effectiveMaxSpan = Math.min(effectiveMaxSpan, boundSpan);
+  }
+
+  let nextMin =
+    typeof range?.min === 'number' && Number.isFinite(range.min) ? range.min : Number.NaN;
+  let nextMax =
+    typeof range?.max === 'number' && Number.isFinite(range.max) ? range.max : Number.NaN;
+  let span = nextMax - nextMin;
+
+  if (!Number.isFinite(span) || span <= 0) {
+    const fallbackMid = hasAnchor
+      ? anchorValue
+      : targetLow !== undefined && targetHigh !== undefined
+      ? (targetLow + targetHigh) / 2
+      : 0;
+    span = effectiveMinSpan;
+    nextMin = fallbackMid - span / 2;
+    nextMax = fallbackMid + span / 2;
+  } else if (span < effectiveMinSpan) {
+    const center =
+      targetLow !== undefined && targetHigh !== undefined
+        ? (targetLow + targetHigh) / 2
+        : (nextMin + nextMax) / 2;
+    span = effectiveMinSpan;
+    nextMin = center - span / 2;
+    nextMax = center + span / 2;
+  } else if (span > effectiveMaxSpan) {
+    const center = hasAnchor ? anchorValue : (nextMin + nextMax) / 2;
+    span = effectiveMaxSpan;
+    nextMin = center - span / 2;
+    nextMax = center + span / 2;
+  }
+
+  if (targetLow !== undefined && targetHigh !== undefined) {
+    const edgePad = Math.min(span * safePadRatio, Math.max(0, (span - focusSpan) / 2));
+    if (targetHigh > nextMax - edgePad) {
+      const shift = targetHigh + edgePad - nextMax;
+      nextMin += shift;
+      nextMax += shift;
+    } else if (targetLow < nextMin + edgePad) {
+      const shift = nextMin + edgePad - targetLow;
+      nextMin -= shift;
+      nextMax -= shift;
+    }
+  }
+
+  if (safeBoundMin !== undefined && nextMin < safeBoundMin) {
+    const shiftUp = safeBoundMin - nextMin;
+    nextMin = safeBoundMin;
+    nextMax = Math.max(nextMax + shiftUp, safeBoundMin + effectiveMinSpan);
+  }
+
+  if (safeBoundMax !== undefined && nextMax > safeBoundMax) {
+    const shiftDown = nextMax - safeBoundMax;
+    nextMax = safeBoundMax;
+    nextMin = Math.min(nextMin - shiftDown, safeBoundMax - effectiveMinSpan);
+    if (safeBoundMin !== undefined && nextMin < safeBoundMin) {
+      nextMin = safeBoundMin;
+    }
+  }
+
+  if (!Number.isFinite(nextMin) || !Number.isFinite(nextMax) || nextMax <= nextMin) {
+    const safeBase = Number.isFinite(nextMin) ? nextMin : 0;
+    nextMin = safeBase;
+    nextMax = safeBase + Math.max(effectiveMinSpan, 0.0001);
+  }
+
+  return { min: nextMin, max: nextMax };
+}
+
+/**
+ * Vertically pans a [baseMin, baseMax] range by deltaPrice while keeping [focusMin, focusMax]
+ * and anchorValue strictly inside the visible padded bounds.
+ */
+export function panBoundedRange(params: {
+  baseMin: number;
+  baseMax: number;
+  deltaPrice: number;
+  minVisibleSpan: number;
+  maxVisibleSpan: number;
+  anchorValue?: number;
+  focusMin?: number;
+  focusMax?: number;
+  boundMin?: number;
+  boundMax?: number;
+  edgePaddingRatio?: number;
+}): YRange {
+  const {
+    baseMin,
+    baseMax,
+    deltaPrice,
+    minVisibleSpan,
+    maxVisibleSpan,
+    anchorValue,
+    focusMin,
+    focusMax,
+    boundMin,
+    boundMax,
+    edgePaddingRatio = DEFAULT_EDGE_PADDING_RATIO,
+  } = params;
+
+  const safeDelta = Number.isFinite(deltaPrice) ? deltaPrice : 0;
+  return ensureRangeIncludesFocusBand({
+    range: { min: baseMin + safeDelta, max: baseMax + safeDelta },
+    focusMin,
+    focusMax,
+    anchorValue,
+    minVisibleSpan,
+    maxVisibleSpan,
+    boundMin,
+    boundMax,
+    edgePaddingRatio,
+  });
 }
 
 /**
  * Scales a [min, max] range by factor (>1 zooms in / narrows range, <1 zooms out / expands range),
- * anchoring to keep anchorValue inside the visible band and clamping within [boundMin, boundMax] when provided.
+ * anchoring around anchorValue and ensuring [focusMin, focusMax] stays comfortably visible
+ * within [boundMin, boundMax] when provided.
  */
 export function computeScaledBoundedRange(params: {
   baseMin: number;
@@ -31,8 +566,11 @@ export function computeScaledBoundedRange(params: {
   minVisibleSpan: number;
   maxVisibleSpan: number;
   anchorValue?: number;
+  focusMin?: number;
+  focusMax?: number;
   boundMin?: number;
   boundMax?: number;
+  edgePaddingRatio?: number;
 }): YRange {
   const {
     baseMin,
@@ -41,52 +579,108 @@ export function computeScaledBoundedRange(params: {
     minVisibleSpan,
     maxVisibleSpan,
     anchorValue,
+    focusMin,
+    focusMax,
     boundMin,
     boundMax,
+    edgePaddingRatio = DEFAULT_EDGE_PADDING_RATIO,
   } = params;
 
-  const curSpan = Math.max(baseMax - baseMin, minVisibleSpan);
+  const hasAnchor = typeof anchorValue === 'number' && Number.isFinite(anchorValue);
+  const safePadRatio = Number.isFinite(edgePaddingRatio)
+    ? Math.max(0, Math.min(0.4, edgePaddingRatio))
+    : DEFAULT_EDGE_PADDING_RATIO;
+  const hasFocusMin = typeof focusMin === 'number' && Number.isFinite(focusMin);
+  const hasFocusMax = typeof focusMax === 'number' && Number.isFinite(focusMax);
+
+  let targetLow: number | undefined;
+  let targetHigh: number | undefined;
+  if (hasFocusMin && hasFocusMax) {
+    targetLow = Math.min(focusMin, focusMax);
+    targetHigh = Math.max(focusMin, focusMax);
+    if (hasAnchor) {
+      targetLow = Math.min(targetLow, anchorValue);
+      targetHigh = Math.max(targetHigh, anchorValue);
+    }
+  } else if (hasAnchor) {
+    targetLow = anchorValue;
+    targetHigh = anchorValue;
+  }
+
+  const focusSpan =
+    targetLow !== undefined && targetHigh !== undefined
+      ? Math.max(0, targetHigh - targetLow)
+      : 0;
+  const requiredSpanForFocus =
+    focusSpan > 0 ? focusSpan / Math.max(0.2, 1 - 2 * safePadRatio) : 0;
+
+  const safeBoundMin = typeof boundMin === 'number' && Number.isFinite(boundMin) ? boundMin : undefined;
+  const safeBoundMax = typeof boundMax === 'number' && Number.isFinite(boundMax) ? boundMax : undefined;
+  const boundSpan =
+    safeBoundMin !== undefined && safeBoundMax !== undefined
+      ? Math.max(0, safeBoundMax - safeBoundMin)
+      : undefined;
+
+  const safeMinSpanInput =
+    Number.isFinite(minVisibleSpan) && minVisibleSpan > 0 ? minVisibleSpan : 0.0001;
+  const safeMaxSpanInput =
+    Number.isFinite(maxVisibleSpan) && maxVisibleSpan > 0 ? maxVisibleSpan : safeMinSpanInput;
+
+  let effectiveMinSpan = Math.max(safeMinSpanInput, requiredSpanForFocus);
+  let effectiveMaxSpan = Math.max(safeMaxSpanInput, effectiveMinSpan);
+  if (boundSpan !== undefined && boundSpan > 0) {
+    effectiveMinSpan = Math.min(effectiveMinSpan, boundSpan);
+    effectiveMaxSpan = Math.min(effectiveMaxSpan, boundSpan);
+  }
+
+  const fallbackCenter =
+    hasAnchor
+      ? anchorValue
+      : targetLow !== undefined && targetHigh !== undefined
+        ? (targetLow + targetHigh) / 2
+        : safeBoundMin !== undefined
+          ? safeBoundMin + effectiveMinSpan / 2
+          : 0;
+  const safeBaseMin = Number.isFinite(baseMin) ? baseMin : fallbackCenter - effectiveMinSpan / 2;
+  const safeBaseMax =
+    Number.isFinite(baseMax) && baseMax > safeBaseMin
+      ? baseMax
+      : safeBaseMin + effectiveMinSpan;
+
+  const curSpan = Math.max(safeBaseMax - safeBaseMin, effectiveMinSpan);
   const safeFactor = clampZoomFactor(factor);
-  const nextSpan = Math.max(minVisibleSpan, Math.min(maxVisibleSpan, curSpan / safeFactor));
-  const mid = (baseMin + baseMax) / 2;
-  const half = nextSpan / 2;
+  const nextSpan = Math.max(effectiveMinSpan, Math.min(effectiveMaxSpan, curSpan / safeFactor));
 
-  let nextMin = mid - half;
-  let nextMax = mid + half;
+  let nextMin: number;
+  let nextMax: number;
 
-  if (typeof anchorValue === 'number' && !Number.isNaN(anchorValue)) {
-    const edgePad = nextSpan * 0.04;
-    if (anchorValue > nextMax - edgePad) {
-      const shift = anchorValue + edgePad - nextMax;
-      nextMin += shift;
-      nextMax += shift;
-    } else if (anchorValue < nextMin + edgePad) {
-      const shift = nextMin + edgePad - anchorValue;
-      nextMin -= shift;
-      nextMax -= shift;
-    }
+  if (hasAnchor) {
+    // Keep anchorValue (current price) smoothly anchored at its relative screen position
+    // within comfortable vertical margins so zooming never pushes it out of view.
+    const rawRatio = curSpan > 0 ? (anchorValue - safeBaseMin) / curSpan : 0.5;
+    const minRatio = Math.max(safePadRatio, 0.15);
+    const maxRatio = Math.min(1 - safePadRatio, 0.85);
+    const anchorRatio = Math.max(minRatio, Math.min(maxRatio, rawRatio));
+    nextMin = anchorValue - anchorRatio * nextSpan;
+    nextMax = nextMin + nextSpan;
+  } else {
+    const mid = (safeBaseMin + safeBaseMax) / 2;
+    const half = nextSpan / 2;
+    nextMin = mid - half;
+    nextMax = mid + half;
   }
 
-  if (typeof boundMin === 'number' && nextMin < boundMin) {
-    const shiftUp = boundMin - nextMin;
-    nextMin = boundMin;
-    nextMax = Math.max(nextMax + shiftUp, boundMin + minVisibleSpan);
-  }
-
-  if (typeof boundMax === 'number' && nextMax > boundMax) {
-    const shiftDown = nextMax - boundMax;
-    nextMax = boundMax;
-    nextMin = Math.min(nextMin - shiftDown, boundMax - minVisibleSpan);
-    if (typeof boundMin === 'number' && nextMin < boundMin) {
-      nextMin = boundMin;
-    }
-  }
-
-  if (nextMax <= nextMin) {
-    nextMax = nextMin + minVisibleSpan;
-  }
-
-  return { min: nextMin, max: nextMax };
+  return ensureRangeIncludesFocusBand({
+    range: { min: nextMin, max: nextMax },
+    focusMin: targetLow,
+    focusMax: targetHigh,
+    anchorValue,
+    minVisibleSpan: effectiveMinSpan,
+    maxVisibleSpan: effectiveMaxSpan,
+    boundMin: safeBoundMin,
+    boundMax: safeBoundMax,
+    edgePaddingRatio: safePadRatio,
+  });
 }
 
 export function getVolumeZoomLimits(
@@ -96,11 +690,11 @@ export function getVolumeZoomLimits(
   minVisibleMax: number;
   maxVisibleMax: number;
 } {
-  const safeAutoMax = Math.max(autoMaxVolume, 1);
+  const safeAutoMax = Number.isFinite(autoMaxVolume) && autoMaxVolume > 0 ? Math.max(autoMaxVolume, 1) : 1;
   const defaultMinMax = safeAutoMax * 0.05;
   const outlierAwareMinMax =
     typeof referenceLowVolume === 'number' &&
-    !Number.isNaN(referenceLowVolume) &&
+    Number.isFinite(referenceLowVolume) &&
     referenceLowVolume > 0
       ? Math.min(defaultMinMax, referenceLowVolume * 2)
       : defaultMinMax;
@@ -119,7 +713,8 @@ export function computeScaledVolumeMax(
   referenceLowVolume?: number
 ): number {
   const { minVisibleMax, maxVisibleMax } = getVolumeZoomLimits(autoMaxVolume, referenceLowVolume);
-  const safeBaseMax = Math.max(baseMax, minVisibleMax);
+  const safeBaseMax =
+    Number.isFinite(baseMax) && baseMax > 0 ? Math.max(baseMax, minVisibleMax) : maxVisibleMax / 10;
   const safeFactor = clampZoomFactor(factor);
   return Math.max(minVisibleMax, Math.min(maxVisibleMax, safeBaseMax / safeFactor));
 }
@@ -140,7 +735,7 @@ export function computeScaledRsiRange(
     minVisibleSpan: RSI_MIN_VISIBLE_SPAN,
     maxVisibleSpan: RSI_NATURAL_MAX - RSI_NATURAL_MIN,
     anchorValue:
-      typeof anchorRsi === 'number' && !Number.isNaN(anchorRsi)
+      typeof anchorRsi === 'number' && Number.isFinite(anchorRsi)
         ? Math.max(RSI_NATURAL_MIN, Math.min(RSI_NATURAL_MAX, anchorRsi))
         : 50,
     boundMin: RSI_NATURAL_MIN,
@@ -175,8 +770,14 @@ export function computeVolumePanelLayout(params: {
   peakRenderedVolume: number;
   isZoomed: boolean;
 }): VolumePanelLayout {
-  const safeVisibleMax = Math.max(params.visibleMaxVolume, 1);
-  const safePeak = Math.max(params.peakRenderedVolume, 0);
+  const safeVisibleMax =
+    Number.isFinite(params.visibleMaxVolume) && params.visibleMaxVolume > 0
+      ? Math.max(params.visibleMaxVolume, 1)
+      : 1;
+  const safePeak =
+    Number.isFinite(params.peakRenderedVolume) && params.peakRenderedVolume > 0
+      ? params.peakRenderedVolume
+      : 0;
 
   let extraHeight = 0;
   if (params.isZoomed && safePeak > safeVisibleMax) {

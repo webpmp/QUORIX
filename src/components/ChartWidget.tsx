@@ -17,21 +17,32 @@ import {
   setCachedMarketHistory,
 } from '../utils/marketHistoryCache';
 import {
+  BASE_PRICE_HEIGHT,
+  MAX_PRICE_EXPANSION_PX,
+  PRICE_ZOOM_EDGE_PADDING_RATIO,
   RSI_NATURAL_MAX,
   RSI_NATURAL_MIN,
+  computeAutoPriceRange,
+  computeOffscalePcBadgeLayout,
+  computePriceZoomLimits,
   computeScaledBoundedRange,
   computeScaledRsiRange,
   computeScaledVolumeMax,
   computeVolumePanelLayout,
   dragDeltaToZoomFactor,
+  ensureRangeIncludesFocusBand,
+  panBoundedRange,
+  resolveReferenceLevelLabels,
   shouldShowYScaleIndicator,
   wheelDeltaToZoomFactor,
+  type ReferenceLevelLabelInput,
   type YRange,
 } from '../utils/yAxisZoom';
 
 interface ChartWidgetProps {
   stock: StockData;
   onTickTimeChange?: (val: string) => void;
+  initialCustomYRange?: YRange | null;
 }
 
 type ChartType = 'candle' | 'line' | 'area';
@@ -61,6 +72,7 @@ function loadSavedStudies(): StudyId[] {
 export default function ChartWidget({
   stock,
   onTickTimeChange,
+  initialCustomYRange = null,
 }: ChartWidgetProps) {
   const [chartType, setChartType] = useState<ChartType>('candle');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -78,14 +90,24 @@ export default function ChartWidget({
   const volYAxisHitRef = useRef<SVGRectElement | null>(null);
   const rsiYAxisHitRef = useRef<SVGRectElement | null>(null);
   const [chartWidth, setChartWidth] = useState<number>(600);
-  const [customYRange, setCustomYRange] = useState<YRange | null>(null);
+  const [customYRange, setCustomYRange] = useState<YRange | null>(initialCustomYRange);
   const [isYAxisHovered, setIsYAxisHovered] = useState<boolean>(false);
   const [isYAxisDragging, setIsYAxisDragging] = useState<boolean>(false);
+  const [isPlotPanning, setIsPlotPanning] = useState<boolean>(false);
   const dragStateRef = useRef<{ startY: number; startMin: number; startMax: number } | null>(null);
+  const panStateRef = useRef<{
+    startY: number;
+    startMin: number;
+    startMax: number;
+    plotHeight: number;
+    hasMoved: boolean;
+  } | null>(null);
   const scaleContextRef = useRef<{
     minPrice: number;
     maxPrice: number;
     computeScaledYRange: (baseMin: number, baseMax: number, factor: number) => YRange;
+    panYRange: (baseMin: number, baseMax: number, deltaPrice: number) => YRange;
+    normalizeYRange: (range: YRange) => YRange;
     isModalOpen: boolean;
   } | null>(null);
 
@@ -360,9 +382,10 @@ export default function ChartWidget({
       // Wheel up (deltaY < 0) => zoom in; wheel down (deltaY > 0) => zoom out
       const factor = wheelDeltaToZoomFactor(e.deltaY);
       setCustomYRange((prev) => {
-        const curMin = prev ? prev.min : ctx.minPrice;
-        const curMax = prev ? prev.max : ctx.maxPrice;
-        return ctx.computeScaledYRange(curMin, curMax, factor);
+        const base = prev
+          ? ctx.normalizeYRange(prev)
+          : { min: ctx.minPrice, max: ctx.maxPrice };
+        return ctx.computeScaledYRange(base.min, base.max, factor);
       });
     };
 
@@ -449,6 +472,35 @@ export default function ChartWidget({
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isYAxisDragging]);
+
+  // Smooth vertical plot panning (clamped to keep candlesticks strictly inside the plot)
+  useEffect(() => {
+    if (!isPlotPanning) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const pan = panStateRef.current;
+      const ctx = scaleContextRef.current;
+      if (!pan || !ctx) return;
+      const dy = e.clientY - pan.startY;
+      if (!pan.hasMoved && Math.abs(dy) < 3) return;
+      pan.hasMoved = true;
+      const startSpan = Math.max(pan.startMax - pan.startMin, 0.0001);
+      const deltaPrice = (dy / Math.max(pan.plotHeight, 1)) * startSpan;
+      setCustomYRange(ctx.panYRange(pan.startMin, pan.startMax, deltaPrice));
+    };
+
+    const handleMouseUp = () => {
+      panStateRef.current = null;
+      setIsPlotPanning(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isPlotPanning]);
 
   // Smooth vertical Y-axis drag handling for Volume Study
   useEffect(() => {
@@ -571,16 +623,18 @@ export default function ChartWidget({
       if (isZoomIn) {
         e.preventDefault();
         setCustomYRange((prev) => {
-          const curMin = prev ? prev.min : priceCtx.minPrice;
-          const curMax = prev ? prev.max : priceCtx.maxPrice;
-          return priceCtx.computeScaledYRange(curMin, curMax, 1.2);
+          const base = prev
+            ? priceCtx.normalizeYRange(prev)
+            : { min: priceCtx.minPrice, max: priceCtx.maxPrice };
+          return priceCtx.computeScaledYRange(base.min, base.max, 1.2);
         });
       } else if (isZoomOut) {
         e.preventDefault();
         setCustomYRange((prev) => {
-          const curMin = prev ? prev.min : priceCtx.minPrice;
-          const curMax = prev ? prev.max : priceCtx.maxPrice;
-          return priceCtx.computeScaledYRange(curMin, curMax, 1 / 1.2);
+          const base = prev
+            ? priceCtx.normalizeYRange(prev)
+            : { min: priceCtx.minPrice, max: priceCtx.maxPrice };
+          return priceCtx.computeScaledYRange(base.min, base.max, 1 / 1.2);
         });
       } else if (isReset) {
         e.preventDefault();
@@ -616,8 +670,6 @@ export default function ChartWidget({
   const adjWidth = Math.max(100, width - paddingLeft - paddingRight);
   const priceVolAdjWidth = Math.max(100, width - priceVolPaddingLeft - paddingRight);
 
-  const BASE_PRICE_HEIGHT = 184;
-  const MAX_PRICE_EXPANSION_PX = 50;
   const pricePaddingTop = 18;
   const pricePaddingBottom = 18;
   const Y_AXIS_VERTICAL_EXTRA_PAD = 6;
@@ -661,51 +713,91 @@ export default function ChartWidget({
   const rsiPaddingBottom = 12;
   const rsiAdjHeight = rsiHeight - rsiPaddingTop - rsiPaddingBottom;
 
-  const windowHigh = history.length > 0 ? Math.max(...history.map((h) => h.high)) : 0;
-  const windowLow = history.length > 0 ? Math.min(...history.map((h) => h.low)) : 0;
-  const prevCloseRef =
-    typeof stock.prevClose === 'number' && stock.prevClose > 0 ? stock.prevClose : null;
-
-  // Price boundaries include all enabled overlays so nothing clips
-  const overlayValues: number[] = [];
-  history.forEach((h) => {
-    if (showMa3 && typeof h.ma3 === 'number') overlayValues.push(h.ma3);
-    if (showEma9 && typeof h.ema9 === 'number') overlayValues.push(h.ema9);
-    if (showEma20 && typeof h.ema20 === 'number') overlayValues.push(h.ema20);
-    if (showSma50 && typeof h.sma50 === 'number') overlayValues.push(h.sma50);
-    if (showVwap && typeof h.vwap === 'number') overlayValues.push(h.vwap);
-    if (showBb) {
-      if (typeof h.bbUpper === 'number') overlayValues.push(h.bbUpper);
-      if (typeof h.bbLower === 'number') overlayValues.push(h.bbLower);
+  let windowHigh = Number.NEGATIVE_INFINITY;
+  let windowLow = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < history.length; i++) {
+    const h = history[i];
+    if (!h) continue;
+    const candidates = [h.high, h.low, h.open, h.close];
+    for (let j = 0; j < candidates.length; j++) {
+      const val = candidates[j];
+      if (typeof val === 'number' && Number.isFinite(val)) {
+        if (val > windowHigh) windowHigh = val;
+        if (val < windowLow) windowLow = val;
+      }
     }
-    if (showPsar && typeof h.psar === 'number') overlayValues.push(h.psar);
-  });
-  if (showLevels && prevCloseRef !== null) {
-    overlayValues.push(prevCloseRef);
+  }
+  const hasFiniteWindowBounds =
+    Number.isFinite(windowHigh) && Number.isFinite(windowLow) && windowHigh >= windowLow;
+  if (!hasFiniteWindowBounds) {
+    const fallbackPrice =
+      typeof stock.price === 'number' && Number.isFinite(stock.price) && stock.price > 0
+        ? stock.price
+        : 1;
+    windowHigh = fallbackPrice;
+    windowLow = fallbackPrice;
   }
 
-  const prices = history.length > 0
-    ? [
-        ...history.flatMap((h) => [h.high, h.low, h.close, h.open]),
-        ...overlayValues,
-      ]
-    : [1];
-  const autoMaxPrice = Math.max(...prices) * 1.008;
-  const autoMinPrice = Math.min(...prices) * 0.992;
-  const autoPriceRange = Math.max(autoMaxPrice - autoMinPrice, 0.0001);
-  const autoMid = (autoMinPrice + autoMaxPrice) / 2;
+  const prevCloseRef =
+    typeof stock.prevClose === 'number' && Number.isFinite(stock.prevClose) && stock.prevClose > 0
+      ? stock.prevClose
+      : null;
 
-  const latestBarClose = history[history.length - 1]?.close ?? autoMid;
+  const latestBar = history.length > 0 ? history[history.length - 1] : undefined;
+  const latestBarClose =
+    typeof latestBar?.close === 'number' && Number.isFinite(latestBar.close)
+      ? latestBar.close
+      : (windowLow + windowHigh) / 2;
   const anchorPrice =
     typeof stock.price === 'number' &&
+    Number.isFinite(stock.price) &&
     stock.price > 0 &&
-    stock.price >= autoMinPrice * 0.5 &&
-    stock.price <= autoMaxPrice * 1.5
+    stock.price >= windowLow * 0.5 &&
+    stock.price <= windowHigh * 1.5
       ? stock.price
       : latestBarClose;
 
-  const minVisibleRange = Math.max(autoPriceRange * 0.15, Math.abs(autoMid) * 0.002, 0.02);
-  const maxVisibleRange = Math.max(autoPriceRange * 4, Math.abs(autoMid) * 0.4, minVisibleRange * 2);
+  // Compute automatic Y-axis bounds strictly from actual candlestick lows/highs (+ live anchorPrice),
+  // only softly incorporating prevClose when close enough not to compress or displace candlesticks.
+  const autoPriceResult = computeAutoPriceRange({
+    candleLow: windowLow,
+    candleHigh: windowHigh,
+    currentPrice: anchorPrice,
+    prevClose: showLevels ? prevCloseRef : null,
+  });
+
+  const autoMinPrice = autoPriceResult.min;
+  const autoMaxPrice = autoPriceResult.max;
+  const autoPriceRange = Math.max(autoMaxPrice - autoMinPrice, 0.0001);
+
+  const visibleCandlesLow = autoPriceResult.coreLow;
+  const visibleCandlesHigh = autoPriceResult.coreHigh;
+  const visibleCandlesSpan = Math.max(visibleCandlesHigh - visibleCandlesLow, 0);
+  const priceBoundMin = autoMinPrice >= 0 && visibleCandlesLow >= 0 ? 0 : undefined;
+
+  const basePricePlotHeight = BASE_PRICE_HEIGHT - pricePaddingTop - pricePaddingBottom;
+  const {
+    minVisibleSpan: minVisibleRange,
+    maxVisibleSpan: maxVisibleRange,
+  } = computePriceZoomLimits({
+    candleLow: windowLow,
+    candleHigh: windowHigh,
+    autoMinPrice,
+    autoMaxPrice,
+    plotHeightPx: basePricePlotHeight,
+  });
+
+  const normalizeYRange = (range: YRange): YRange =>
+    ensureRangeIncludesFocusBand({
+      range,
+      focusMin: visibleCandlesLow,
+      focusMax: visibleCandlesHigh,
+      anchorValue: anchorPrice,
+      minVisibleSpan: minVisibleRange,
+      maxVisibleSpan: maxVisibleRange,
+      boundMin: priceBoundMin,
+      edgePaddingRatio: PRICE_ZOOM_EDGE_PADDING_RATIO,
+    });
 
   const computeScaledYRange = (
     baseMin: number,
@@ -719,28 +811,69 @@ export default function ChartWidget({
       minVisibleSpan: minVisibleRange,
       maxVisibleSpan: maxVisibleRange,
       anchorValue: anchorPrice,
-      boundMin: autoMinPrice >= 0 ? 0 : undefined,
+      focusMin: visibleCandlesLow,
+      focusMax: visibleCandlesHigh,
+      boundMin: priceBoundMin,
+      edgePaddingRatio: PRICE_ZOOM_EDGE_PADDING_RATIO,
     });
 
-  const minPrice = customYRange ? customYRange.min : autoMinPrice;
-  const maxPrice = customYRange ? customYRange.max : autoMaxPrice;
-  const priceRange = Math.max(maxPrice - minPrice, 0.0001);
-  const isYZoomed = customYRange !== null;
-  const yZoomFactor = autoPriceRange / priceRange;
+  const panYRange = (
+    baseMin: number,
+    baseMax: number,
+    deltaPrice: number
+  ): YRange =>
+    panBoundedRange({
+      baseMin,
+      baseMax,
+      deltaPrice,
+      minVisibleSpan: minVisibleRange,
+      maxVisibleSpan: maxVisibleRange,
+      anchorValue: anchorPrice,
+      focusMin: visibleCandlesLow,
+      focusMax: visibleCandlesHigh,
+      boundMin: priceBoundMin,
+      edgePaddingRatio: PRICE_ZOOM_EDGE_PADDING_RATIO,
+    });
+
+  const effectiveCustomYRange = customYRange ? normalizeYRange(customYRange) : null;
+  const minPrice = effectiveCustomYRange ? effectiveCustomYRange.min : autoMinPrice;
+  const maxPrice = effectiveCustomYRange ? effectiveCustomYRange.max : autoMaxPrice;
+  const priceRange = Number.isFinite(maxPrice - minPrice)
+    ? Math.max(maxPrice - minPrice, 0.0001)
+    : autoPriceRange;
+  const isYZoomed = effectiveCustomYRange !== null;
+  const requiredSpanForCandles =
+    visibleCandlesSpan > 0
+      ? visibleCandlesSpan / (1 - 2 * PRICE_ZOOM_EDGE_PADDING_RATIO)
+      : 0;
+  const effectiveMinPriceRange = Math.max(minVisibleRange, requiredSpanForCandles);
+  const rawMaxZoomMultiplier = autoPriceRange / Math.max(effectiveMinPriceRange, 0.0001);
+  const maxZoomInMultiplier = Number.isFinite(rawMaxZoomMultiplier)
+    ? Math.max(1.2, rawMaxZoomMultiplier)
+    : 1.2;
+  const yZoomFactor =
+    Number.isFinite(autoPriceRange / priceRange) && autoPriceRange / priceRange > 0
+      ? autoPriceRange / priceRange
+      : 1;
   const priceExtraHeight =
-    isYZoomed && yZoomFactor > 1
+    isYZoomed && yZoomFactor > 1 && maxZoomInMultiplier > 1
       ? Math.min(
           MAX_PRICE_EXPANSION_PX,
-          Math.max(0, Math.round((Math.log(yZoomFactor) / Math.log(4)) * MAX_PRICE_EXPANSION_PX))
+          Math.max(
+            0,
+            Math.round((Math.log(yZoomFactor) / Math.log(maxZoomInMultiplier)) * MAX_PRICE_EXPANSION_PX)
+          )
         )
       : 0;
-  const priceHeight = BASE_PRICE_HEIGHT + priceExtraHeight;
+  const priceHeight = BASE_PRICE_HEIGHT + (Number.isFinite(priceExtraHeight) ? priceExtraHeight : 0);
   const priceAdjHeight = priceHeight - pricePaddingTop - pricePaddingBottom;
 
   scaleContextRef.current = {
     minPrice,
     maxPrice,
     computeScaledYRange,
+    panYRange,
+    normalizeYRange,
     isModalOpen: isStudiesModalOpen,
   };
 
@@ -757,8 +890,22 @@ export default function ChartWidget({
     setIsYAxisDragging(true);
   };
 
+  const handlePlotMouseDown = (e: ReactMouseEvent<SVGRectElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    panStateRef.current = {
+      startY: e.clientY,
+      startMin: minPrice,
+      startMax: maxPrice,
+      plotHeight: priceAdjHeight,
+      hasMoved: false,
+    };
+    setIsPlotPanning(true);
+  };
+
   const priceTickStep = priceRange / 4;
   const formatAxisPrice = (val: number) => {
+    if (typeof val !== 'number' || !Number.isFinite(val)) return '--';
     if (priceTickStep < 0.01) return val.toFixed(4);
     if (priceTickStep < 0.1) return val.toFixed(3);
     if (val >= 1000 && priceTickStep >= 0.5) return val.toFixed(1);
@@ -768,7 +915,9 @@ export default function ChartWidget({
 
   // Volume boundaries (include volMa if active) & independent Y-axis zoom against [0, visibleMaxVolume]
   // with capped 0..50px headroom above the plotting scale so taller bars stay visible where possible
-  const volSeries = history.map((h) => h.volume);
+  const volSeries = history.map((h) =>
+    typeof h?.volume === 'number' && Number.isFinite(h.volume) && h.volume > 0 ? h.volume : 0
+  );
   const volMaSeries = showVolMaStudy
     ? history.map((h) => h.volMa).filter((v): v is number => typeof v === 'number' && !isNaN(v))
     : [];
@@ -881,21 +1030,28 @@ export default function ChartWidget({
     return { x: left, stripeWidth: Math.max(1, right - left) };
   };
 
-  const getY = (price: number) =>
-    pricePaddingTop + priceAdjHeight - ((price - minPrice) / priceRange) * priceAdjHeight;
+  const getY = (price: number) => {
+    if (typeof price !== 'number' || !Number.isFinite(price)) {
+      return pricePaddingTop + priceAdjHeight / 2;
+    }
+    return pricePaddingTop + priceAdjHeight - ((price - minPrice) / priceRange) * priceAdjHeight;
+  };
 
-  const getVolY = (volume: number) =>
-    volBaselineY -
-    (Math.max(0, volume) / Math.max(visibleMaxVolume, 1)) * volScaleHeight;
+  const getVolY = (volume: number) => {
+    const safeVol = typeof volume === 'number' && Number.isFinite(volume) ? Math.max(0, volume) : 0;
+    return volBaselineY - (safeVol / Math.max(visibleMaxVolume, 1)) * volScaleHeight;
+  };
 
-  const getRsiY = (rsiVal: number) =>
-    rsiPaddingTop + rsiAdjHeight - ((rsiVal - minRsi) / rsiRange) * rsiAdjHeight;
+  const getRsiY = (rsiVal: number) => {
+    const safeRsi = typeof rsiVal === 'number' && Number.isFinite(rsiVal) ? rsiVal : 50;
+    return rsiPaddingTop + rsiAdjHeight - ((safeRsi - minRsi) / rsiRange) * rsiAdjHeight;
+  };
 
   const generateSeriesPath = (getter: (bar: HistoryBar, idx: number) => number | undefined, yMapper: (val: number) => number) => {
     const pts: string[] = [];
     for (let i = 0; i < history.length; i++) {
       const val = getter(history[i], i);
-      if (typeof val === 'number' && !isNaN(val)) {
+      if (typeof val === 'number' && Number.isFinite(val)) {
         pts.push(`${pts.length === 0 ? 'M' : 'L'}${getX(i)},${yMapper(val)}`);
       }
     }
@@ -909,18 +1065,27 @@ export default function ChartWidget({
     const pts: string[] = [];
     for (let i = 0; i < history.length; i++) {
       const val = getter(history[i], i);
-      if (typeof val === 'number' && !isNaN(val)) {
+      if (typeof val === 'number' && Number.isFinite(val)) {
         pts.push(`${pts.length === 0 ? 'M' : 'L'}${getPriceVolX(i)},${yMapper(val)}`);
       }
     }
     return pts.join(' ');
   };
 
-  const generateLinePath = () =>
-    history.map((h, i) => `${i === 0 ? 'M' : 'L'}${getPriceVolX(i)},${getY(h.close)}`).join(' ');
+  const generateLinePath = () => {
+    const pts: string[] = [];
+    for (let i = 0; i < history.length; i++) {
+      const closeVal = history[i]?.close;
+      if (typeof closeVal === 'number' && Number.isFinite(closeVal)) {
+        pts.push(`${pts.length === 0 ? 'M' : 'L'}${getPriceVolX(i)},${getY(closeVal)}`);
+      }
+    }
+    return pts.join(' ');
+  };
 
   const generateAreaPath = () => {
     const linePath = generateLinePath();
+    if (!linePath) return '';
     return `${linePath} L${getPriceVolX(history.length - 1)},${getY(minPrice)} L${getPriceVolX(0)},${getY(minPrice)} Z`;
   };
 
@@ -1336,83 +1501,206 @@ export default function ChartWidget({
             })}
 
             {/* Support / Resistance Levels Overlay */}
-            {showLevels && (
-              <g>
-                {getY(windowHigh) >= pricePaddingTop - 2 &&
-                  getY(windowHigh) <= pricePaddingTop + priceAdjHeight + 2 && (
+            {showLevels && (() => {
+              const plotTop = pricePaddingTop;
+              const plotBottom = pricePaddingTop + priceAdjHeight;
+              const plotLeft = priceVolPaddingLeft;
+              const plotRight = width - paddingRight;
+
+              const hiLineY = getY(windowHigh);
+              const loLineY = getY(windowLow);
+              const hiVisible = hiLineY >= plotTop - 2 && hiLineY <= plotBottom + 2;
+              const loVisible = loLineY >= plotTop - 2 && loLineY <= plotBottom + 2;
+
+              const pcLineY = prevCloseRef !== null ? getY(prevCloseRef) : Number.NaN;
+              const pcInRange =
+                prevCloseRef !== null &&
+                pcLineY >= plotTop - 2 &&
+                pcLineY <= plotBottom + 2;
+              const pcOffScale = prevCloseRef !== null && !pcInRange;
+
+              const gutterInputs: ReferenceLevelLabelInput[] = [];
+              if (hiVisible) gutterInputs.push({ id: 'HI', lineY: hiLineY, priority: 0 });
+              if (pcInRange) gutterInputs.push({ id: 'PC', lineY: pcLineY, priority: 1 });
+              if (loVisible) gutterInputs.push({ id: 'LO', lineY: loLineY, priority: 2 });
+
+              const resolvedLabels = resolveReferenceLevelLabels({
+                items: gutterInputs,
+                minY: plotTop + 4,
+                maxY: plotBottom - 4,
+              });
+              const labelById = new Map(resolvedLabels.map((item) => [item.id, item]));
+              const hiLabel = labelById.get('HI');
+              const loLabel = labelById.get('LO');
+              const pcLabel = labelById.get('PC');
+
+              const offscaleBadge = pcOffScale && prevCloseRef !== null
+                ? (() => {
+                    const isAbove = prevCloseRef > maxPrice;
+                    const labelText = `${isAbove ? '▲' : '▼'} PC ${formatAxisPrice(prevCloseRef)}`;
+                    const avoidRightEdgeYs: number[] = [];
+                    if (hiVisible) avoidRightEdgeYs.push(hiLineY);
+                    if (loVisible) avoidRightEdgeYs.push(loLineY);
+                    if (hiLabel) avoidRightEdgeYs.push(hiLabel.labelY);
+                    if (loLabel) avoidRightEdgeYs.push(loLabel.labelY);
+                    const layout = computeOffscalePcBadgeLayout({
+                      isAbove,
+                      labelText,
+                      plotLeft,
+                      plotRight,
+                      plotTop,
+                      plotBottom,
+                      avoidRightEdgeYs,
+                    });
+                    const pcReachableByZoomOut =
+                      prevCloseRef >= visibleCandlesHigh - maxVisibleRange &&
+                      prevCloseRef <= visibleCandlesLow + maxVisibleRange;
+                    return { isAbove, labelText, layout, pcReachableByZoomOut };
+                  })()
+                : null;
+
+              return (
+                <g>
+                  {hiVisible && (
                     <>
                       <line
-                        x1={priceVolPaddingLeft}
-                        y1={getY(windowHigh)}
-                        x2={width - paddingRight}
-                        y2={getY(windowHigh)}
+                        x1={plotLeft}
+                        y1={hiLineY}
+                        x2={plotRight}
+                        y2={hiLineY}
                         stroke="rgba(0, 255, 0, 0.45)"
                         strokeWidth="1"
                         strokeDasharray="3,3"
                       />
-                      <text
-                        x={width - paddingRight + 3}
-                        y={getY(windowHigh) + 3}
-                        fill="#00ff00"
-                        fontSize="8"
-                        fontFamily="monospace"
-                        fontWeight="bold"
-                      >
-                        HI
-                      </text>
+                      {hiLabel && hiLabel.displaced && (
+                        <line
+                          x1={plotRight}
+                          y1={hiLineY}
+                          x2={plotRight + 2.5}
+                          y2={hiLabel.labelY}
+                          stroke="rgba(0, 255, 0, 0.55)"
+                          strokeWidth="0.8"
+                        />
+                      )}
+                      {hiLabel && (
+                        <text
+                          data-level-label="HI"
+                          x={plotRight + 3}
+                          y={hiLabel.labelY + 3}
+                          fill="#00ff00"
+                          fontSize="8"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          HI
+                        </text>
+                      )}
                     </>
                   )}
-                {getY(windowLow) >= pricePaddingTop - 2 &&
-                  getY(windowLow) <= pricePaddingTop + priceAdjHeight + 2 && (
+                  {loVisible && (
                     <>
                       <line
-                        x1={priceVolPaddingLeft}
-                        y1={getY(windowLow)}
-                        x2={width - paddingRight}
-                        y2={getY(windowLow)}
+                        x1={plotLeft}
+                        y1={loLineY}
+                        x2={plotRight}
+                        y2={loLineY}
                         stroke="rgba(255, 68, 68, 0.45)"
                         strokeWidth="1"
                         strokeDasharray="3,3"
                       />
-                      <text
-                        x={width - paddingRight + 3}
-                        y={getY(windowLow) + 3}
-                        fill="#ff4444"
-                        fontSize="8"
-                        fontFamily="monospace"
-                        fontWeight="bold"
-                      >
-                        LO
-                      </text>
+                      {loLabel && loLabel.displaced && (
+                        <line
+                          x1={plotRight}
+                          y1={loLineY}
+                          x2={plotRight + 2.5}
+                          y2={loLabel.labelY}
+                          stroke="rgba(255, 68, 68, 0.55)"
+                          strokeWidth="0.8"
+                        />
+                      )}
+                      {loLabel && (
+                        <text
+                          data-level-label="LO"
+                          x={plotRight + 3}
+                          y={loLabel.labelY + 3}
+                          fill="#ff4444"
+                          fontSize="8"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          LO
+                        </text>
+                      )}
                     </>
                   )}
-                {prevCloseRef !== null &&
-                  getY(prevCloseRef) >= pricePaddingTop - 2 &&
-                  getY(prevCloseRef) <= pricePaddingTop + priceAdjHeight + 2 && (
+                  {pcInRange && (
                     <>
                       <line
-                        x1={priceVolPaddingLeft}
-                        y1={getY(prevCloseRef)}
-                        x2={width - paddingRight}
-                        y2={getY(prevCloseRef)}
+                        x1={plotLeft}
+                        y1={pcLineY}
+                        x2={plotRight}
+                        y2={pcLineY}
                         stroke="rgba(52, 152, 219, 0.65)"
                         strokeWidth="1"
                         strokeDasharray="4,3"
                       />
+                      {pcLabel && pcLabel.displaced && (
+                        <line
+                          x1={plotRight}
+                          y1={pcLineY}
+                          x2={plotRight + 2.5}
+                          y2={pcLabel.labelY}
+                          stroke="rgba(52, 152, 219, 0.7)"
+                          strokeWidth="0.8"
+                        />
+                      )}
+                      {pcLabel && (
+                        <text
+                          data-level-label="PC"
+                          x={plotRight + 3}
+                          y={pcLabel.labelY + 3}
+                          fill="#3498db"
+                          fontSize="8"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          PC
+                        </text>
+                      )}
+                    </>
+                  )}
+                  {offscaleBadge && prevCloseRef !== null && (
+                    <g
+                      data-pc-offscale={offscaleBadge.layout.direction}
+                      data-pc-badge-side={offscaleBadge.layout.side}
+                    >
+                      <title>{`Previous Close: $${prevCloseRef.toFixed(2)} (${offscaleBadge.isAbove ? 'above' : 'below'} visible candlestick range${offscaleBadge.pcReachableByZoomOut ? ' — zoom out to view in scale' : ' — outside max zoom-out range'})`}</title>
+                      <rect
+                        x={offscaleBadge.layout.x}
+                        y={offscaleBadge.layout.y}
+                        width={offscaleBadge.layout.width}
+                        height={offscaleBadge.layout.height}
+                        rx="2"
+                        fill="rgba(5, 16, 30, 0.88)"
+                        stroke="rgba(52, 152, 219, 0.6)"
+                        strokeWidth="0.9"
+                      />
                       <text
-                        x={width - paddingRight + 3}
-                        y={getY(prevCloseRef) + 3}
+                        x={offscaleBadge.layout.x + offscaleBadge.layout.width / 2}
+                        y={offscaleBadge.layout.y + 9.5}
+                        textAnchor="middle"
                         fill="#3498db"
                         fontSize="8"
                         fontFamily="monospace"
                         fontWeight="bold"
                       >
-                        PC
+                        {offscaleBadge.labelText}
                       </text>
-                    </>
+                    </g>
                   )}
-              </g>
-            )}
+                </g>
+              );
+            })()}
 
             {/* Clipped Price Plot Series (Candles, Line/Area, Overlays, Crosshair Dot) */}
             <g clipPath="url(#gp-price-plot-clip)">
@@ -1469,6 +1757,19 @@ export default function ChartWidget({
             {/* Candlesticks layout */}
             {chartType === 'candle' &&
               history.map((h, i) => {
+                if (
+                  !h ||
+                  typeof h.open !== 'number' ||
+                  typeof h.close !== 'number' ||
+                  typeof h.high !== 'number' ||
+                  typeof h.low !== 'number' ||
+                  !Number.isFinite(h.open) ||
+                  !Number.isFinite(h.close) ||
+                  !Number.isFinite(h.high) ||
+                  !Number.isFinite(h.low)
+                ) {
+                  return null;
+                }
                 const xPos = getPriceVolX(i);
                 const openY = getY(h.open);
                 const closeY = getY(h.close);
@@ -1563,6 +1864,30 @@ export default function ChartWidget({
                   />
                 );
               })}
+            {/* Subtle Current-Price Reference Indicator */}
+            {lastIdx >= 0 && Number.isFinite(anchorPrice) && (
+              <g data-current-price-indicator="true">
+                <line
+                  x1={priceVolPaddingLeft}
+                  y1={getY(anchorPrice)}
+                  x2={width - paddingRight}
+                  y2={getY(anchorPrice)}
+                  stroke="rgba(255, 153, 0, 0.35)"
+                  strokeWidth="1"
+                  strokeDasharray="2,3"
+                />
+                <circle
+                  cx={getPriceVolX(lastIdx)}
+                  cy={getY(anchorPrice)}
+                  r="2.5"
+                  fill="#ff9900"
+                  stroke="#000"
+                  strokeWidth="1"
+                >
+                  <title>{`Current Price: $${anchorPrice.toFixed(2)}`}</title>
+                </circle>
+              </g>
+            )}
             </g>
 
             {/* Vertical Time Axis ticks */}
@@ -1598,7 +1923,7 @@ export default function ChartWidget({
               return null;
             })}
 
-            {/* Interactive hover detection vertical stripes */}
+            {/* Interactive hover detection & vertical pan stripes */}
             {history.map((_, i) => {
               const { x, stripeWidth } = getPriceVolHoverStripeBounds(i);
               return (
@@ -1609,14 +1934,15 @@ export default function ChartWidget({
                   width={stripeWidth}
                   height={priceAdjHeight}
                   fill="transparent"
-                  className="cursor-crosshair"
+                  className={isPlotPanning ? 'cursor-grabbing' : 'cursor-crosshair'}
                   onMouseEnter={() => setHoverIndex(i)}
+                  onMouseDown={handlePlotMouseDown}
                 />
               );
             })}
 
             {/* Target Vertical Crosshair */}
-            {hoverIndex !== null && (
+            {hoverIndex !== null && history[hoverIndex] && (
               <g>
                 <line
                   x1={getPriceVolX(hoverIndex)}
@@ -1627,7 +1953,9 @@ export default function ChartWidget({
                   strokeWidth="0.8"
                   strokeDasharray="2,2"
                 />
-                {getY(history[hoverIndex].close) >= pricePaddingTop - 3 &&
+                {typeof history[hoverIndex].close === 'number' &&
+                  Number.isFinite(history[hoverIndex].close) &&
+                  getY(history[hoverIndex].close) >= pricePaddingTop - 3 &&
                   getY(history[hoverIndex].close) <= pricePaddingTop + priceAdjHeight + 3 && (
                     <circle
                       cx={getPriceVolX(hoverIndex)}
@@ -1859,12 +2187,15 @@ export default function ChartWidget({
               <g clipPath="url(#gp-vol-plot-clip)">
                 {history.map((h, i) => {
                   const barX = getPriceVolX(i) - priceVolBarWidth / 2;
-                  const safeVol = Math.max(0, h.volume);
+                  const safeVol =
+                    typeof h?.volume === 'number' && Number.isFinite(h.volume)
+                      ? Math.max(0, h.volume)
+                      : 0;
                   const rawBarY = getVolY(safeVol);
                   const rawBarH = Math.max(0, volBaselineY - rawBarY);
                   const barH = safeVol > 0 ? Math.max(2, rawBarH) : 1;
                   const barY = volBaselineY - barH;
-                  const isGreen = h.close >= h.open;
+                  const isGreen = (h?.close ?? 0) >= (h?.open ?? 0);
                   return (
                     <rect
                       key={`vol-bar-${i}`}
@@ -1958,7 +2289,10 @@ export default function ChartWidget({
                 <span className="text-zinc-500 inline-flex items-center gap-2">
                   <span>VOLUME STUDY</span>
                   <span className="text-zinc-300 tabular-nums">
-                    BAR: {formatAxisVolume(hoveredData.volume)}
+                    BAR:{' '}
+                    {typeof hoveredData.volume === 'number' && Number.isFinite(hoveredData.volume)
+                      ? formatAxisVolume(hoveredData.volume)
+                      : '--'}
                   </span>
                 </span>
                 <div className="relative group/vol-tip pointer-events-auto inline-flex items-center">
@@ -2203,7 +2537,7 @@ export default function ChartWidget({
                 );
               })}
 
-              {hoverIndex !== null && (
+              {hoverIndex !== null && hoverIndex < rsiList.length && (
                 <g>
                   <line
                     x1={getX(hoverIndex)}
@@ -2214,16 +2548,18 @@ export default function ChartWidget({
                     strokeWidth="0.8"
                     strokeDasharray="2,2"
                   />
-                  <g clipPath="url(#gp-rsi-plot-clip)">
-                    <circle
-                      cx={getX(hoverIndex)}
-                      cy={getRsiY(rsiList[hoverIndex])}
-                      r="3"
-                      fill="#ff9900"
-                      stroke="black"
-                      strokeWidth="1"
-                    />
-                  </g>
+                  {typeof rsiList[hoverIndex] === 'number' && Number.isFinite(rsiList[hoverIndex]) && (
+                    <g clipPath="url(#gp-rsi-plot-clip)">
+                      <circle
+                        cx={getX(hoverIndex)}
+                        cy={getRsiY(rsiList[hoverIndex])}
+                        r="3"
+                        fill="#ff9900"
+                        stroke="black"
+                        strokeWidth="1"
+                      />
+                    </g>
+                  )}
                 </g>
               )}
 
@@ -2266,7 +2602,11 @@ export default function ChartWidget({
               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
                 <span className="text-zinc-500 inline-flex items-center gap-1.5">
                   <span>RSI OSCILLATOR (14)</span>
-                  <span className="text-[#9b59b6] tabular-nums">{currentRsi.toFixed(1)}</span>
+                  <span className="text-[#9b59b6] tabular-nums">
+                    {typeof currentRsi === 'number' && Number.isFinite(currentRsi)
+                      ? currentRsi.toFixed(1)
+                      : '--'}
+                  </span>
                 </span>
                 <div className="relative group/rsi-tip pointer-events-auto inline-flex items-center">
                   <button

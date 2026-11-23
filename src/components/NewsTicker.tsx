@@ -295,11 +295,13 @@ export default function NewsTicker() {
         {/* Source connection indicators */}
         <div className="hidden md:flex items-center gap-1 font-normal">
           {[
-            { id: 'nyt' as const, label: 'NYT', active: configuredSources.nyt },
-            { id: 'news' as const, label: 'NEWS', active: configuredSources.news },
-            { id: 'newsdata' as const, label: 'NEWSDATA.IO', active: configuredSources.newsdata },
+            { id: 'nyt' as const, label: 'NYT', active: configuredSources.nyt, isApiKeySource: true },
+            { id: 'news' as const, label: 'NEWS', active: configuredSources.news, isApiKeySource: true },
+            { id: 'newsdata' as const, label: 'NEWSDATA.IO', active: configuredSources.newsdata, isApiKeySource: true },
+            { id: 'yahoo' as const, label: 'YF', active: true, isApiKeySource: false },
           ].map((src) => {
             const isCurrentFeed = src.active && activeSource === src.id;
+            const tooltipPrefix = src.isApiKeySource ? `${src.label} API key` : 'Yahoo Finance';
             return (
               <span
                 key={src.id}
@@ -312,10 +314,10 @@ export default function NewsTicker() {
                 }`}
                 title={
                   !src.active
-                    ? `${src.label} API key not configured`
+                    ? `${tooltipPrefix} not configured`
                     : isCurrentFeed
-                    ? `${src.label} API key active — currently sourcing ticker (rotates every 10 min)`
-                    : `${src.label} API key active (rotates every 10 min)`
+                    ? `${tooltipPrefix} active — currently sourcing ticker (rotates every 10 min)`
+                    : `${tooltipPrefix} active (rotates every 10 min)`
                 }
               >
                 {src.label}
