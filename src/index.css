@@ -4,6 +4,10 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --text-prm-label: 0.75rem;
+  --text-prm-body: 0.8125rem;
+  --color-prm-border: #3a3a3a;
+  --color-prm-divider: #2e2e2e;
 }
 
 /* Custom terminal scanline aesthetics */

@@ -39,7 +39,7 @@ export interface IndustryPieSlice {
   labelX: number;
   labelY: number;
   showInlineLabel: boolean;
-  /** Outward offset along slice bisector for hover highlight */
+  /** Outward offset along slice bisector for hover/focus highlight */
   hoverOffsetX: number;
   hoverOffsetY: number;
 }
@@ -48,9 +48,9 @@ const PIE_SIZE = 220;
 const PIE_CX = PIE_SIZE / 2;
 const PIE_CY = PIE_SIZE / 2;
 const PIE_RADIUS = 94;
-const INLINE_LABEL_RADIUS = 62;
+const INLINE_LABEL_RADIUS = 60;
 const HOVER_OFFSET = 5;
-const MIN_LABEL_SWEEP_DEG = 24;
+const MIN_LABEL_SWEEP_DEG = 28;
 
 function polarToCartesian(cx: number, cy: number, radius: number, angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180;
@@ -109,12 +109,6 @@ export function getIndustryColorMap(industries: IndustryAllocationRow[]): Record
 /**
  * Pure helper building SVG pie geometry directly from the IndustryAllocationRow[]
  * dataset used by the Industry Allocation Breakdown table.
- *
- * - Zero-weight (or non-finite) industries are excluded from the pie geometry so
- *   degenerate slices are never drawn.
- * - Each slice's angular sweep is strictly proportional to its portfolioWeightPct.
- * - Each slice retains the exact portfolioWeightPct and marketValue from the table
- *   without inventing a separate denominator.
  */
 export function buildIndustryPieSlices(
   industries: IndustryAllocationRow[],
@@ -194,18 +188,12 @@ function getContrastLabelColor(hexColor: string): string {
 export const IndustryAllocationPieChart: React.FC<IndustryAllocationPieChartProps> = ({
   industries,
   colorMap,
-  cashWeightPct = 0,
 }) => {
   const [activeKey, setActiveKey] = useState<string | null>(null);
 
   const slices = useMemo(
     () => buildIndustryPieSlices(industries, colorMap),
     [industries, colorMap]
-  );
-
-  const totalIndustryWeightPct = useMemo(
-    () => slices.reduce((sum, s) => sum + s.portfolioWeightPct, 0),
-    [slices]
   );
 
   const activeSlice = useMemo(
@@ -219,11 +207,11 @@ export const IndustryAllocationPieChart: React.FC<IndustryAllocationPieChartProp
 
   return (
     <div
-      className="flex flex-col md:flex-row items-center justify-center gap-5 md:gap-8 py-3 border-b border-[#1c1c1c]"
+      className="flex justify-center py-3 border-b border-prm-divider"
       data-testid="industry-pie-chart-container"
     >
-      {/* Centered Pie Chart SVG + Hover Tooltip */}
-      <div className="relative shrink-0 w-[196px] h-[196px] sm:w-[216px] sm:h-[216px]">
+      {/* Centered Pie Chart SVG + Hover/Tap/Focus Tooltip */}
+      <div className="relative shrink-0 w-[200px] h-[200px] sm:w-[220px] sm:h-[220px]">
         <svg
           viewBox={`0 0 ${PIE_SIZE} ${PIE_SIZE}`}
           className="w-full h-full block overflow-visible select-none"
@@ -257,6 +245,7 @@ export const IndustryAllocationPieChart: React.FC<IndustryAllocationPieChartProp
                 onMouseLeave={() => setActiveKey((prev) => (prev === slice.key ? null : prev))}
                 onFocus={() => setActiveKey(slice.key)}
                 onBlur={() => setActiveKey((prev) => (prev === slice.key ? null : prev))}
+                onClick={() => setActiveKey((prev) => (prev === slice.key ? null : slice.key))}
               >
                 {slice.isFullCircle ? (
                   <circle
@@ -288,7 +277,7 @@ export const IndustryAllocationPieChart: React.FC<IndustryAllocationPieChartProp
                     textAnchor="middle"
                     dominantBaseline="central"
                     fill={getContrastLabelColor(slice.color)}
-                    fontSize="10"
+                    fontSize="12"
                     fontWeight="800"
                     className="pointer-events-none select-none font-mono"
                   >
@@ -300,94 +289,44 @@ export const IndustryAllocationPieChart: React.FC<IndustryAllocationPieChartProp
           })}
         </svg>
 
-        {/* Interactive Hover / Focus Tooltip */}
+        {/* Interactive Hover / Focus / Tap Tooltip */}
         {activeSlice && (
           <div
             role="tooltip"
-            className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-20 w-60 max-w-[calc(100vw-3rem)] bg-[#0a0a0a] border border-[#444] rounded px-2.5 py-2 shadow-2xl shadow-black/95 text-[10.5px] leading-snug"
+            className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-20 w-64 max-w-[calc(100vw-3rem)] bg-[#0a0a0a] border border-prm-border rounded px-3 py-2.5 shadow-2xl shadow-black/95 text-prm-label leading-snug"
           >
-            <div className="flex items-start gap-1.5 font-bold text-white">
+            <div className="flex items-start gap-1.5 font-bold text-white text-prm-body">
               <svg
                 width="10"
                 height="10"
                 viewBox="0 0 10 10"
-                className="shrink-0 mt-0.5"
+                className="shrink-0 mt-1"
                 aria-hidden="true"
               >
                 <rect width="10" height="10" rx="2" fill={activeSlice.color} />
               </svg>
               <span className="break-words">{activeSlice.industry}</span>
             </div>
-            <div className="text-[9.5px] text-zinc-400 uppercase mt-0.5">
+            <div className="text-prm-label text-zinc-300 uppercase mt-0.5">
               {activeSlice.sector}
             </div>
-            <div className="mt-1.5 pt-1.5 border-t border-[#222] grid grid-cols-2 gap-2 tabular-nums">
+            <div className="mt-1.5 pt-1.5 border-t border-prm-divider grid grid-cols-2 gap-2 tabular-nums">
               <div>
-                <div className="text-[9px] text-zinc-500 uppercase">Port Weight</div>
-                <div className="text-white font-bold">
+                <div className="text-prm-label text-zinc-300 uppercase">Weight</div>
+                <div className="text-prm-body text-white font-bold">
                   {activeSlice.portfolioWeightPct.toFixed(1)}%
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-[9px] text-zinc-500 uppercase">Market Value</div>
-                <div className="text-zinc-200 font-bold">
+                <div className="text-prm-label text-zinc-300 uppercase">Market Value</div>
+                <div className="text-prm-body text-zinc-100 font-bold">
                   {formatUsdFull(activeSlice.marketValue)}
                 </div>
               </div>
             </div>
-            <div className="mt-1 text-[9.5px] text-[#3498db] font-bold truncate">
+            <div className="mt-1 text-prm-label text-[#3498db] font-bold truncate">
               {activeSlice.tickers.join(', ')}
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Responsive Adjacent Legend (beside chart on md+, below on narrow viewports) */}
-      <div className="w-full md:w-auto md:min-w-[260px] md:max-w-2xl min-w-0">
-        <ul
-          className={
-            slices.length > 6
-              ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1.5'
-              : 'space-y-1.5'
-          }
-          aria-label="Industry allocation legend"
-        >
-          {slices.map((slice) => {
-            const isHovered = activeKey === slice.key;
-            return (
-              <li
-                key={slice.key}
-                onMouseEnter={() => setActiveKey(slice.key)}
-                onMouseLeave={() => setActiveKey((prev) => (prev === slice.key ? null : prev))}
-                className={`flex items-center justify-between gap-3 rounded px-1.5 py-0.5 text-[10.5px] transition-colors cursor-default ${
-                  isHovered ? 'bg-[#141414] text-white' : 'text-zinc-300'
-                }`}
-              >
-                <span className="flex items-center gap-2 min-w-0">
-                  <svg
-                    width="9"
-                    height="9"
-                    viewBox="0 0 9 9"
-                    className="shrink-0"
-                    aria-hidden="true"
-                  >
-                    <rect width="9" height="9" rx="1.5" fill={slice.color} />
-                  </svg>
-                  <span className="truncate" title={`${slice.industry} (${slice.sector})`}>
-                    {slice.industry}
-                  </span>
-                </span>
-                <span className="tabular-nums font-bold text-white shrink-0">
-                  {slice.portfolioWeightPct.toFixed(1)}%
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-        {cashWeightPct > 0.05 && (
-          <div className="mt-2 pt-1.5 border-t border-[#181818] text-[9.5px] text-zinc-500 tabular-nums">
-            Industry weights represent % of total portfolio ({totalIndustryWeightPct.toFixed(1)}%
-            allocated across industries · {cashWeightPct.toFixed(1)}% cash).
           </div>
         )}
       </div>

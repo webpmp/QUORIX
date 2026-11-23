@@ -112,13 +112,21 @@ export const TerminalTooltip: React.FC<TerminalTooltipProps> = ({
       if (e.key === 'Escape') setOpen(false);
     };
     const onScroll = () => setOpen(false);
+    const onOutsideDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (triggerRef.current && !triggerRef.current.contains(target)) {
+        setOpen(false);
+      }
+    };
     window.addEventListener('resize', onReposition);
     window.addEventListener('scroll', onScroll, true);
     window.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onOutsideDown);
     return () => {
       window.removeEventListener('resize', onReposition);
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onOutsideDown);
     };
   }, [open, updatePosition]);
 
@@ -127,13 +135,31 @@ export const TerminalTooltip: React.FC<TerminalTooltipProps> = ({
   return (
     <span
       ref={triggerRef}
+      tabIndex={0}
       onMouseEnter={openTip}
       onMouseLeave={scheduleClose}
       onFocus={openTip}
       onBlur={closeImmediately}
+      onClick={() => {
+        if (open) {
+          closeImmediately();
+        } else {
+          openTip();
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (open) {
+            closeImmediately();
+          } else {
+            openTip();
+          }
+        }
+      }}
       data-tooltip-text={ariaText || (typeof content === 'string' ? content : title || '')}
       aria-describedby={open ? tooltipId : undefined}
-      className={hasDisplayClass ? className : `inline-flex items-center ${className}`.trim()}
+      className={hasDisplayClass ? className : `inline-flex items-center focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] rounded-xs ${className}`.trim()}
     >
       {children}
       {open &&
@@ -155,7 +181,7 @@ export const TerminalTooltip: React.FC<TerminalTooltipProps> = ({
             }}
             className={`${
               nonInteractive ? 'pointer-events-none' : ''
-            } rounded bg-[#0a0a0a] border border-[#444] shadow-2xl shadow-black/95 px-2.5 py-2 font-mono text-[10.5px] leading-snug text-zinc-200 text-left normal-case tracking-normal font-normal`}
+            } rounded bg-[#0a0a0a] border border-[#444] shadow-2xl shadow-black/95 px-2.5 py-2 font-mono text-xs leading-snug text-zinc-200 text-left normal-case tracking-normal font-normal`}
           >
             <span
               aria-hidden="true"
@@ -167,7 +193,7 @@ export const TerminalTooltip: React.FC<TerminalTooltipProps> = ({
               }`}
             />
             {title && (
-              <div className="text-[9.5px] font-bold uppercase tracking-wider text-[#ff9900] mb-1">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#ff9900] mb-1">
                 {title}
               </div>
             )}
@@ -188,6 +214,10 @@ export interface InfoTooltipIconProps {
   size?: number;
   scrollable?: boolean;
   buttonClassName?: string;
+  /** Optional click handler to open the Glossary scrolled to the relevant term. */
+  onOpenGlossary?: () => void;
+  /** Optional hint shown inside the hover/focus tooltip when onOpenGlossary is set. */
+  glossaryHint?: string;
 }
 
 /**
@@ -199,9 +229,11 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
   content,
   ariaText,
   maxWidth = 260,
-  size = 11,
+  size = 13,
   scrollable = false,
   buttonClassName,
+  onOpenGlossary,
+  glossaryHint,
 }) => {
   const [touchOpen, setTouchOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
@@ -297,7 +329,7 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
   }, [touchOpen, updatePosition]);
 
   const defaultButtonClass =
-    'inline-flex items-center justify-center text-zinc-500 hover:text-[#ff9900] focus:text-[#ff9900] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] rounded-sm transition-colors cursor-help align-middle shrink-0';
+    'inline-flex items-center justify-center p-0.5 text-zinc-400 hover:text-[#ff9900] focus:text-[#ff9900] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] rounded-sm transition-colors cursor-pointer align-middle shrink-0';
 
   return (
     <>
@@ -314,6 +346,11 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
         onBlur={closeImmediately}
         onClick={(e) => {
           e.stopPropagation();
+          if (onOpenGlossary) {
+            closeImmediately();
+            onOpenGlossary();
+            return;
+          }
           if (touchOpen) {
             closeImmediately();
           } else {
@@ -342,7 +379,7 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
               transform: coords.placement === 'top' ? 'translateY(-100%)' : undefined,
               zIndex: 9999,
             }}
-            className="rounded bg-[#0a0a0a] border border-[#444] shadow-2xl shadow-black/95 px-2.5 py-2 font-mono text-[10.5px] leading-snug text-zinc-200 text-left normal-case tracking-normal font-normal"
+            className="rounded bg-[#0a0a0a] border border-[#444] shadow-2xl shadow-black/95 px-2.5 py-2 font-mono text-xs leading-snug text-zinc-200 text-left normal-case tracking-normal font-normal"
           >
             <span
               aria-hidden="true"
@@ -358,11 +395,16 @@ export const InfoTooltipIcon: React.FC<InfoTooltipIconProps> = ({
               className={scrollable ? 'overflow-y-auto pr-1' : undefined}
             >
               {title && (
-                <div className="text-[9.5px] font-bold uppercase tracking-wider text-[#ff9900] mb-1">
+                <div className="text-xs font-bold uppercase tracking-wider text-[#ff9900] mb-1">
                   {title}
                 </div>
               )}
               <div className="text-zinc-300">{content}</div>
+              {onOpenGlossary && (
+                <div className="mt-1.5 pt-1.5 border-t border-[#2e2e2e] text-xs font-bold text-[#ff9900]">
+                  {glossaryHint || 'Click icon to view in Glossary →'}
+                </div>
+              )}
             </div>
           </div>,
           document.body
