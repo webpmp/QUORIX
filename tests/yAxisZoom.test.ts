@@ -10,10 +10,18 @@ import {
   type HistoryBar,
 } from '../src/utils/marketHistoryCache.ts';
 import {
+  BASE_MACD_HEIGHT,
   BASE_PRICE_HEIGHT,
   BASE_VOL_ADJ_HEIGHT,
   BASE_VOL_HEIGHT,
   DEFAULT_EDGE_PADDING_RATIO,
+  MACD_ADJ_HEIGHT,
+  MACD_MAX_ZOOM_FACTOR_CAP,
+  MACD_MIN_ZOOM_FACTOR,
+  MACD_MIN_ZOOM_IN_HEADROOM,
+  MACD_PADDING_BOTTOM,
+  MACD_PADDING_TOP,
+  MAX_MACD_EXPANSION_PX,
   MAX_VOL_EXPANSION_PX,
   PRICE_MIN_CANDLE_HEIGHT_PX,
   PRICE_MIN_CANDLE_HEIGHT_RATIO,
@@ -24,15 +32,21 @@ import {
   RSI_NATURAL_MIN,
   VOL_PADDING_BOTTOM,
   VOL_PADDING_TOP,
+  clampMacdZoomFactor,
+  computeAutoMacdRange,
   computeAutoPriceRange,
+  computeMacdPanelLayout,
+  computeMacdVisibleRange,
   computeOffscalePcBadgeLayout,
   computePriceZoomLimits,
   computeScaledBoundedRange,
+  computeScaledMacdZoom,
   computeScaledRsiRange,
   computeScaledVolumeMax,
   computeVolumePanelLayout,
   dragDeltaToZoomFactor,
   ensureRangeIncludesFocusBand,
+  formatMacdAxisValue,
   getVolumeZoomLimits,
   panBoundedRange,
   resolveReferenceLevelLabels,
@@ -1184,10 +1198,368 @@ test('ChartWidget clamps extreme zoom-out (bug-report $143..$230 / 0.06x case), 
   });
 });
 
+function extractSvgPathPoints(pathD: string): Array<{ x: number; y: number }> {
+  const pts: Array<{ x: number; y: number }> = [];
+  const regex = /[ML]\s*([0-9.-]+),([0-9.-]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(pathD)) !== null) {
+    const x = Number(match[1]);
+    const y = Number(match[2]);
+    if (Number.isFinite(x) && Number.isFinite(y)) pts.push({ x, y });
+  }
+  return pts;
+}
 
+test('MACD data-aware scaling and bounded zoom expansion keep plotted data visible across balanced, uptrend, downtrend, large-magnitude, and outlier datasets', () => {
+  assert.equal(BASE_MACD_HEIGHT, 104);
+  assert.equal(MACD_PADDING_TOP, 22);
+  assert.equal(MACD_PADDING_BOTTOM, 12);
+  assert.equal(MACD_ADJ_HEIGHT, 70);
+  assert.equal(MAX_MACD_EXPANSION_PX, 80);
 
+  // 1. Balanced positive/negative MACD bars -> symmetric around 0
+  const balancedBars = Array.from({ length: 30 }, (_, i) => {
+    const macd = Math.sin(i / 3) * 0.85;
+    const macdSignal = Math.sin((i - 2) / 3) * 0.7;
+    return { macd, macdSignal, macdHist: macd - macdSignal };
+  });
+  const balancedAuto = computeAutoMacdRange(balancedBars);
+  assert.equal(balancedAuto.isSymmetric, true);
+  assert.ok(Math.abs(balancedAuto.max + balancedAuto.min) < 1e-9);
+  assert.ok(balancedAuto.maxZoomFactor >= MACD_MIN_ZOOM_IN_HEADROOM);
+  assert.ok(balancedAuto.maxZoomFactor <= MACD_MAX_ZOOM_FACTOR_CAP);
 
+  const balancedBaseLayout = computeMacdPanelLayout(balancedAuto, null);
+  const basePxPerUnit = balancedBaseLayout.plotHeight / (balancedBaseLayout.max - balancedBaseLayout.min);
 
+  // Verify exact pixel magnification and zero clipping across 1.5x, 2.0x, and max zoom-in
+  for (const targetZoom of [1.5, 2.0, balancedAuto.maxZoomFactor]) {
+    const layout = computeMacdPanelLayout(balancedAuto, targetZoom);
+    const pxPerUnit = layout.plotHeight / (layout.max - layout.min);
+    assert.ok(
+      Math.abs(pxPerUnit / basePxPerUnit - layout.zoomFactor) < 1e-9,
+      'Pixels per MACD unit must equal exact zoomFactor * basePixelsPerUnit'
+    );
+    const allVals = balancedBars.flatMap((b) => [b.macd, b.macdSignal, b.macdHist]);
+    const inBoundsRatio =
+      allVals.filter((v) => v >= layout.min && v <= layout.max).length / allVals.length;
+    assert.ok(
+      inBoundsRatio >= 0.9,
+      `Expected >=90% of balanced MACD values in bounds at ${layout.zoomFactor.toFixed(2)}x, got ${(inBoundsRatio * 100).toFixed(1)}%`
+    );
+  }
 
+  // 2. Strongly positive-skewed uptrend -> adaptive asymmetry with zero strictly in [0.20, 0.80]
+  const uptrendBars = Array.from({ length: 30 }, (_, i) => {
+    const macd = 1.4 + Math.sin(i / 4) * 0.55;
+    const macdSignal = 1.2 + Math.sin((i - 2) / 4) * 0.45;
+    return { macd, macdSignal, macdHist: macd - macdSignal };
+  });
+  const uptrendAuto = computeAutoMacdRange(uptrendBars);
+  assert.equal(uptrendAuto.isSymmetric, false);
+  const upZeroRatio = uptrendAuto.max / (uptrendAuto.max - uptrendAuto.min);
+  assert.ok(upZeroRatio >= 0.2 && upZeroRatio <= 0.8);
 
+  const upMaxLayout = computeMacdPanelLayout(uptrendAuto, uptrendAuto.maxZoomFactor);
+  const upMinLayout = computeMacdPanelLayout(uptrendAuto, uptrendAuto.minZoomFactor);
+  // Zero baseline relative position stays identical across default, zoom-in, and zoom-out
+  assert.ok(Math.abs(upZeroRatio - upMaxLayout.max / (upMaxLayout.max - upMaxLayout.min)) < 1e-9);
+  assert.ok(Math.abs(upZeroRatio - upMinLayout.max / (upMinLayout.max - upMinLayout.min)) < 1e-9);
+  const upVals = uptrendBars.flatMap((b) => [b.macd, b.macdSignal, b.macdHist]);
+  const upInBounds = upVals.filter((v) => v >= upMaxLayout.min && v <= upMaxLayout.max).length / upVals.length;
+  assert.ok(upInBounds >= 0.9, `Expected >=90% of uptrend MACD points in bounds at max zoom, got ${(upInBounds * 100).toFixed(1)}%`);
+
+  // 3. Strongly negative downtrend -> adaptive asymmetry with zero strictly in [0.20, 0.80]
+  const downtrendBars = Array.from({ length: 30 }, (_, i) => {
+    const macd = -2.2 - Math.sin(i / 4) * 0.6;
+    const macdSignal = -1.9 - Math.sin((i - 2) / 4) * 0.45;
+    return { macd, macdSignal, macdHist: macd - macdSignal };
+  });
+  const downtrendAuto = computeAutoMacdRange(downtrendBars);
+  assert.equal(downtrendAuto.isSymmetric, false);
+  const downZeroRatio = downtrendAuto.max / (downtrendAuto.max - downtrendAuto.min);
+  assert.ok(downZeroRatio >= 0.2 && downZeroRatio <= 0.8);
+  const downMaxLayout = computeMacdPanelLayout(downtrendAuto, downtrendAuto.maxZoomFactor);
+  const downVals = downtrendBars.flatMap((b) => [b.macd, b.macdSignal, b.macdHist]);
+  const downInBounds =
+    downVals.filter((v) => v >= downMaxLayout.min && v <= downMaxLayout.max).length / downVals.length;
+  assert.ok(downInBounds >= 0.9);
+
+  // 4. High-magnitude security (e.g. BTC weekly MACD +-1850) has no hardcoded ceiling
+  const btcBars = Array.from({ length: 24 }, (_, i) => {
+    const macd = Math.sin(i / 3) * 1850;
+    const macdSignal = Math.sin((i - 2) / 3) * 1500;
+    return { macd, macdSignal, macdHist: macd - macdSignal };
+  });
+  const btcAuto = computeAutoMacdRange(btcBars);
+  assert.ok(btcAuto.max > 1850 && btcAuto.min < -1850);
+  assert.equal(formatMacdAxisValue(btcAuto.max, btcAuto.max), Math.round(btcAuto.max).toString());
+
+  // 5. Extreme outlier (>3x p90) does not crush ordinary MACD bars
+  const outlierBars = [...balancedBars, { macd: 18.0, macdSignal: 4.5, macdHist: 13.5 }];
+  const outlierAuto = computeAutoMacdRange(outlierBars);
+  assert.ok(outlierAuto.max < 6.0, `Extreme spike must not expand auto range to 18+; got ${outlierAuto.max}`);
+  const ordinaryVals = balancedBars.flatMap((b) => [b.macd, b.macdSignal, b.macdHist]);
+  assert.ok(
+    ordinaryVals.every((v) => v >= outlierAuto.min && v <= outlierAuto.max),
+    'All ordinary bars remain cleanly visible when extreme outlier is capped'
+  );
+
+  // 6. Wheel/drag/keyboard direction, limits, non-finite safety, and axis label formatting
+  const zoomedIn = computeScaledMacdZoom(1, wheelDeltaToZoomFactor(-100), balancedAuto);
+  const zoomedOut = computeScaledMacdZoom(1, wheelDeltaToZoomFactor(100), balancedAuto);
+  assert.ok(zoomedIn > 1);
+  assert.ok(zoomedOut < 1);
+
+  let cur = 1;
+  for (let i = 0; i < 40; i++) cur = computeScaledMacdZoom(cur, 1.2, balancedAuto);
+  assert.ok(Math.abs(cur - balancedAuto.maxZoomFactor) < 1e-9);
+
+  for (let i = 0; i < 40; i++) cur = computeScaledMacdZoom(cur, 1 / 1.2, balancedAuto);
+  assert.ok(Math.abs(cur - MACD_MIN_ZOOM_FACTOR) < 1e-9);
+
+  assert.equal(
+    computeScaledMacdZoom(1, dragDeltaToZoomFactor(-800), balancedAuto),
+    balancedAuto.maxZoomFactor
+  );
+  assert.equal(
+    computeScaledMacdZoom(1, dragDeltaToZoomFactor(800), balancedAuto),
+    MACD_MIN_ZOOM_FACTOR
+  );
+
+  // computeMacdVisibleRange stays synchronized with computeMacdPanelLayout
+  const vis = computeMacdVisibleRange(balancedAuto, 1.5);
+  const lay = computeMacdPanelLayout(balancedAuto, 1.5);
+  assert.equal(vis.min, lay.min);
+  assert.equal(vis.max, lay.max);
+  assert.equal(vis.zoomFactor, lay.zoomFactor);
+
+  // Non-finite and empty inputs remain safe
+  assert.equal(clampMacdZoomFactor(Number.NaN, balancedAuto), 1);
+  assert.ok(Number.isFinite(computeScaledMacdZoom(Number.NaN, Number.NaN, balancedAuto)));
+  const emptyAuto = computeAutoMacdRange([Number.NaN, Number.POSITIVE_INFINITY]);
+  assert.ok(Number.isFinite(emptyAuto.min) && Number.isFinite(emptyAuto.max) && emptyAuto.max > 0);
+
+  // Axis label formatting avoids redundant 0.00 and stays compact for large values
+  assert.equal(formatMacdAxisValue(0, 0.05), '0');
+  assert.equal(formatMacdAxisValue(0.85, 0.85), '0.85');
+  assert.equal(formatMacdAxisValue(-0.045, 0.045), '-0.045');
+  assert.equal(formatMacdAxisValue(0.0042, 0.0042), '0.0042');
+  assert.equal(formatMacdAxisValue(-1850, 1850), '-1850');
+});
+
+test('ChartWidget MACD separates Y-axis label box from histogram/clip path (matching RSI 4px gap) and prevents vertical zoom clipping', () => {
+  withStudiesStorage(['rsi', 'volume', 'macd'], () => {
+    clearMarketHistoryCache();
+    const macdBars: HistoryBar[] = buildBars(28).map((b, i) => {
+      const macd = Math.sin(i / 3) * 0.8;
+      const macdSignal = Math.sin((i - 2) / 3) * 0.65;
+      const macdHist = macd - macdSignal;
+      return {
+        ...b,
+        macd,
+        macdSignal,
+        macdHist,
+      };
+    });
+    macdBars[macdBars.length - 1] = {
+      ...macdBars[macdBars.length - 1],
+      macd: -0.27,
+      macdSignal: -0.16,
+      macdHist: -0.11,
+    };
+    setCachedMarketHistory('AAPL', '1h', macdBars);
+
+    const expectedAuto = computeAutoMacdRange(macdBars);
+    const expectedMaxLayout = computeMacdPanelLayout(expectedAuto, 10);
+
+    // 1. Default 1.00x MACD render
+    const defaultHtml = renderToStaticMarkup(
+      React.createElement(ChartWidget, {
+        stock: makeStock(),
+      })
+    );
+
+    // Header matches RSI typography (text-[11px]) with preserved colors
+    const headerMatch = defaultHtml.match(/<div class="([^"]*)" data-macd-header="true">/);
+    assert.ok(headerMatch, 'Expected MACD header container');
+    assert.equal(headerMatch[1].includes('text-[11px]'), true);
+    assert.equal(headerMatch[1].includes('text-[8px]'), false);
+    assert.equal(defaultHtml.includes('MACD (12,26,9)'), true);
+    assert.equal(defaultHtml.includes('M: -0.27'), true);
+    assert.equal(defaultHtml.includes('S: -0.16'), true);
+    assert.equal(defaultHtml.includes('H: -0.11'), true);
+    assert.equal(defaultHtml.includes('data-macd-yscale="true"'), false);
+
+    // Container height = 104, clipPath strictly begins at x=58 (aligned with plot left, 4px clear of label box right edge 54)
+    assert.equal(defaultHtml.includes('height="104" viewBox="0 0 600 104"'), true);
+    const clipMatch = defaultHtml.match(
+      /id="gp-macd-plot-clip"><rect[^>]*x="([0-9.-]+)"[^>]*y="([0-9.-]+)"[^>]*width="([0-9.-]+)"[^>]*height="([0-9.-]+)"/
+    );
+    assert.ok(clipMatch, 'Expected #gp-macd-plot-clip rect');
+    const clipX = Number(clipMatch[1]);
+    const clipTop = Number(clipMatch[2]);
+    const clipBottom = clipTop + Number(clipMatch[4]);
+    assert.equal(clipX, 58, 'MACD clipPath must start at plot left x=58 (not x=50 inside label box)');
+    assert.equal(clipTop, 19);
+    assert.equal(clipBottom, 95);
+
+    // Label box matches RSI horizontal framing (x=2, y=10, width=52, right edge=54 -> 4px clear gap to x=58)
+    const boxMatch = defaultHtml.match(
+      /data-macd-yaxis-box="true"[^>]*x="([0-9.-]+)"[^>]*y="([0-9.-]+)"[^>]*width="([0-9.-]+)"[^>]*height="([0-9.-]+)"[^>]*rx="([0-9.-]+)"/
+    );
+    assert.ok(boxMatch, 'Expected MACD Y-axis backdrop box');
+    const boxRight = Number(boxMatch[1]) + Number(boxMatch[3]);
+    assert.equal(Number(boxMatch[1]), 2);
+    assert.equal(Number(boxMatch[2]), 10);
+    assert.equal(Number(boxMatch[3]), 52);
+    assert.equal(Number(boxMatch[4]), 94);
+    assert.equal(Number(boxMatch[5]), 2);
+    assert.equal(clipX - boxRight, 4, 'Visible 4px separation gap between label box (x=54) and plot/clip (x=58)');
+
+    // First histogram bar must NEVER cross into the label box or 4px separation gap (x >= 58)
+    const firstHistMatch = defaultHtml.match(/data-macd-hist-bar="0"[^>]*x="([0-9.-]+)"[^>]*width="([0-9.-]+)"/);
+    assert.ok(firstHistMatch, 'Expected first histogram bar');
+    assert.ok(
+      Number(firstHistMatch[1]) >= 58 - 0.001,
+      `Histogram bar 0 left edge x=${firstHistMatch[1]} must be >= 58 (clear of label box x=2..54)`
+    );
+
+    // Zero baseline centered at y = 57 (22 + 70/2) for balanced dataset
+    const zeroLineDefault = defaultHtml.match(/data-macd-zero-line="true"[^>]*x1="([0-9.-]+)"[^>]*y1="([0-9.-]+)"/);
+    assert.ok(zeroLineDefault);
+    assert.equal(Number(zeroLineDefault[1]), 58);
+    assert.equal(Number(zeroLineDefault[2]), 57);
+
+    // Y-axis ticks use fontSize="9.5", sit strictly inside box [10, 104], and match plotted coordinates
+    const maxTick = defaultHtml.match(/data-macd-axis-tick="max"[^>]*y="([0-9.-]+)"[^>]*font-size="([0-9.]+)"[^>]*>([^<]+)</);
+    const zeroTick = defaultHtml.match(/data-macd-axis-tick="zero"[^>]*y="([0-9.-]+)"[^>]*font-size="([0-9.]+)"[^>]*>([^<]+)</);
+    const minTick = defaultHtml.match(/data-macd-axis-tick="min"[^>]*y="([0-9.-]+)"[^>]*font-size="([0-9.]+)"[^>]*>([^<]+)</);
+    assert.ok(maxTick && zeroTick && minTick);
+    assert.equal(maxTick[2], '9.5');
+    assert.equal(zeroTick[2], '9.5');
+    assert.equal(minTick[2], '9.5');
+    assert.equal(zeroTick[3], '0');
+    assert.equal(Number(maxTick[1]), 25);
+    assert.equal(Number(zeroTick[1]), 60);
+    assert.equal(Number(minTick[1]), 95);
+
+    // All default MACD & Signal coordinates sit strictly inside x=[58, 568] and y=[22, 92]
+    const defaultMacdPath = defaultHtml.match(/data-macd-line="true"[^>]*d="([^"]+)"/);
+    const defaultSignalPath = defaultHtml.match(/data-macd-signal-line="true"[^>]*d="([^"]+)"/);
+    assert.ok(defaultMacdPath && defaultSignalPath);
+    const defaultPts = [
+      ...extractSvgPathPoints(defaultMacdPath[1]),
+      ...extractSvgPathPoints(defaultSignalPath[1]),
+    ];
+    assert.ok(defaultPts.every((p) => p.x >= 58 && p.x <= 568));
+    assert.ok(defaultPts.every((p) => p.y >= 22 - 0.01 && p.y <= 92 + 0.01));
+
+    // 2. Aggressive zoom-in (passing 10x) clamps to data-aware maxZoomFactor, expands panel & box height,
+    //    preserves 4px horizontal separation, updates Y-axis ticks, and keeps >=90% (here 100%) inside plot
+    const zoomedInHtml = renderToStaticMarkup(
+      React.createElement(ChartWidget, {
+        stock: makeStock(),
+        initialCustomMacdZoom: 10,
+      })
+    );
+    assert.equal(
+      zoomedInHtml.includes(`data-macd-yscale="true">Y-SCALE: ${expectedAuto.maxZoomFactor.toFixed(2)}×</span>`),
+      true
+    );
+    assert.equal(
+      zoomedInHtml.includes(`height="${expectedMaxLayout.macdHeight}" viewBox="0 0 600 ${expectedMaxLayout.macdHeight}"`),
+      true
+    );
+    const zoomedBoxMatch = zoomedInHtml.match(
+      /data-macd-yaxis-box="true"[^>]*x="([0-9.-]+)"[^>]*y="([0-9.-]+)"[^>]*width="([0-9.-]+)"[^>]*height="([0-9.-]+)"/
+    );
+    assert.ok(zoomedBoxMatch);
+    assert.equal(Number(zoomedBoxMatch[1]), 2);
+    assert.equal(Number(zoomedBoxMatch[2]), 10);
+    assert.equal(Number(zoomedBoxMatch[3]), 52);
+    assert.equal(Number(zoomedBoxMatch[4]), expectedMaxLayout.plotHeight + 24);
+
+    const zoomedClipMatch = zoomedInHtml.match(
+      /id="gp-macd-plot-clip"><rect[^>]*x="([0-9.-]+)"[^>]*y="([0-9.-]+)"[^>]*width="([0-9.-]+)"[^>]*height="([0-9.-]+)"/
+    );
+    assert.ok(zoomedClipMatch);
+    const zClipTop = Number(zoomedClipMatch[2]);
+    const zClipBottom = zClipTop + Number(zoomedClipMatch[4]);
+    assert.equal(Number(zoomedClipMatch[1]), 58);
+
+    const zoomedMacdPath = zoomedInHtml.match(/data-macd-line="true"[^>]*d="([^"]+)"/);
+    const zoomedSignalPath = zoomedInHtml.match(/data-macd-signal-line="true"[^>]*d="([^"]+)"/);
+    assert.ok(zoomedMacdPath && zoomedSignalPath);
+    const zoomedPts = [
+      ...extractSvgPathPoints(zoomedMacdPath[1]),
+      ...extractSvgPathPoints(zoomedSignalPath[1]),
+    ];
+    const inPlotRatio =
+      zoomedPts.filter((p) => p.y >= MACD_PADDING_TOP - 0.01 && p.y <= MACD_PADDING_TOP + expectedMaxLayout.plotHeight + 0.01)
+        .length / zoomedPts.length;
+    assert.ok(
+      inPlotRatio >= 0.9,
+      `Expected >=90% of MACD/Signal points inside plotting region at max zoom-in, got ${(inPlotRatio * 100).toFixed(1)}%`
+    );
+    assert.ok(
+      zoomedPts.every((p) => p.y >= zClipTop && p.y <= zClipBottom),
+      'Balanced session at max zoom-in should have zero clipped MACD/Signal coordinates'
+    );
+
+    // 3. Extreme zoom-out clamps cleanly at 0.40x, keeps height=104, and keeps zero centered at y=57
+    const zoomedOutHtml = renderToStaticMarkup(
+      React.createElement(ChartWidget, {
+        stock: makeStock(),
+        initialCustomMacdZoom: 0.01,
+      })
+    );
+    assert.equal(zoomedOutHtml.includes('data-macd-yscale="true">Y-SCALE: 0.40×</span>'), true);
+    assert.equal(zoomedOutHtml.includes('height="104" viewBox="0 0 600 104"'), true);
+    const zeroLineOut = zoomedOutHtml.match(/data-macd-zero-line="true"[^>]*y1="([0-9.-]+)"/);
+    assert.ok(zeroLineOut && Number(zeroLineOut[1]) === 57);
+
+    // 4. Asymmetric uptrend dataset keeps adaptive zero baseline clear and >=90% visible inside plot at max zoom-in
+    const asymmetricBars: HistoryBar[] = buildBars(28).map((b, i) => {
+      const macd = 1.6 + Math.sin(i / 4) * 0.45;
+      const macdSignal = 1.4 + Math.sin((i - 2) / 4) * 0.35;
+      return {
+        ...b,
+        macd,
+        macdSignal,
+        macdHist: macd - macdSignal,
+      };
+    });
+    setCachedMarketHistory('MSFT', '1h', asymmetricBars);
+
+    const asymAuto = computeAutoMacdRange(asymmetricBars);
+    const asymLayout = computeMacdPanelLayout(asymAuto, 10);
+    const asymZoomedHtml = renderToStaticMarkup(
+      React.createElement(ChartWidget, {
+        stock: makeStock({ symbol: 'MSFT', name: 'Microsoft Corp.' }),
+        initialCustomMacdZoom: 10,
+      })
+    );
+    const asymZero = asymZoomedHtml.match(/data-macd-zero-line="true"[^>]*y1="([0-9.-]+)"/);
+    assert.ok(asymZero);
+    const asymZeroRel = (Number(asymZero[1]) - MACD_PADDING_TOP) / asymLayout.plotHeight;
+    assert.ok(asymZeroRel >= 0.2 && asymZeroRel <= 0.8);
+
+    const asymMacdPath = asymZoomedHtml.match(/data-macd-line="true"[^>]*d="([^"]+)"/);
+    const asymSignalPath = asymZoomedHtml.match(/data-macd-signal-line="true"[^>]*d="([^"]+)"/);
+    assert.ok(asymMacdPath && asymSignalPath);
+    const asymPts = [
+      ...extractSvgPathPoints(asymMacdPath[1]),
+      ...extractSvgPathPoints(asymSignalPath[1]),
+    ];
+    const asymInPlot =
+      asymPts.filter(
+        (p) => p.y >= MACD_PADDING_TOP - 0.01 && p.y <= MACD_PADDING_TOP + asymLayout.plotHeight + 0.01
+      ).length / asymPts.length;
+    assert.ok(
+      asymInPlot >= 0.9,
+      `Expected >=90% of asymmetric MACD/Signal points inside plot at max zoom-in, got ${(asymInPlot * 100).toFixed(1)}%`
+    );
+  });
+});
 

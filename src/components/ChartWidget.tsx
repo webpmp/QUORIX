@@ -18,19 +18,25 @@ import {
 } from '../utils/marketHistoryCache';
 import {
   BASE_PRICE_HEIGHT,
+  MACD_PADDING_BOTTOM,
+  MACD_PADDING_TOP,
   MAX_PRICE_EXPANSION_PX,
   PRICE_ZOOM_EDGE_PADDING_RATIO,
   RSI_NATURAL_MAX,
   RSI_NATURAL_MIN,
+  computeAutoMacdRange,
   computeAutoPriceRange,
+  computeMacdPanelLayout,
   computeOffscalePcBadgeLayout,
   computePriceZoomLimits,
   computeScaledBoundedRange,
+  computeScaledMacdZoom,
   computeScaledRsiRange,
   computeScaledVolumeMax,
   computeVolumePanelLayout,
   dragDeltaToZoomFactor,
   ensureRangeIncludesFocusBand,
+  formatMacdAxisValue,
   panBoundedRange,
   resolveReferenceLevelLabels,
   shouldShowYScaleIndicator,
@@ -43,6 +49,7 @@ interface ChartWidgetProps {
   stock: StockData;
   onTickTimeChange?: (val: string) => void;
   initialCustomYRange?: YRange | null;
+  initialCustomMacdZoom?: number | null;
 }
 
 type ChartType = 'candle' | 'line' | 'area';
@@ -73,6 +80,7 @@ export default function ChartWidget({
   stock,
   onTickTimeChange,
   initialCustomYRange = null,
+  initialCustomMacdZoom = null,
 }: ChartWidgetProps) {
   const [chartType, setChartType] = useState<ChartType>('candle');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -89,6 +97,7 @@ export default function ChartWidget({
   const yAxisHitRef = useRef<SVGRectElement | null>(null);
   const volYAxisHitRef = useRef<SVGRectElement | null>(null);
   const rsiYAxisHitRef = useRef<SVGRectElement | null>(null);
+  const macdYAxisHitRef = useRef<SVGRectElement | null>(null);
   const [chartWidth, setChartWidth] = useState<number>(600);
   const [customYRange, setCustomYRange] = useState<YRange | null>(initialCustomYRange);
   const [isYAxisHovered, setIsYAxisHovered] = useState<boolean>(false);
@@ -134,10 +143,23 @@ export default function ChartWidget({
     isModalOpen: boolean;
   } | null>(null);
 
+  // Independent MACD Study Y-axis zoom state (zoom factor relative to data-aware auto range)
+  const [customMacdZoom, setCustomMacdZoom] = useState<number | null>(initialCustomMacdZoom);
+  const [isMacdYAxisHovered, setIsMacdYAxisHovered] = useState<boolean>(false);
+  const [isMacdYAxisDragging, setIsMacdYAxisDragging] = useState<boolean>(false);
+  const macdDragStateRef = useRef<{ startY: number; startZoom: number } | null>(null);
+  const macdScaleContextRef = useRef<{
+    macdYZoomFactor: number;
+    computeScaledMacdZoomFactor: (baseZoom: number, factor: number) => number;
+    isModalOpen: boolean;
+  } | null>(null);
+
   const isVolYAxisActiveRef = useRef<boolean>(false);
   isVolYAxisActiveRef.current = isVolYAxisHovered || isVolYAxisDragging;
   const isRsiYAxisActiveRef = useRef<boolean>(false);
   isRsiYAxisActiveRef.current = isRsiYAxisHovered || isRsiYAxisDragging;
+  const isMacdYAxisActiveRef = useRef<boolean>(false);
+  isMacdYAxisActiveRef.current = isMacdYAxisHovered || isMacdYAxisDragging;
 
   useEffect(() => {
     try {
@@ -184,6 +206,7 @@ export default function ChartWidget({
     setCustomYRange(null);
     setCustomVolMax(null);
     setCustomRsiRange(null);
+    setCustomMacdZoom(null);
 
     const existingCached = getCachedMarketHistory(sym, activeInt);
     if (existingCached) {
@@ -367,6 +390,14 @@ export default function ChartWidget({
     }
   }, [showRsiStudy]);
 
+  useEffect(() => {
+    if (!showMacdStudy) {
+      macdDragStateRef.current = null;
+      setIsMacdYAxisDragging(false);
+      setIsMacdYAxisHovered(false);
+    }
+  }, [showMacdStudy]);
+
   // Attach non-passive wheel listener on Price Chart left Y-axis area to zoom without scrolling page
   useEffect(() => {
     if (!hasChartData) return;
@@ -445,6 +476,31 @@ export default function ChartWidget({
       hitEl.removeEventListener('wheel', handleWheel);
     };
   }, [hasChartData, showRsiStudy]);
+
+  // Attach non-passive wheel listener on MACD left Y-axis area
+  useEffect(() => {
+    if (!hasChartData || !showMacdStudy) return;
+    const hitEl = macdYAxisHitRef.current;
+    if (!hitEl) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const ctx = macdScaleContextRef.current;
+      if (!ctx) return;
+
+      const factor = wheelDeltaToZoomFactor(e.deltaY);
+      setCustomMacdZoom((prev) => {
+        const curZoom = prev !== null ? prev : ctx.macdYZoomFactor;
+        return ctx.computeScaledMacdZoomFactor(curZoom, factor);
+      });
+    };
+
+    hitEl.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      hitEl.removeEventListener('wheel', handleWheel);
+    };
+  }, [hasChartData, showMacdStudy]);
 
   // Smooth vertical Y-axis drag handling for Price Chart
   useEffect(() => {
@@ -554,6 +610,32 @@ export default function ChartWidget({
     };
   }, [isRsiYAxisDragging]);
 
+  // Smooth vertical Y-axis drag handling for MACD Study
+  useEffect(() => {
+    if (!isMacdYAxisDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const drag = macdDragStateRef.current;
+      const ctx = macdScaleContextRef.current;
+      if (!drag || !ctx) return;
+      const dy = e.clientY - drag.startY;
+      const factor = dragDeltaToZoomFactor(dy);
+      setCustomMacdZoom(ctx.computeScaledMacdZoomFactor(drag.startZoom, factor));
+    };
+
+    const handleMouseUp = () => {
+      macdDragStateRef.current = null;
+      setIsMacdYAxisDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isMacdYAxisDragging]);
+
   // Keyboard zoom shortcuts (+ / =, - / _, 0) scoped to hovered/active study Y-axis or Price Chart by default
   useEffect(() => {
     if (!hasChartData) return;
@@ -616,6 +698,27 @@ export default function ChartWidget({
           });
         } else if (isReset) {
           setCustomRsiRange(null);
+        }
+        return;
+      }
+
+      if (isMacdYAxisActiveRef.current) {
+        const macdCtx = macdScaleContextRef.current;
+        if (!macdCtx) return;
+        e.preventDefault();
+        if (isZoomIn) {
+          setCustomMacdZoom((prev) =>
+            macdCtx.computeScaledMacdZoomFactor(prev !== null ? prev : macdCtx.macdYZoomFactor, 1.2)
+          );
+        } else if (isZoomOut) {
+          setCustomMacdZoom((prev) =>
+            macdCtx.computeScaledMacdZoomFactor(
+              prev !== null ? prev : macdCtx.macdYZoomFactor,
+              1 / 1.2
+            )
+          );
+        } else if (isReset) {
+          setCustomMacdZoom(null);
         }
         return;
       }
@@ -1159,7 +1262,11 @@ export default function ChartWidget({
       ].filter((x): x is { id: StudyId; label: string; val: number | undefined; colorClass: string } => Boolean(x))
     : [];
 
-  const renderPanelHoverStripes = (keyPrefix: string) => (
+  const renderPanelHoverStripes = (
+    keyPrefix: string,
+    padTop: number = subPadTop,
+    adjH: number = subAdjHeight
+  ) => (
     <>
       {history.map((_, i) => {
         const { x, stripeWidth } = getHoverStripeBounds(i);
@@ -1167,9 +1274,9 @@ export default function ChartWidget({
           <rect
             key={`${keyPrefix}-detect-${i}`}
             x={x}
-            y={subPadTop}
+            y={padTop}
             width={stripeWidth}
-            height={subAdjHeight}
+            height={adjH}
             fill="transparent"
             className="cursor-crosshair"
             onMouseEnter={() => setHoverIndex(i)}
@@ -1179,9 +1286,9 @@ export default function ChartWidget({
       {hoverIndex !== null && (
         <line
           x1={getX(hoverIndex)}
-          y1={subPadTop}
+          y1={padTop}
           x2={getX(hoverIndex)}
-          y2={subPadTop + subAdjHeight}
+          y2={padTop + adjH}
           stroke="#ff9900"
           strokeWidth="0.8"
           strokeDasharray="2,2"
@@ -1191,13 +1298,79 @@ export default function ChartWidget({
   );
 
   // Precompute sub-panel domains
-  // 1. MACD
-  const macdValues = history.flatMap((h) =>
-    [h.macd, h.macdSignal, h.macdHist].filter((v): v is number => typeof v === 'number' && !isNaN(v))
-  );
-  const macdMaxAbs = Math.max(0.01, ...macdValues.map((v) => Math.abs(v))) * 1.15;
-  const getMacdY = (v: number) =>
-    subPadTop + subAdjHeight - ((v + macdMaxAbs) / (2 * macdMaxAbs)) * subAdjHeight;
+  // 1. MACD (data-aware zero-anchored scale with independent Y-axis zoom, bounded vertical
+  // expansion to prevent clipping, and RSI-matched horizontal label-box separation)
+  const macdPadTop = MACD_PADDING_TOP;
+  const macdPadBottom = MACD_PADDING_BOTTOM;
+  const autoMacdRange = computeAutoMacdRange(history);
+  const {
+    min: macdMin,
+    max: macdMax,
+    zoomFactor: macdYZoomFactor,
+    isZoomed: isMacdYZoomed,
+    macdHeight,
+    plotHeight: macdAdjHeight,
+  } = computeMacdPanelLayout(autoMacdRange, customMacdZoom);
+  const macdSpan = Math.max(macdMax - macdMin, 0.0001);
+  const macdLabelPrecisionRef = Math.min(Math.abs(macdMax), Math.abs(macdMin));
+  const computeScaledMacdZoomFactor = (baseZoom: number, factor: number) =>
+    computeScaledMacdZoom(baseZoom, factor, autoMacdRange);
+
+  macdScaleContextRef.current = {
+    macdYZoomFactor,
+    computeScaledMacdZoomFactor,
+    isModalOpen: isStudiesModalOpen,
+  };
+
+  const handleMacdYAxisMouseDown = (e: ReactMouseEvent<SVGRectElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setHoverIndex(null);
+    macdDragStateRef.current = {
+      startY: e.clientY,
+      startZoom: macdYZoomFactor,
+    };
+    setIsMacdYAxisDragging(true);
+  };
+
+  const macdPlotLeft = paddingLeft;
+  const macdPlotRight = width - paddingRight;
+  const macdBarWidth = volBarWidth;
+  const macdBarHalf = macdBarWidth / 2;
+  const macdSeriesLeft = macdPlotLeft + macdBarHalf;
+  const macdSeriesRight = Math.max(macdSeriesLeft, macdPlotRight - macdBarHalf);
+
+  const getMacdX = (index: number) => {
+    if (history.length <= 1) return macdPlotLeft + adjWidth / 2;
+    return macdSeriesLeft + (index / (history.length - 1)) * (macdSeriesRight - macdSeriesLeft);
+  };
+
+  const getMacdHoverStripeBounds = (index: number) => {
+    if (history.length <= 1) {
+      return { x: macdPlotLeft, stripeWidth: adjWidth };
+    }
+    const left = index === 0 ? macdPlotLeft : (getMacdX(index - 1) + getMacdX(index)) / 2;
+    const right =
+      index === history.length - 1 ? macdPlotRight : (getMacdX(index) + getMacdX(index + 1)) / 2;
+    return { x: left, stripeWidth: Math.max(1, right - left) };
+  };
+
+  const getMacdY = (v: number) => {
+    const safeVal = typeof v === 'number' && Number.isFinite(v) ? v : 0;
+    return macdPadTop + macdAdjHeight - ((safeVal - macdMin) / macdSpan) * macdAdjHeight;
+  };
+
+  const generateMacdSeriesPath = (getter: (bar: HistoryBar, idx: number) => number | undefined) => {
+    const pts: string[] = [];
+    for (let i = 0; i < history.length; i++) {
+      const val = getter(history[i], i);
+      if (typeof val === 'number' && Number.isFinite(val)) {
+        pts.push(`${pts.length === 0 ? 'M' : 'L'}${getMacdX(i)},${getMacdY(val)}`);
+      }
+    }
+    return pts.join(' ');
+  };
 
   // 2. Stochastic (0..100)
   const getStochY = (v: number) => subPadTop + subAdjHeight - (v / 100) * subAdjHeight;
@@ -2666,93 +2839,225 @@ export default function ChartWidget({
           <div className="relative border-t border-[#161616] pt-1">
             <svg
               width={width}
-              height={subPanelHeight}
-              viewBox={`0 0 ${width} ${subPanelHeight}`}
+              height={macdHeight}
+              viewBox={`0 0 ${width} ${macdHeight}`}
               className="block w-full overflow-visible"
               onMouseLeave={() => setHoverIndex(null)}
             >
-              {/* Zero line & bounds */}
+              {/* Subtle interactive backdrop for left MACD Y-axis scale (matches RSI spacing) */}
+              <rect
+                data-macd-yaxis-box="true"
+                x={2}
+                y={macdPadTop - Y_AXIS_BACKDROP_PAD_Y}
+                width={paddingLeft - 6}
+                height={macdAdjHeight + Y_AXIS_BACKDROP_PAD_Y * 2}
+                rx="2"
+                fill={
+                  isMacdYAxisDragging
+                    ? 'rgba(255, 153, 0, 0.12)'
+                    : isMacdYAxisHovered
+                    ? 'rgba(255, 153, 0, 0.06)'
+                    : 'transparent'
+                }
+                stroke={
+                  isMacdYAxisDragging
+                    ? 'rgba(255, 153, 0, 0.45)'
+                    : isMacdYAxisHovered || isMacdYZoomed
+                    ? 'rgba(255, 153, 0, 0.22)'
+                    : 'transparent'
+                }
+                strokeWidth="1"
+              />
+
+              {/* Top & bottom scale guides */}
+              {[macdMax, macdMin].map((lvl, idx) => (
+                <line
+                  key={`macd-bound-${idx}`}
+                  x1={macdPlotLeft}
+                  y1={getMacdY(lvl)}
+                  x2={macdPlotRight}
+                  y2={getMacdY(lvl)}
+                  stroke="#1f1f1f"
+                  strokeWidth="1"
+                  strokeDasharray="2,2"
+                />
+              ))}
+
+              {/* Zero baseline */}
               <line
-                x1={paddingLeft}
+                data-macd-zero-line="true"
+                x1={macdPlotLeft}
                 y1={getMacdY(0)}
-                x2={width - paddingRight}
+                x2={macdPlotRight}
                 y2={getMacdY(0)}
                 stroke="#333"
                 strokeWidth="1"
                 strokeDasharray="2,2"
               />
-              {[macdMaxAbs, 0, -macdMaxAbs].map((lvl, idx) => (
+              {[macdMax, 0, macdMin].map((lvl, idx) => (
                 <text
                   key={`macd-lbl-${idx}`}
+                  data-macd-axis-tick={idx === 0 ? 'max' : idx === 1 ? 'zero' : 'min'}
                   x={paddingLeft - 6}
                   y={getMacdY(lvl) + 3}
                   textAnchor="end"
-                  fill="#a1a1aa"
-                  fontSize="8.5"
+                  fill={isMacdYAxisHovered || isMacdYAxisDragging ? '#ff9900' : '#a1a1aa'}
+                  fontSize="9.5"
                   fontFamily="monospace"
                   fontWeight="bold"
+                  className="pointer-events-none"
                 >
-                  {lvl === 0 ? '0' : lvl.toFixed(2)}
+                  {formatMacdAxisValue(lvl, macdLabelPrecisionRef)}
                 </text>
               ))}
 
-              {/* Histogram bars */}
-              {history.map((h, i) => {
-                if (typeof h.macdHist !== 'number' || isNaN(h.macdHist)) return null;
-                const yZero = getMacdY(0);
-                const yVal = getMacdY(h.macdHist);
-                const barTop = Math.min(yZero, yVal);
-                const barH = Math.max(1, Math.abs(yVal - yZero));
-                const pos = h.macdHist >= 0;
+              {/* Clipped MACD histogram, MACD line, and Signal line */}
+              <g clipPath="url(#gp-macd-plot-clip)">
+                {/* Histogram bars */}
+                {history.map((h, i) => {
+                  if (typeof h.macdHist !== 'number' || !Number.isFinite(h.macdHist)) return null;
+                  const yZero = getMacdY(0);
+                  const yVal = getMacdY(h.macdHist);
+                  const barTop = Math.min(yZero, yVal);
+                  const barH = Math.max(1, Math.abs(yVal - yZero));
+                  const pos = h.macdHist >= 0;
+                  return (
+                    <rect
+                      key={`macd-hist-${i}`}
+                      data-macd-hist-bar={i}
+                      x={getMacdX(i) - macdBarHalf}
+                      y={barTop}
+                      width={macdBarWidth}
+                      height={barH}
+                      fill={pos ? 'rgba(0, 255, 0, 0.35)' : 'rgba(255, 68, 68, 0.35)'}
+                    />
+                  );
+                })}
+
+                <path
+                  data-macd-line="true"
+                  d={generateMacdSeriesPath((b) => b.macd)}
+                  fill="none"
+                  stroke="#38bdf8"
+                  strokeWidth="1.4"
+                />
+                <path
+                  data-macd-signal-line="true"
+                  d={generateMacdSeriesPath((b) => b.macdSignal)}
+                  fill="none"
+                  stroke="#ff9900"
+                  strokeWidth="1.3"
+                />
+              </g>
+
+              {/* Synchronized MACD hover stripes, crosshair line, and hover indicator */}
+              {history.map((_, i) => {
+                const { x, stripeWidth } = getMacdHoverStripeBounds(i);
                 return (
                   <rect
-                    key={`macd-hist-${i}`}
-                    x={getX(i) - volBarWidth / 2}
-                    y={barTop}
-                    width={volBarWidth}
-                    height={barH}
-                    fill={pos ? 'rgba(0, 255, 0, 0.35)' : 'rgba(255, 68, 68, 0.35)'}
+                    key={`macd-detect-${i}`}
+                    x={x}
+                    y={macdPadTop}
+                    width={stripeWidth}
+                    height={macdAdjHeight}
+                    fill="transparent"
+                    className="cursor-crosshair"
+                    onMouseEnter={() => setHoverIndex(i)}
                   />
                 );
               })}
 
-              <path
-                d={generateSeriesPath((b) => b.macd, getMacdY)}
-                fill="none"
-                stroke="#38bdf8"
-                strokeWidth="1.4"
-              />
-              <path
-                d={generateSeriesPath((b) => b.macdSignal, getMacdY)}
-                fill="none"
-                stroke="#ff9900"
-                strokeWidth="1.3"
-              />
+              {hoverIndex !== null && hoverIndex < history.length && (
+                <g>
+                  <line
+                    x1={getMacdX(hoverIndex)}
+                    y1={macdPadTop}
+                    x2={getMacdX(hoverIndex)}
+                    y2={macdPadTop + macdAdjHeight}
+                    stroke="#ff9900"
+                    strokeWidth="0.8"
+                    strokeDasharray="2,2"
+                  />
+                  {typeof history[hoverIndex]?.macd === 'number' &&
+                    Number.isFinite(history[hoverIndex].macd) && (
+                      <g clipPath="url(#gp-macd-plot-clip)">
+                        <circle
+                          cx={getMacdX(hoverIndex)}
+                          cy={getMacdY(history[hoverIndex].macd as number)}
+                          r="2.8"
+                          fill="#38bdf8"
+                          stroke="black"
+                          strokeWidth="1"
+                        />
+                      </g>
+                    )}
+                </g>
+              )}
 
-              {renderPanelHoverStripes('macd')}
+              {/* Interactive Left Y-Axis Scale Hit Area for MACD (strictly left of plot boundary) */}
+              <rect
+                ref={macdYAxisHitRef}
+                x={0}
+                y={-Y_AXIS_VERTICAL_EXTRA_PAD}
+                width={paddingLeft}
+                height={macdHeight + Y_AXIS_VERTICAL_EXTRA_PAD * 2}
+                fill="transparent"
+                className="cursor-ns-resize"
+                onMouseEnter={() => {
+                  setIsMacdYAxisHovered(true);
+                  setHoverIndex(null);
+                }}
+                onMouseLeave={() => setIsMacdYAxisHovered(false)}
+                onMouseDown={handleMacdYAxisMouseDown}
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCustomMacdZoom(null);
+                }}
+              >
+                <title>Scroll or drag vertically to zoom MACD scale (Double-click or press 0 to reset)</title>
+              </rect>
+
+              <defs>
+                <clipPath id="gp-macd-plot-clip">
+                  <rect
+                    x={macdPlotLeft}
+                    y={macdPadTop - 3}
+                    width={adjWidth}
+                    height={macdAdjHeight + 6}
+                  />
+                </clipPath>
+              </defs>
             </svg>
-            <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
-              <span className="text-zinc-500 flex items-center gap-2 tabular-nums">
-                <span>MACD (12,26,9)</span>
+            <div className={CHART_PANEL_HEADER_CLASS} data-macd-header="true">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 min-w-0 tabular-nums">
+                <span className="text-zinc-500">MACD (12,26,9)</span>
                 <span className="text-[#38bdf8]">
-                  M: {typeof hoveredData.macd === 'number' ? hoveredData.macd.toFixed(2) : '--'}
+                  M: {typeof hoveredData.macd === 'number' && Number.isFinite(hoveredData.macd) ? hoveredData.macd.toFixed(2) : '--'}
                 </span>
                 <span className="text-[#ff9900]">
-                  S: {typeof hoveredData.macdSignal === 'number' ? hoveredData.macdSignal.toFixed(2) : '--'}
+                  S: {typeof hoveredData.macdSignal === 'number' && Number.isFinite(hoveredData.macdSignal) ? hoveredData.macdSignal.toFixed(2) : '--'}
                 </span>
                 <span className={(hoveredData.macdHist ?? 0) >= 0 ? 'text-[#00ff00]' : 'text-[#ff4444]'}>
-                  H: {typeof hoveredData.macdHist === 'number' ? hoveredData.macdHist.toFixed(2) : '--'}
+                  H: {typeof hoveredData.macdHist === 'number' && Number.isFinite(hoveredData.macdHist) ? hoveredData.macdHist.toFixed(2) : '--'}
                 </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => toggleStudy('macd')}
-                title="Hide MACD study"
-                aria-label="Hide MACD study"
-                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer"
-              >
-                <X size={10} />
-              </button>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {shouldShowYScaleIndicator(macdYZoomFactor) && (
+                  <span className="text-[#ff9900] font-bold tabular-nums" data-macd-yscale="true">
+                    Y-SCALE: {macdYZoomFactor.toFixed(2)}×
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => toggleStudy('macd')}
+                  title="Hide MACD study"
+                  aria-label="Hide MACD study"
+                  className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                >
+                  <X size={11} />
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -719,6 +719,331 @@ export function computeScaledVolumeMax(
   return Math.max(minVisibleMax, Math.min(maxVisibleMax, safeBaseMax / safeFactor));
 }
 
+export const BASE_MACD_HEIGHT = 104;
+export const MACD_PADDING_TOP = 22;
+export const MACD_PADDING_BOTTOM = 12;
+export const MACD_ADJ_HEIGHT = BASE_MACD_HEIGHT - MACD_PADDING_TOP - MACD_PADDING_BOTTOM;
+export const MAX_MACD_EXPANSION_PX = 80;
+export const MACD_ZOOM_HEIGHT_GROWTH_RATIO = 0.85;
+export const MACD_MIN_ZOOM_FACTOR = 0.4;
+export const MACD_MAX_ZOOM_FACTOR_CAP = 3.5;
+export const MACD_MIN_ZOOM_IN_HEADROOM = 1.25;
+export const MACD_AUTO_PADDING_RATIO = 0.16;
+export const MACD_ASYMMETRY_THRESHOLD = 0.4;
+export const MACD_MIN_SIDE_RATIO = 0.25;
+export const MACD_MIN_VISIBLE_EXTENT = 0.005;
+
+export interface MacdBarValues {
+  macd?: number;
+  macdSignal?: number;
+  macdHist?: number;
+}
+
+export interface AutoMacdRangeResult {
+  min: number;
+  max: number;
+  coreMin: number;
+  coreMax: number;
+  isSymmetric: boolean;
+  minZoomFactor: number;
+  maxZoomFactor: number;
+}
+
+export interface MacdPanelLayout {
+  min: number;
+  max: number;
+  zoomFactor: number;
+  isZoomed: boolean;
+  macdHeight: number;
+  plotHeight: number;
+  extraHeight: number;
+}
+
+function sortedQuantile(sorted: number[], q: number): number {
+  if (sorted.length === 0) return 0;
+  if (sorted.length === 1) return sorted[0];
+  const clampedQ = Math.max(0, Math.min(1, q));
+  const pos = (sorted.length - 1) * clampedQ;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  const weight = pos - lo;
+  return sorted[lo] * (1 - weight) + sorted[hi] * weight;
+}
+
+/**
+ * Computes a data-aware automatic Y-axis domain for MACD across all visible MACD line,
+ * signal line, and histogram values.
+ *
+ * Accepts either structured bar records (preferred: computes per-bar vertical envelopes so
+ * smaller histogram values do not dilute line-series percentiles) or flat numeric arrays.
+ *
+ * - Uses symmetric scaling around zero when positive and negative sides are reasonably balanced.
+ * - Adapts asymmetrically (keeping zero strictly within 20%..80% of plot height) when one side
+ *   dominates substantially so data visibility is never sacrificed for artificial symmetry.
+ * - Protects against single extreme outliers (>3x 90th percentile) crushing the majority of bars.
+ * - Derives a data-aware maxZoomFactor (accounting for bounded vertical panel expansion) so
+ *   zooming in never unexpectedly clips the majority of visible MACD, signal, and histogram data.
+ */
+export function computeAutoMacdRange(
+  input: ReadonlyArray<number | MacdBarValues>
+): AutoMacdRangeResult {
+  const barPosExtents: number[] = [];
+  const barNegExtents: number[] = [];
+  const barAbsExtents: number[] = [];
+  const rawFiniteValues: number[] = [];
+
+  let hasStructuredBars = false;
+  for (let i = 0; i < input.length; i++) {
+    const item = input[i];
+    if (typeof item === 'number') {
+      if (Number.isFinite(item)) {
+        rawFiniteValues.push(item);
+      }
+    } else if (item && typeof item === 'object') {
+      hasStructuredBars = true;
+      const candidates = [item.macd, item.macdSignal, item.macdHist].filter(
+        (v): v is number => typeof v === 'number' && Number.isFinite(v)
+      );
+      if (candidates.length > 0) {
+        let bPos = 0;
+        let bNeg = 0;
+        for (let j = 0; j < candidates.length; j++) {
+          const v = candidates[j];
+          rawFiniteValues.push(v);
+          if (v > bPos) bPos = v;
+          if (-v > bNeg) bNeg = -v;
+        }
+        barPosExtents.push(bPos);
+        barNegExtents.push(bNeg);
+        barAbsExtents.push(Math.max(bPos, bNeg));
+      }
+    }
+  }
+
+  if (rawFiniteValues.length === 0) {
+    const fallback = MACD_MIN_VISIBLE_EXTENT * (1 + MACD_AUTO_PADDING_RATIO);
+    return {
+      min: -fallback,
+      max: fallback,
+      coreMin: -MACD_MIN_VISIBLE_EXTENT,
+      coreMax: MACD_MIN_VISIBLE_EXTENT,
+      isSymmetric: true,
+      minZoomFactor: MACD_MIN_ZOOM_FACTOR,
+      maxZoomFactor: MACD_MIN_ZOOM_IN_HEADROOM,
+    };
+  }
+
+  // Build sorted distributions for positive, negative, and absolute magnitudes
+  let posSorted: number[];
+  let negSorted: number[];
+  let absSorted: number[];
+  let sampleCount: number;
+
+  if (hasStructuredBars && barAbsExtents.length > 0) {
+    posSorted = [...barPosExtents].sort((a, b) => a - b);
+    negSorted = [...barNegExtents].sort((a, b) => a - b);
+    absSorted = [...barAbsExtents].sort((a, b) => a - b);
+    sampleCount = barAbsExtents.length;
+  } else {
+    posSorted = rawFiniteValues.map((v) => Math.max(0, v)).sort((a, b) => a - b);
+    negSorted = rawFiniteValues.map((v) => Math.max(0, -v)).sort((a, b) => a - b);
+    absSorted = rawFiniteValues.map((v) => Math.abs(v)).sort((a, b) => a - b);
+    sampleCount = rawFiniteValues.length;
+  }
+
+  const rawPosMax = posSorted[posSorted.length - 1];
+  const rawNegExtent = negSorted[negSorted.length - 1];
+
+  const p90Pos = sortedQuantile(posSorted, 0.9);
+  const p90Neg = sortedQuantile(negSorted, 0.9);
+  const p90Abs = sortedQuantile(absSorted, 0.9);
+  const maxAbs = absSorted[absSorted.length - 1];
+
+  // Fit full visible data for ordinary sessions; cap only genuinely extreme (>3x p90) outliers
+  // so a single anomalous spike does not make the majority of MACD bars unreadable.
+  const hasExtremeOutlier =
+    sampleCount >= 12 &&
+    p90Abs > MACD_MIN_VISIBLE_EXTENT &&
+    maxAbs > p90Abs * 3;
+
+  const fitPosExtent = hasExtremeOutlier
+    ? Math.min(rawPosMax, Math.max(p90Pos * 1.45, p90Abs * 2))
+    : rawPosMax;
+  const fitNegExtent = hasExtremeOutlier
+    ? Math.min(rawNegExtent, Math.max(p90Neg * 1.45, p90Abs * 2))
+    : rawNegExtent;
+
+  const dominant = Math.max(fitPosExtent, fitNegExtent, MACD_MIN_VISIBLE_EXTENT);
+  const minor = Math.min(fitPosExtent, fitNegExtent);
+  const isSymmetric =
+    dominant <= MACD_MIN_VISIBLE_EXTENT * 2 ||
+    minor >= dominant * MACD_ASYMMETRY_THRESHOLD;
+
+  let autoMin: number;
+  let autoMax: number;
+  if (isSymmetric) {
+    const padded = dominant * (1 + MACD_AUTO_PADDING_RATIO);
+    autoMin = -padded;
+    autoMax = padded;
+  } else {
+    const basePos = Math.max(fitPosExtent, dominant * MACD_MIN_SIDE_RATIO);
+    const baseNeg = Math.max(fitNegExtent, dominant * MACD_MIN_SIDE_RATIO);
+    autoMax = basePos * (1 + MACD_AUTO_PADDING_RATIO);
+    autoMin = -baseNeg * (1 + MACD_AUTO_PADDING_RATIO);
+  }
+
+  const coreMax = Math.max(0, p90Pos);
+  const coreMin = -Math.max(0, p90Neg);
+
+  // Account for bounded vertical plot expansion (70px -> up to 150px) when computing the
+  // data-safe zoom ceiling so zooming in genuinely magnifies detail while keeping the
+  // core majority (>= 90% of per-bar envelopes) strictly inside the plotting area.
+  const maxExpansionRatio = (MACD_ADJ_HEIGHT + MAX_MACD_EXPANSION_PX) / MACD_ADJ_HEIGHT;
+  const posZoomCeiling =
+    coreMax > MACD_MIN_VISIBLE_EXTENT * 0.25
+      ? (autoMax * maxExpansionRatio) / (coreMax * 1.06)
+      : MACD_MAX_ZOOM_FACTOR_CAP;
+  const negZoomCeiling =
+    -coreMin > MACD_MIN_VISIBLE_EXTENT * 0.25
+      ? (-autoMin * maxExpansionRatio) / (-coreMin * 1.06)
+      : MACD_MAX_ZOOM_FACTOR_CAP;
+  const dataSafeMaxZoom = Math.min(posZoomCeiling, negZoomCeiling);
+  const maxZoomFactor = Math.max(
+    MACD_MIN_ZOOM_IN_HEADROOM,
+    Math.min(MACD_MAX_ZOOM_FACTOR_CAP, dataSafeMaxZoom)
+  );
+
+  return {
+    min: autoMin,
+    max: autoMax,
+    coreMin,
+    coreMax,
+    isSymmetric,
+    minZoomFactor: MACD_MIN_ZOOM_FACTOR,
+    maxZoomFactor,
+  };
+}
+
+/**
+ * Clamps a MACD zoom multiplier into the data-aware [minZoomFactor, maxZoomFactor] bounds.
+ */
+export function clampMacdZoomFactor(
+  zoomFactor: number,
+  limits: Pick<AutoMacdRangeResult, 'minZoomFactor' | 'maxZoomFactor'>
+): number {
+  const minZ =
+    Number.isFinite(limits.minZoomFactor) && limits.minZoomFactor > 0
+      ? limits.minZoomFactor
+      : MACD_MIN_ZOOM_FACTOR;
+  const maxZ =
+    Number.isFinite(limits.maxZoomFactor) && limits.maxZoomFactor >= minZ
+      ? limits.maxZoomFactor
+      : Math.max(minZ, MACD_MIN_ZOOM_IN_HEADROOM);
+  if (!Number.isFinite(zoomFactor) || zoomFactor <= 0) return 1;
+  return Math.max(minZ, Math.min(maxZ, zoomFactor));
+}
+
+/**
+ * Applies a relative wheel/drag/keyboard zoom delta factor (>1 zooms in, <1 zooms out)
+ * to the current MACD zoom multiplier while respecting data-aware limits.
+ */
+export function computeScaledMacdZoom(
+  baseZoomFactor: number,
+  factor: number,
+  limits: Pick<AutoMacdRangeResult, 'minZoomFactor' | 'maxZoomFactor'>
+): number {
+  const safeBase = clampMacdZoomFactor(baseZoomFactor, limits);
+  const safeFactor = clampZoomFactor(factor);
+  return clampMacdZoomFactor(safeBase * safeFactor, limits);
+}
+
+/**
+ * Computes the active MACD panel height, plot height, and visible Y-axis domain together
+ * so vertical zoom achieves exact `zoomFactor` pixel magnification while expanding plot
+ * height smoothly (up to +80px) to keep plotted MACD/signal/histogram data unclipped.
+ *
+ * Zero baseline relative position (`max / (max - min)`) stays invariant across all zoom levels.
+ */
+export function computeMacdPanelLayout(
+  autoRange: AutoMacdRangeResult,
+  customZoomFactor: number | null
+): MacdPanelLayout {
+  if (customZoomFactor === null || !Number.isFinite(customZoomFactor) || customZoomFactor <= 0) {
+    return {
+      min: autoRange.min,
+      max: autoRange.max,
+      zoomFactor: 1,
+      isZoomed: false,
+      macdHeight: BASE_MACD_HEIGHT,
+      plotHeight: MACD_ADJ_HEIGHT,
+      extraHeight: 0,
+    };
+  }
+
+  const zoomFactor = clampMacdZoomFactor(customZoomFactor, autoRange);
+  const extraHeight =
+    zoomFactor > 1
+      ? Math.min(
+          MAX_MACD_EXPANSION_PX,
+          Math.max(0, Math.round(MACD_ADJ_HEIGHT * (zoomFactor - 1) * MACD_ZOOM_HEIGHT_GROWTH_RATIO))
+        )
+      : 0;
+  const plotHeight = MACD_ADJ_HEIGHT + extraHeight;
+  const macdHeight = BASE_MACD_HEIGHT + extraHeight;
+  const heightScale = plotHeight / MACD_ADJ_HEIGHT;
+
+  return {
+    min: (autoRange.min * heightScale) / zoomFactor,
+    max: (autoRange.max * heightScale) / zoomFactor,
+    zoomFactor,
+    isZoomed: true,
+    macdHeight,
+    plotHeight,
+    extraHeight,
+  };
+}
+
+/**
+ * Convenience wrapper returning the active MACD visible Y-axis range and zoom state.
+ */
+export function computeMacdVisibleRange(
+  autoRange: AutoMacdRangeResult,
+  customZoomFactor: number | null
+): {
+  min: number;
+  max: number;
+  zoomFactor: number;
+  isZoomed: boolean;
+} {
+  const layout = computeMacdPanelLayout(autoRange, customZoomFactor);
+  return {
+    min: layout.min,
+    max: layout.max,
+    zoomFactor: layout.zoomFactor,
+    isZoomed: layout.isZoomed,
+  };
+}
+
+/**
+ * Formats MACD Y-axis tick values cleanly across zoom extremes and price magnitudes so labels
+ * stay readable, non-redundant (never collapsing small non-zero bounds to "0.00"), and inside
+ * the 52px Y-axis label box.
+ */
+export function formatMacdAxisValue(val: number, referenceExtent: number): string {
+  if (!Number.isFinite(val)) return '--';
+  if (Math.abs(val) < 1e-9) return '0';
+  const ref =
+    Number.isFinite(referenceExtent) && referenceExtent > 0
+      ? referenceExtent
+      : Math.abs(val);
+  if (ref < 0.01) return val.toFixed(4);
+  if (ref < 0.1) return val.toFixed(3);
+  if (ref < 100) return val.toFixed(2);
+  if (ref < 1000) return val.toFixed(1);
+  return val.toFixed(0);
+}
+
 /**
  * Scales the RSI Y-axis range within natural [0, 100] bounds.
  */
