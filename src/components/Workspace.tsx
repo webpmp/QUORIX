@@ -1060,6 +1060,8 @@ export default function Workspace({
         ? 'flex flex-col overflow-hidden min-h-0'
         : activeScreen === 'POLY'
         ? 'flex flex-col overflow-y-auto lg:overflow-hidden min-h-0'
+        : activeScreen === 'ECO'
+        ? 'flex flex-col overflow-y-auto min-h-0'
         : 'overflow-y-auto'
     }`}>
       
@@ -1440,7 +1442,7 @@ export default function Workspace({
                       {/* Tickers, Sentiment below the content */}
                       <div className="space-y-1.5 mt-2 pt-2 border-t border-[#151515] text-[11px]">
                         {/* Related Tickers row */}
-                        <div className="flex flex-wrap items-center gap-1 text-zinc-400">
+                        <div className="flex flex-wrap items-center gap-1.5 text-sm text-zinc-400">
                           {relatedTickers.map((t, tIdx) => (
                             <React.Fragment key={t}>
                               {tIdx > 0 && <span className="text-zinc-600">, </span>}
@@ -1490,9 +1492,9 @@ export default function Workspace({
 
       {/* 7. ECO: ECONOMIC INDICATORS & CALENDAR (FRED) */}
       {activeScreen === 'ECO' && (
-        <div className="space-y-4 animate-fade-in select-none">
-          <div className="bg-[#050505] border border-[#333] rounded p-4 shadow-xl">
-            <div className="border-b border-[#333] pb-2 mb-4 flex justify-between items-center">
+        <div className="flex-1 flex flex-col animate-fade-in select-none">
+          <div className="flex-1 flex flex-col bg-[#050505] border border-[#333] rounded p-4 shadow-xl">
+            <div className="shrink-0 border-b border-[#333] pb-2 mb-4 flex justify-between items-center">
               <span className="text-white text-md font-bold uppercase tracking-wider">
                 Global Economic Calendar (FRED)
               </span>
@@ -1536,10 +1538,10 @@ export default function Workspace({
                 <span>{fredEconomicsStatus.error}</span>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="flex-1 flex flex-col gap-6">
                 {/* US Macro & Treasury Rates Snapshot */}
                 {fredMacroMetrics.length > 0 && (
-                  <div>
+                  <div className="shrink-0">
                     <div className="mb-2">
                       <div className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                         US Macro &amp; Treasury Benchmarks (FRED)
@@ -1564,7 +1566,7 @@ export default function Workspace({
                 )}
 
                 {/* Global Macro Indicators Table */}
-                <div>
+                <div className="shrink-0">
                   <div className="mb-2">
                     <div className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                       Global Macroeconomic Indicators
@@ -1623,8 +1625,8 @@ export default function Workspace({
                   });
 
                   return (
-                    <div>
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <div className="flex-1 flex flex-col">
+                      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 mb-2">
                         <div className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                           FRED Economic Release Calendar (Last 30 Days • {filteredReleases.length})
                         </div>
@@ -1652,7 +1654,7 @@ export default function Workspace({
                           </button>
                         </div>
                       </div>
-                      <div className="overflow-x-auto max-h-96 overflow-y-auto border border-[#222] rounded bg-black">
+                      <div className="flex-1 h-0 min-h-[12rem] overflow-x-auto overflow-y-auto border border-[#222] rounded bg-black">
                         <table className="w-full text-left text-xs text-zinc-300 font-mono">
                           <thead className="sticky top-0 bg-[#0a0a0a] z-10">
                             <tr className="border-b border-[#333] text-zinc-500 text-[10px] uppercase font-bold">

@@ -1071,10 +1071,6 @@ export default function ChartWidget({
   const getRocY = (v: number) =>
     subPadTop + subAdjHeight - ((v + rocMaxAbs) / (2 * rocMaxAbs)) * subAdjHeight;
 
-  const activeStudyNames = activeStudies
-    .map((id) => STUDY_CATALOG.find((s) => s.id === id)?.code || id.toUpperCase())
-    .join(' ');
-
   const CHART_PANEL_HEADER_CLASS =
     'absolute top-1 left-[64px] right-2 flex items-center justify-between gap-2 text-[11px] leading-tight font-bold uppercase select-none pointer-events-none';
   const PRICE_VOL_PANEL_HEADER_CLASS =
@@ -2835,30 +2831,6 @@ export default function ChartWidget({
             </div>
           </div>
         )}
-      </div>
-
-      <div className="flex flex-wrap justify-between items-center gap-2 text-[9px] text-[#ff9900] mt-3 font-semibold select-none border-t border-[#333] pt-2">
-        <span>
-          <span>
-            RANGE:{' '}
-            {interval === '5m'
-              ? '5M (LAST 5 MIN)'
-              : interval === '15m'
-              ? '15M (LAST 15 MIN)'
-              : interval === '30m'
-              ? '30M (LAST 30 MIN)'
-              : interval === '1h'
-              ? '1H (LAST 60 MIN)'
-              : interval === '1D'
-              ? '1D (TODAY)'
-              : interval === '1W'
-              ? '1W (LAST 7 DAYS)'
-              : '1M (LAST 30/31 DAYS)'}
-          </span>
-        </span>
-        <span className="text-zinc-500 truncate max-w-full">
-          STUDIES ACTIVE: {activeStudyNames || 'NONE'}
-        </span>
       </div>
 
       <StudiesModal
