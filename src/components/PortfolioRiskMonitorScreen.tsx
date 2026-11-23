@@ -564,33 +564,31 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
     <div className="space-y-4 font-mono text-zinc-200 animate-fade-in">
       {/* Top Workspace Header & Controls */}
       <div className="bg-[#050505] border border-[#333] rounded p-3.5 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#2a2a2a] pb-2.5">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-white text-md font-bold uppercase tracking-wider">
-              Portfolio Risk Monitor
-            </span>
-            <span className="px-1.5 py-0.5 rounded bg-black border border-[#333] text-[#ff9900] text-[10px] font-bold uppercase">
-              PRM
-            </span>
-            {activePortfolio && (
-              <div className="flex items-center gap-1.5">
-                <select
-                  aria-label="Select portfolio"
-                  value={activePortfolio.id}
-                  onChange={(e) =>
-                    setStore((prev) => ({ ...prev, activePortfolioId: e.target.value }))
-                  }
-                  className="bg-black border border-[#333] hover:border-[#ff9900] rounded px-2 py-1 text-xs text-zinc-100 font-bold outline-none cursor-pointer"
-                >
-                  {store.portfolios.map((pf) => (
-                    <option key={pf.id} value={pf.id}>
-                      {pf.name} ({pf.holdings.length})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
+        <div className="border-b border-[#2a2a2a] pb-2.5">
+          <h1 className="text-white text-md font-bold uppercase tracking-wider">
+            PORTFOLIO RISK MONITOR
+          </h1>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-[#1f1f1f] pb-2.5">
+          {activePortfolio && (
+            <div className="flex items-center gap-1.5">
+              <select
+                aria-label="Select portfolio"
+                value={activePortfolio.id}
+                onChange={(e) =>
+                  setStore((prev) => ({ ...prev, activePortfolioId: e.target.value }))
+                }
+                className="bg-black border border-[#333] hover:border-[#ff9900] rounded px-2 py-1 text-xs text-zinc-100 font-bold outline-none cursor-pointer"
+              >
+                {store.portfolios.map((pf) => (
+                  <option key={pf.id} value={pf.id}>
+                    {pf.name} ({pf.holdings.length})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-1.5">
             <button
@@ -848,7 +846,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           {/* SECTION 1: PORTFOLIO OVERVIEW                                    */}
           {/* ================================================================ */}
           <section id="prm-overview" className="bg-[#050505] border border-[#333] rounded p-3.5 space-y-3">
-            <div className="border-b border-[#2a2a2a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="border-b border-[#2a2a2a] pb-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   PORTFOLIO OVERVIEW
@@ -859,10 +857,12 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                   content="Consolidated market valuation, exposure, historical volatility, beta vs SPY, concentration, and transparent rule-based risk assessment."
                 />
               </div>
-              <div className="flex items-center gap-2 text-[10px]">
-                <span className="text-zinc-500 uppercase">RISK ASSESSMENT:</span>
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                  RISK ASSESSMENT:
+                </span>
                 <span
-                  className={`px-2 py-0.5 rounded border font-bold uppercase ${toneBadgeClass(
+                  className={`px-3 py-1 rounded border text-sm font-extrabold uppercase tracking-wider leading-none ${toneBadgeClass(
                     analysis.overallRisk.tone
                   )}`}
                 >
@@ -1057,13 +1057,15 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             </div>
 
             {/* Transparent Rule-Based Risk Drivers */}
-            <div className="bg-black border border-[#222] rounded px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10.5px]">
-              <span className="text-zinc-500 uppercase font-bold text-[9.5px]">RULE DRIVERS:</span>
-              {analysis.overallRisk.drivers.map((drv, idx) => (
-                <span key={idx} className="text-zinc-300">
-                  • {drv}
-                </span>
-              ))}
+            <div className="bg-black border border-[#222] rounded px-3 py-2.5 space-y-1.5">
+              <div className="text-zinc-500 uppercase font-bold text-[9.5px] tracking-wider">
+                RULE DRIVERS:
+              </div>
+              <ul className="list-disc pl-4 space-y-1 text-[11px] leading-relaxed text-zinc-300 marker:text-zinc-500">
+                {analysis.overallRisk.drivers.map((drv, idx) => (
+                  <li key={idx}>{drv}</li>
+                ))}
+              </ul>
             </div>
           </section>
 
@@ -1214,7 +1216,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                     No positions or sectors currently exceed your configured concentration thresholds.
                   </div>
                 ) : (
-                  <div className="space-y-1.5 max-h-52 overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[272px] overflow-y-auto">
                     {analysis.concentration.warnings.map((warn) => (
                       <div
                         key={warn.id}

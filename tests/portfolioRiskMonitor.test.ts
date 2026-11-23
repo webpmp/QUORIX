@@ -589,4 +589,25 @@ test('PortfolioRiskMonitorScreen renders empty onboarding state and complete 7-s
   assert.match(fullHtml, /Unclassified/);
   assert.match(fullHtml, /OPEN IN CORR/);
   assert.match(fullHtml, /hypothetical stress test/i);
+
+  // Verify header restructure: standalone title without PRM badge, toolbar controls on second row
+  assert.match(fullHtml, /<h1[^>]*>PORTFOLIO RISK MONITOR<\/h1>/);
+  assert.doesNotMatch(fullHtml, />PRM<\/span>/);
+  assert.match(fullHtml, /aria-label="Select portfolio"/);
+  assert.match(fullHtml, />ADD HOLDING<\/span>/);
+  assert.match(fullHtml, />CSV IMPORT<\/span>/);
+  assert.match(fullHtml, />WATCHLIST<\/span>/);
+  assert.match(fullHtml, />PORTFOLIOS<\/span>/);
+  assert.match(fullHtml, />THRESHOLDS<\/span>/);
+
+  // Verify Risk Assessment prominence
+  assert.match(fullHtml, /text-xs font-bold text-zinc-300 uppercase tracking-wider">RISK ASSESSMENT:<\/span>/);
+  assert.match(fullHtml, /px-3 py-1 rounded border text-sm font-extrabold uppercase tracking-wider/);
+
+  // Verify Rule Drivers rendered as a semantic vertical list (<ul>/<li>)
+  assert.match(fullHtml, /RULE DRIVERS:<\/div><ul class="list-disc pl-4 space-y-1/);
+  assert.match(fullHtml, /<li>[^<]+<\/li>/);
+
+  // Verify Concentration Warnings container has expanded max-height while retaining overflow scrolling
+  assert.match(fullHtml, /space-y-1\.5 max-h-\[272px\] overflow-y-auto/);
 });
