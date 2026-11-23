@@ -1056,12 +1056,10 @@ export default function Workspace({
 
   return (
     <div className={`flex-1 bg-[#010101] p-4 font-mono text-zinc-300 relative select-text ${
-      activeScreen === 'BWRITE'
+      activeScreen === 'BWRITE' || activeScreen === 'ECO'
         ? 'flex flex-col overflow-hidden min-h-0'
         : activeScreen === 'POLY'
         ? 'flex flex-col overflow-y-auto lg:overflow-hidden min-h-0'
-        : activeScreen === 'ECO'
-        ? 'flex flex-col overflow-y-auto min-h-0'
         : 'overflow-y-auto'
     }`}>
       
@@ -1492,8 +1490,8 @@ export default function Workspace({
 
       {/* 7. ECO: ECONOMIC INDICATORS & CALENDAR (FRED) */}
       {activeScreen === 'ECO' && (
-        <div className="flex-1 flex flex-col animate-fade-in select-none">
-          <div className="flex-1 flex flex-col bg-[#050505] border border-[#333] rounded p-4 shadow-xl">
+        <div className="flex-1 min-h-0 flex flex-col animate-fade-in select-none">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-[#050505] border border-[#333] rounded p-4 shadow-xl">
             <div className="shrink-0 border-b border-[#333] pb-2 mb-4 flex justify-between items-center">
               <span className="text-white text-md font-bold uppercase tracking-wider">
                 Global Economic Calendar (FRED)
@@ -1538,7 +1536,7 @@ export default function Workspace({
                 <span>{fredEconomicsStatus.error}</span>
               </div>
             ) : (
-              <div className="flex-1 flex flex-col gap-6">
+              <div className="flex-1 min-h-0 flex flex-col gap-6">
                 {/* US Macro & Treasury Rates Snapshot */}
                 {fredMacroMetrics.length > 0 && (
                   <div className="shrink-0">
@@ -1625,7 +1623,7 @@ export default function Workspace({
                   });
 
                   return (
-                    <div className="flex-1 flex flex-col">
+                    <div className="flex-1 min-h-0 flex flex-col">
                       <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 mb-2">
                         <div className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                           FRED Economic Release Calendar (Last 30 Days • {filteredReleases.length})
@@ -1654,7 +1652,7 @@ export default function Workspace({
                           </button>
                         </div>
                       </div>
-                      <div className="flex-1 h-0 min-h-[12rem] overflow-x-auto overflow-y-auto border border-[#222] rounded bg-black">
+                      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto border border-[#222] rounded bg-black">
                         <table className="w-full text-left text-xs text-zinc-300 font-mono">
                           <thead className="sticky top-0 bg-[#0a0a0a] z-10">
                             <tr className="border-b border-[#333] text-zinc-500 text-[10px] uppercase font-bold">
