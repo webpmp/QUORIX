@@ -1626,7 +1626,7 @@ export default function Workspace({
                     <div className="flex-1 min-h-0 flex flex-col">
                       <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 mb-2">
                         <div className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
-                          FRED Economic Release Calendar (Last 30 Days • {filteredReleases.length})
+                          FRED Economic Release Calendar (Last 30 Days)
                         </div>
                         <div className="flex items-center gap-2 font-mono">
                           <div className="relative flex items-center">
@@ -1659,7 +1659,7 @@ export default function Workspace({
                               <th className="py-2 px-3 whitespace-nowrap">RELEASE DATE</th>
                               <th className="py-2 px-3 whitespace-nowrap">RELEASE ID</th>
                               <th className="py-2 px-3 whitespace-nowrap">ECONOMIC RELEASE</th>
-                              <th className="py-2 px-3 text-right whitespace-nowrap">REPORTS</th>
+                              <th className="py-2 px-3 text-right whitespace-nowrap">{filteredReleases.length} REPORTS</th>
                             </tr>
                           </thead>
                           <tbody>
