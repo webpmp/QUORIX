@@ -1044,6 +1044,340 @@ export function formatMacdAxisValue(val: number, referenceExtent: number): strin
   return val.toFixed(0);
 }
 
+export const BASE_ATR_HEIGHT = BASE_MACD_HEIGHT;
+export const ATR_PADDING_TOP = MACD_PADDING_TOP;
+export const ATR_PADDING_BOTTOM = MACD_PADDING_BOTTOM;
+export const ATR_ADJ_HEIGHT = MACD_ADJ_HEIGHT;
+export const MAX_ATR_EXPANSION_PX = MAX_MACD_EXPANSION_PX;
+export const ATR_MIN_ZOOM_FACTOR = MACD_MIN_ZOOM_FACTOR;
+export const ATR_MAX_ZOOM_FACTOR_CAP = MACD_MAX_ZOOM_FACTOR_CAP;
+export const ATR_MIN_VISIBLE_SPAN = 0.005;
+
+export const BASE_OBV_HEIGHT = BASE_MACD_HEIGHT;
+export const OBV_PADDING_TOP = MACD_PADDING_TOP;
+export const OBV_PADDING_BOTTOM = MACD_PADDING_BOTTOM;
+export const OBV_ADJ_HEIGHT = MACD_ADJ_HEIGHT;
+export const MAX_OBV_EXPANSION_PX = MAX_MACD_EXPANSION_PX;
+export const OBV_MIN_ZOOM_FACTOR = MACD_MIN_ZOOM_FACTOR;
+export const OBV_MAX_ZOOM_FACTOR_CAP = MACD_MAX_ZOOM_FACTOR_CAP;
+export const OBV_MIN_VISIBLE_SPAN = 100;
+
+export interface AutoStudyRangeResult {
+  min: number;
+  max: number;
+  coreMin: number;
+  coreMax: number;
+  anchor: number;
+  minZoomFactor: number;
+  maxZoomFactor: number;
+  nonNegative: boolean;
+}
+
+export interface StudyPanelLayout {
+  min: number;
+  max: number;
+  zoomFactor: number;
+  isZoomed: boolean;
+  panelHeight: number;
+  plotHeight: number;
+  extraHeight: number;
+}
+
+function computeDataAwareRangeLimits(params: {
+  autoMin: number;
+  autoMax: number;
+  coreMin: number;
+  coreMax: number;
+  nonNegative: boolean;
+}): AutoStudyRangeResult {
+  const autoMin = params.nonNegative ? Math.max(0, params.autoMin) : params.autoMin;
+  const autoMax = Math.max(autoMin + 1e-6, params.autoMax);
+  const autoSpan = autoMax - autoMin;
+  const anchor = (autoMin + autoMax) / 2;
+  const coreMin = params.nonNegative ? Math.max(0, params.coreMin) : params.coreMin;
+  const coreMax = Math.max(coreMin, params.coreMax);
+
+  const maxExpansionRatio = (MACD_ADJ_HEIGHT + MAX_MACD_EXPANSION_PX) / MACD_ADJ_HEIGHT;
+  const halfCoreNeed = Math.max(
+    Math.max(0, coreMax - anchor),
+    Math.max(0, anchor - coreMin)
+  );
+  const requiredSpan = Math.max(
+    halfCoreNeed * 2 * 1.12,
+    (coreMax - coreMin) * 1.12,
+    autoSpan * 0.25
+  );
+  const dataSafeMaxZoom = (autoSpan * maxExpansionRatio) / Math.max(requiredSpan, 1e-6);
+  const maxZoomFactor = Math.max(
+    MACD_MIN_ZOOM_IN_HEADROOM,
+    Math.min(MACD_MAX_ZOOM_FACTOR_CAP, dataSafeMaxZoom)
+  );
+
+  return {
+    min: autoMin,
+    max: autoMax,
+    coreMin,
+    coreMax,
+    anchor,
+    minZoomFactor: MACD_MIN_ZOOM_FACTOR,
+    maxZoomFactor,
+    nonNegative: params.nonNegative,
+  };
+}
+
+/**
+ * Computes a data-aware, strictly non-negative automatic Y-axis domain for ATR (14).
+ *
+ * - Fits visible ATR variation with balanced top/bottom padding without forcing a zero
+ *   floor when ATR trades well above zero (avoiding flattening normal volatility swings).
+ * - Strictly clamps the lower bound at >= 0 so ATR never implies negative values.
+ * - Caps only extreme single-bar volatility spikes (>3x core spread above p90) so ordinary
+ *   ATR values stay clearly visible.
+ */
+export function computeAutoAtrRange(
+  values: ReadonlyArray<number | undefined>
+): AutoStudyRangeResult {
+  const finite = values.filter(
+    (v): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0
+  );
+  if (finite.length === 0) {
+    return computeDataAwareRangeLimits({
+      autoMin: 0,
+      autoMax: 1,
+      coreMin: 0,
+      coreMax: 0.85,
+      nonNegative: true,
+    });
+  }
+
+  const sorted = [...finite].sort((a, b) => a - b);
+  const rawMin = sorted[0];
+  const rawMax = sorted[sorted.length - 1];
+  const p10 = sortedQuantile(sorted, 0.1);
+  const p90 = sortedQuantile(sorted, 0.9);
+  const coreSpread = Math.max(p90 - p10, p90 * 0.08, ATR_MIN_VISIBLE_SPAN);
+
+  const hasUpperOutlier =
+    finite.length >= 12 &&
+    rawMax > p90 + coreSpread * 3 &&
+    rawMax > p90 * 2.5;
+  const fitMin = rawMin;
+  const fitMax = hasUpperOutlier ? Math.min(rawMax, p90 + coreSpread * 1.5) : rawMax;
+  const fitSpan = fitMax - fitMin;
+
+  let autoMin: number;
+  let autoMax: number;
+  if (fitSpan < ATR_MIN_VISIBLE_SPAN * 0.25) {
+    const fallbackSpan = Math.max(fitMax * 0.15, ATR_MIN_VISIBLE_SPAN);
+    autoMin = Math.max(0, fitMin - fallbackSpan / 2);
+    autoMax = autoMin + fallbackSpan;
+  } else {
+    const pad = fitSpan * MACD_AUTO_PADDING_RATIO;
+    autoMin = Math.max(0, fitMin - pad);
+    autoMax = fitMax + pad;
+  }
+
+  return computeDataAwareRangeLimits({
+    autoMin,
+    autoMax,
+    coreMin: p10,
+    coreMax: p90,
+    nonNegative: true,
+  });
+}
+
+/**
+ * Computes a data-aware automatic Y-axis domain for OBV (On-Balance Volume).
+ *
+ * - Supports large positive, negative, and zero-crossing cumulative volume values without
+ *   forcing zero into the visible range when OBV operates far from zero.
+ * - Adds balanced vertical padding and protects against single extreme volume outliers.
+ */
+export function computeAutoObvRange(
+  values: ReadonlyArray<number | undefined>
+): AutoStudyRangeResult {
+  const finite = values.filter(
+    (v): v is number => typeof v === 'number' && Number.isFinite(v)
+  );
+  if (finite.length === 0) {
+    return computeDataAwareRangeLimits({
+      autoMin: -OBV_MIN_VISIBLE_SPAN,
+      autoMax: OBV_MIN_VISIBLE_SPAN,
+      coreMin: -OBV_MIN_VISIBLE_SPAN * 0.8,
+      coreMax: OBV_MIN_VISIBLE_SPAN * 0.8,
+      nonNegative: false,
+    });
+  }
+
+  const sorted = [...finite].sort((a, b) => a - b);
+  const rawMin = sorted[0];
+  const rawMax = sorted[sorted.length - 1];
+  const p10 = sortedQuantile(sorted, 0.1);
+  const p90 = sortedQuantile(sorted, 0.9);
+  const coreSpread = Math.max(p90 - p10, 1);
+
+  const hasUpperOutlier = finite.length >= 12 && rawMax - p90 > coreSpread * 3;
+  const hasLowerOutlier = finite.length >= 12 && p10 - rawMin > coreSpread * 3;
+  const fitMin = hasLowerOutlier ? Math.max(rawMin, p10 - coreSpread * 1.5) : rawMin;
+  const fitMax = hasUpperOutlier ? Math.min(rawMax, p90 + coreSpread * 1.5) : rawMax;
+  const fitSpan = fitMax - fitMin;
+
+  let autoMin: number;
+  let autoMax: number;
+  if (fitSpan < 1) {
+    const mid = (fitMin + fitMax) / 2;
+    const fallbackSpan = Math.max(Math.abs(mid) * 0.05, OBV_MIN_VISIBLE_SPAN);
+    autoMin = mid - fallbackSpan / 2;
+    autoMax = mid + fallbackSpan / 2;
+  } else {
+    const pad = fitSpan * MACD_AUTO_PADDING_RATIO;
+    autoMin = fitMin - pad;
+    autoMax = fitMax + pad;
+  }
+
+  return computeDataAwareRangeLimits({
+    autoMin,
+    autoMax,
+    coreMin: p10,
+    coreMax: p90,
+    nonNegative: false,
+  });
+}
+
+/**
+ * Clamps an ATR/OBV zoom multiplier into its data-aware [minZoomFactor, maxZoomFactor] bounds.
+ */
+export function clampStudyZoomFactor(
+  zoomFactor: number,
+  limits: Pick<AutoStudyRangeResult, 'minZoomFactor' | 'maxZoomFactor'>
+): number {
+  return clampMacdZoomFactor(zoomFactor, limits);
+}
+
+/**
+ * Applies a wheel/drag/keyboard zoom factor (>1 zooms in, <1 zooms out) to ATR or OBV.
+ */
+export function computeScaledStudyZoom(
+  baseZoomFactor: number,
+  factor: number,
+  limits: Pick<AutoStudyRangeResult, 'minZoomFactor' | 'maxZoomFactor'>
+): number {
+  return computeScaledMacdZoom(baseZoomFactor, factor, limits);
+}
+
+function computeStudyPanelLayout(
+  autoRange: AutoStudyRangeResult,
+  customZoomFactor: number | null
+): StudyPanelLayout {
+  if (customZoomFactor === null || !Number.isFinite(customZoomFactor) || customZoomFactor <= 0) {
+    return {
+      min: autoRange.min,
+      max: autoRange.max,
+      zoomFactor: 1,
+      isZoomed: false,
+      panelHeight: BASE_MACD_HEIGHT,
+      plotHeight: MACD_ADJ_HEIGHT,
+      extraHeight: 0,
+    };
+  }
+
+  const zoomFactor = clampStudyZoomFactor(customZoomFactor, autoRange);
+  const extraHeight =
+    zoomFactor > 1
+      ? Math.min(
+          MAX_MACD_EXPANSION_PX,
+          Math.max(0, Math.round(MACD_ADJ_HEIGHT * (zoomFactor - 1) * MACD_ZOOM_HEIGHT_GROWTH_RATIO))
+        )
+      : 0;
+  const plotHeight = MACD_ADJ_HEIGHT + extraHeight;
+  const panelHeight = BASE_MACD_HEIGHT + extraHeight;
+  const heightScale = plotHeight / MACD_ADJ_HEIGHT;
+  const autoSpan = Math.max(autoRange.max - autoRange.min, 1e-6);
+  const visibleSpan = (autoSpan * heightScale) / zoomFactor;
+
+  let min = autoRange.anchor - visibleSpan / 2;
+  let max = autoRange.anchor + visibleSpan / 2;
+  if (autoRange.nonNegative && min < 0) {
+    min = 0;
+    max = visibleSpan;
+  }
+
+  return {
+    min,
+    max,
+    zoomFactor,
+    isZoomed: true,
+    panelHeight,
+    plotHeight,
+    extraHeight,
+  };
+}
+
+/**
+ * Computes active ATR panel height, plot height, and non-negative visible Y-axis domain.
+ */
+export function computeAtrPanelLayout(
+  autoRange: AutoStudyRangeResult,
+  customZoomFactor: number | null
+): StudyPanelLayout {
+  return computeStudyPanelLayout(autoRange, customZoomFactor);
+}
+
+/**
+ * Computes active OBV panel height, plot height, and visible Y-axis domain.
+ */
+export function computeObvPanelLayout(
+  autoRange: AutoStudyRangeResult,
+  customZoomFactor: number | null
+): StudyPanelLayout {
+  return computeStudyPanelLayout(autoRange, customZoomFactor);
+}
+
+/**
+ * Formats non-negative ATR Y-axis tick values cleanly across small intraday and high-price ranges.
+ */
+export function formatAtrAxisValue(val: number, referenceSpan: number): string {
+  if (!Number.isFinite(val)) return '--';
+  const clamped = Math.max(0, val);
+  if (clamped < 1e-9) return '0';
+  const ref =
+    Number.isFinite(referenceSpan) && referenceSpan > 0
+      ? referenceSpan
+      : clamped;
+  if (ref < 0.02) return clamped.toFixed(4);
+  if (ref < 0.2) return clamped.toFixed(3);
+  if (clamped >= 1000 && ref >= 5) return clamped.toFixed(0);
+  if (clamped >= 100 && ref >= 0.5) return clamped.toFixed(1);
+  return clamped.toFixed(2);
+}
+
+/**
+ * Formats signed OBV cumulative volume axis labels with span-aware precision so ticks stay
+ * distinct under vertical zoom and compact inside the 52px Y-axis label box.
+ */
+export function formatObvAxisValue(val: number, referenceSpan: number): string {
+  if (!Number.isFinite(val)) return '--';
+  if (Math.abs(val) < 1e-6) return '0';
+  const absVal = Math.abs(val);
+  const span =
+    Number.isFinite(referenceSpan) && referenceSpan > 0
+      ? referenceSpan
+      : absVal;
+  if (absVal >= 1_000_000_000) {
+    const decimals = span < 100_000_000 ? 2 : 1;
+    return `${(val / 1_000_000_000).toFixed(decimals)}B`;
+  }
+  if (absVal >= 1_000_000) {
+    const decimals = span < 500_000 ? 2 : 1;
+    return `${(val / 1_000_000).toFixed(decimals)}M`;
+  }
+  if (absVal >= 1_000) {
+    const decimals = span < 5_000 ? 1 : 0;
+    return `${(val / 1_000).toFixed(decimals)}K`;
+  }
+  return `${Math.round(val)}`;
+}
+
 /**
  * Scales the RSI Y-axis range within natural [0, 100] bounds.
  */

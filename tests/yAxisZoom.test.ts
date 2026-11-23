@@ -10,7 +10,12 @@ import {
   type HistoryBar,
 } from '../src/utils/marketHistoryCache.ts';
 import {
+  ATR_ADJ_HEIGHT,
+  ATR_MIN_ZOOM_FACTOR,
+  ATR_PADDING_TOP,
+  BASE_ATR_HEIGHT,
   BASE_MACD_HEIGHT,
+  BASE_OBV_HEIGHT,
   BASE_PRICE_HEIGHT,
   BASE_VOL_ADJ_HEIGHT,
   BASE_VOL_HEIGHT,
@@ -21,8 +26,13 @@ import {
   MACD_MIN_ZOOM_IN_HEADROOM,
   MACD_PADDING_BOTTOM,
   MACD_PADDING_TOP,
+  MAX_ATR_EXPANSION_PX,
   MAX_MACD_EXPANSION_PX,
+  MAX_OBV_EXPANSION_PX,
   MAX_VOL_EXPANSION_PX,
+  OBV_ADJ_HEIGHT,
+  OBV_MIN_ZOOM_FACTOR,
+  OBV_PADDING_TOP,
   PRICE_MIN_CANDLE_HEIGHT_PX,
   PRICE_MIN_CANDLE_HEIGHT_RATIO,
   PRICE_ZOOM_EDGE_PADDING_RATIO,
@@ -33,20 +43,28 @@ import {
   VOL_PADDING_BOTTOM,
   VOL_PADDING_TOP,
   clampMacdZoomFactor,
+  clampStudyZoomFactor,
+  computeAtrPanelLayout,
+  computeAutoAtrRange,
   computeAutoMacdRange,
+  computeAutoObvRange,
   computeAutoPriceRange,
   computeMacdPanelLayout,
   computeMacdVisibleRange,
+  computeObvPanelLayout,
   computeOffscalePcBadgeLayout,
   computePriceZoomLimits,
   computeScaledBoundedRange,
   computeScaledMacdZoom,
   computeScaledRsiRange,
+  computeScaledStudyZoom,
   computeScaledVolumeMax,
   computeVolumePanelLayout,
   dragDeltaToZoomFactor,
   ensureRangeIncludesFocusBand,
+  formatAtrAxisValue,
   formatMacdAxisValue,
+  formatObvAxisValue,
   getVolumeZoomLimits,
   panBoundedRange,
   resolveReferenceLevelLabels,
@@ -1562,4 +1580,242 @@ test('ChartWidget MACD separates Y-axis label box from histogram/clip path (matc
     );
   });
 });
+
+test('ATR data-aware non-negative scaling and OBV cumulative scaling support zoom-in/out, prevent clipping, and handle diverse market ranges', () => {
+  assert.equal(BASE_ATR_HEIGHT, BASE_MACD_HEIGHT);
+  assert.equal(ATR_ADJ_HEIGHT, MACD_ADJ_HEIGHT);
+  assert.equal(MAX_ATR_EXPANSION_PX, MAX_MACD_EXPANSION_PX);
+  assert.equal(BASE_OBV_HEIGHT, BASE_MACD_HEIGHT);
+  assert.equal(OBV_ADJ_HEIGHT, MACD_ADJ_HEIGHT);
+  assert.equal(MAX_OBV_EXPANSION_PX, MAX_MACD_EXPANSION_PX);
+
+  // 1. ATR well above zero (e.g. AAPL 1D ATR 4.10..4.90) fits tightly without flattening to 0
+  const midAtrVals = Array.from({ length: 28 }, (_, i) => 4.5 + Math.sin(i / 3) * 0.38);
+  const midAtrAuto = computeAutoAtrRange(midAtrVals);
+  assert.ok(midAtrAuto.min > 3.5, `ATR range should not force 0 floor when trading at 4.1..4.9; got min=${midAtrAuto.min}`);
+  assert.ok(midAtrVals.every((v) => v >= midAtrAuto.min && v <= midAtrAuto.max));
+
+  const midAtrBase = computeAtrPanelLayout(midAtrAuto, null);
+  const atrBasePxPerUnit = midAtrBase.plotHeight / (midAtrBase.max - midAtrBase.min);
+  for (const z of [1.5, 2.0, midAtrAuto.maxZoomFactor, ATR_MIN_ZOOM_FACTOR]) {
+    const layout = computeAtrPanelLayout(midAtrAuto, z);
+    assert.ok(layout.min >= 0, 'ATR min must NEVER go negative');
+    const pxPerUnit = layout.plotHeight / (layout.max - layout.min);
+    assert.ok(Math.abs(pxPerUnit / atrBasePxPerUnit - layout.zoomFactor) < 1e-9);
+    const inBounds = midAtrVals.filter((v) => v >= layout.min && v <= layout.max).length / midAtrVals.length;
+    assert.ok(inBounds >= 0.9, `Expected >=90% ATR points visible at ${layout.zoomFactor.toFixed(2)}x, got ${(inBounds * 100).toFixed(1)}%`);
+  }
+
+  // 2. ATR near zero (e.g. 5m low-vol stock 0.04..0.14) clamps strictly at >= 0 even at max zoom-out (0.40x)
+  const lowAtrVals = Array.from({ length: 24 }, (_, i) => 0.09 + Math.sin(i / 2.5) * 0.05);
+  const lowAtrAuto = computeAutoAtrRange(lowAtrVals);
+  assert.ok(lowAtrAuto.min >= 0);
+  const lowAtrOut = computeAtrPanelLayout(lowAtrAuto, 0.01);
+  assert.equal(lowAtrOut.zoomFactor, ATR_MIN_ZOOM_FACTOR);
+  assert.equal(lowAtrOut.min, 0, 'Near-zero ATR zoomed out must clamp lower bound at 0, never negative');
+  assert.ok(lowAtrVals.every((v) => v >= lowAtrOut.min && v <= lowAtrOut.max));
+
+  // 3. Large high-price ATR (e.g. BTC 1D 1800..3100) and outlier ATR
+  const btcAtrVals = Array.from({ length: 24 }, (_, i) => 2450 + Math.sin(i / 3) * 600);
+  const btcAtrAuto = computeAutoAtrRange(btcAtrVals);
+  assert.ok(btcAtrAuto.min >= 0 && btcAtrAuto.max > 3050);
+  assert.equal(formatAtrAxisValue(2450, btcAtrAuto.max - btcAtrAuto.min), '2450');
+  assert.equal(formatAtrAxisValue(0, 0.1), '0');
+  assert.equal(formatAtrAxisValue(0.0045, 0.01), '0.0045');
+  assert.equal(formatAtrAxisValue(0.185, 0.12), '0.185');
+
+  const atrOutlierAuto = computeAutoAtrRange([...midAtrVals, 45.0]);
+  assert.ok(atrOutlierAuto.max < 12.0, 'Single extreme ATR spike must not crush ordinary volatility');
+
+  // 4. OBV strictly positive large cumulative range (45.2M..48.9M) preserves detail without forcing 0
+  const posObvVals = Array.from({ length: 28 }, (_, i) => 47_000_000 + Math.sin(i / 3.5) * 1_800_000);
+  const posObvAuto = computeAutoObvRange(posObvVals);
+  assert.ok(posObvAuto.min > 40_000_000, `Positive OBV should stay near 45M..49M (got min=${posObvAuto.min})`);
+  assert.ok(posObvVals.every((v) => v >= posObvAuto.min && v <= posObvAuto.max));
+
+  const posObvBase = computeObvPanelLayout(posObvAuto, null);
+  const obvBasePxPerUnit = posObvBase.plotHeight / (posObvBase.max - posObvBase.min);
+  for (const z of [1.5, posObvAuto.maxZoomFactor, OBV_MIN_ZOOM_FACTOR]) {
+    const layout = computeObvPanelLayout(posObvAuto, z);
+    const pxPerUnit = layout.plotHeight / (layout.max - layout.min);
+    assert.ok(Math.abs(pxPerUnit / obvBasePxPerUnit - layout.zoomFactor) < 1e-9);
+    const inBounds = posObvVals.filter((v) => v >= layout.min && v <= layout.max).length / posObvVals.length;
+    assert.ok(inBounds >= 0.9, `Expected >=90% OBV points visible at ${layout.zoomFactor.toFixed(2)}x`);
+  }
+
+  // 5. OBV strictly negative cumulative range (-120M..-95M) and zero-crossing range (-1.4M..+2.8M)
+  const negObvVals = Array.from({ length: 24 }, (_, i) => -108_000_000 + Math.cos(i / 3) * 11_000_000);
+  const negObvAuto = computeAutoObvRange(negObvVals);
+  assert.ok(negObvAuto.max < -80_000_000 && negObvAuto.min < -118_000_000);
+  assert.ok(negObvVals.every((v) => v >= negObvAuto.min && v <= negObvAuto.max));
+
+  const crossObvVals = Array.from({ length: 24 }, (_, i) => 700_000 + Math.sin(i / 3) * 2_000_000);
+  const crossObvAuto = computeAutoObvRange(crossObvVals);
+  assert.ok(crossObvAuto.min < 0 && crossObvAuto.max > 0);
+
+  // 6. Zoom controls direction/limits & span-aware OBV formatting
+  assert.ok(computeScaledStudyZoom(1, wheelDeltaToZoomFactor(-100), midAtrAuto) > 1);
+  assert.ok(computeScaledStudyZoom(1, wheelDeltaToZoomFactor(100), midAtrAuto) < 1);
+  assert.equal(computeScaledStudyZoom(1, dragDeltaToZoomFactor(-800), midAtrAuto), midAtrAuto.maxZoomFactor);
+  assert.equal(computeScaledStudyZoom(1, dragDeltaToZoomFactor(800), midAtrAuto), ATR_MIN_ZOOM_FACTOR);
+  assert.equal(clampStudyZoomFactor(Number.NaN, posObvAuto), 1);
+  assert.equal(formatObvAxisValue(45_480_000, 300_000), '45.48M');
+  assert.equal(formatObvAxisValue(-12_400, 3_000), '-12.4K');
+  assert.equal(formatObvAxisValue(0, 1000), '0');
+});
+
+test('ChartWidget ATR and OBV match MACD label box/typography/spacing, stay unclipped under zoom, and operate independently from each other and MACD', () => {
+  withStudiesStorage(['rsi', 'volume', 'macd', 'atr', 'obv'], () => {
+    clearMarketHistoryCache();
+    const bars: HistoryBar[] = buildBars(28).map((b, i) => {
+      const macd = Math.sin(i / 3) * 0.8;
+      const macdSignal = Math.sin((i - 2) / 3) * 0.65;
+      return {
+        ...b,
+        macd,
+        macdSignal,
+        macdHist: macd - macdSignal,
+        atr: 0.25 + Math.sin(i / 3.5) * 0.12,
+        obv: 46_500_000 + Math.sin(i / 4) * 1_400_000,
+      };
+    });
+    setCachedMarketHistory('AAPL', '1h', bars);
+
+    const expectedAtrAuto = computeAutoAtrRange(bars.map((b) => b.atr));
+    const expectedAtrMaxLayout = computeAtrPanelLayout(expectedAtrAuto, 10);
+    const expectedObvAuto = computeAutoObvRange(bars.map((b) => b.obv));
+    const expectedObvMaxLayout = computeObvPanelLayout(expectedObvAuto, 10);
+
+    // 1. Default render: ATR and OBV match MACD header typography, 9.5px ticks, 104px height, and 4px box-to-plot gap
+    const defaultHtml = renderToStaticMarkup(React.createElement(ChartWidget, { stock: makeStock() }));
+
+    // Headers match MACD (text-[11px], no legacy text-[8px]), colors preserved, default hides Y-SCALE
+    const atrHeader = defaultHtml.match(/<div class="([^"]*)" data-atr-header="true">/);
+    const obvHeader = defaultHtml.match(/<div class="([^"]*)" data-obv-header="true">/);
+    assert.ok(atrHeader && obvHeader);
+    assert.equal(atrHeader[1].includes('text-[11px]'), true);
+    assert.equal(atrHeader[1].includes('text-[8px]'), false);
+    assert.equal(obvHeader[1].includes('text-[11px]'), true);
+    assert.equal(obvHeader[1].includes('text-[8px]'), false);
+    assert.equal(defaultHtml.includes('data-atr-yscale="true"'), false);
+    assert.equal(defaultHtml.includes('data-obv-yscale="true"'), false);
+
+    // Label boxes match MACD exactly: x=2, y=10, width=52, height=94, rx=2 -> 4px gap to clip x=58
+    for (const prefix of ['atr', 'obv'] as const) {
+      const box = defaultHtml.match(
+        new RegExp(`data-${prefix}-yaxis-box="true"[^>]*x="([0-9.-]+)"[^>]*y="([0-9.-]+)"[^>]*width="([0-9.-]+)"[^>]*height="([0-9.-]+)"[^>]*rx="([0-9.-]+)"`)
+      );
+      const clip = defaultHtml.match(
+        new RegExp(`id="gp-${prefix}-plot-clip"><rect[^>]*x="([0-9.-]+)"[^>]*y="([0-9.-]+)"[^>]*width="([0-9.-]+)"[^>]*height="([0-9.-]+)"`)
+      );
+      assert.ok(box && clip, `Expected ${prefix} label box and clipPath`);
+      assert.equal(Number(box[1]), 2);
+      assert.equal(Number(box[2]), 10);
+      assert.equal(Number(box[3]), 52);
+      assert.equal(Number(box[4]), 94);
+      assert.equal(Number(box[5]), 2);
+      assert.equal(Number(clip[1]), 58, `${prefix} clipPath must begin at x=58 (4px clear of label box x=2..54)`);
+      assert.equal(Number(clip[2]), 19);
+      assert.equal(Number(clip[4]), 76);
+
+      // All 3 ticks use 9.5px font matching MACD
+      for (const tickId of ['max', 'mid', 'min'] as const) {
+        const tick = defaultHtml.match(
+          new RegExp(`data-${prefix}-axis-tick="${tickId}"[^>]*y="([0-9.-]+)"[^>]*font-size="([0-9.]+)"[^>]*>([^<]+)<`)
+        );
+        assert.ok(tick, `Expected ${prefix} ${tickId} tick`);
+        assert.equal(tick[2], '9.5');
+      }
+    }
+
+    // Line colors preserved (#f59e0b ATR, #06b6d4 OBV) and all default coordinates inside [22, 92]
+    assert.equal(defaultHtml.includes('data-atr-line="true"'), true);
+    assert.equal(defaultHtml.includes('stroke="#f59e0b"'), true);
+    assert.equal(defaultHtml.includes('data-obv-line="true"'), true);
+    assert.equal(defaultHtml.includes('stroke="#06b6d4"'), true);
+    const atrDefaultPath = defaultHtml.match(/data-atr-line="true"[^>]*d="([^"]+)"/);
+    const obvDefaultPath = defaultHtml.match(/data-obv-line="true"[^>]*d="([^"]+)"/);
+    assert.ok(atrDefaultPath && obvDefaultPath);
+    assert.ok(extractSvgPathPoints(atrDefaultPath[1]).every((p) => p.x >= 58 && p.y >= 22 - 0.01 && p.y <= 92 + 0.01));
+    assert.ok(extractSvgPathPoints(obvDefaultPath[1]).every((p) => p.x >= 58 && p.y >= 22 - 0.01 && p.y <= 92 + 0.01));
+    // Strictly positive OBV (45M..48M) does NOT force a zero line
+    assert.equal(defaultHtml.includes('data-obv-zero-line="true"'), false);
+
+    // 2. Independence & max zoom-in on ATR ONLY: ATR zooms & expands without affecting OBV or MACD
+    const atrZoomedHtml = renderToStaticMarkup(
+      React.createElement(ChartWidget, {
+        stock: makeStock(),
+        initialCustomAtrZoom: 10,
+      })
+    );
+    assert.equal(
+      atrZoomedHtml.includes(`data-atr-yscale="true">Y-SCALE: ${expectedAtrAuto.maxZoomFactor.toFixed(2)}×</span>`),
+      true
+    );
+    assert.equal(atrZoomedHtml.includes('data-obv-yscale="true"'), false, 'Zooming ATR must NOT zoom OBV');
+    assert.equal(atrZoomedHtml.includes('data-macd-yscale="true"'), false, 'Zooming ATR must NOT zoom MACD');
+    const atrZoomBox = atrZoomedHtml.match(/data-atr-yaxis-box="true"[^>]*height="([0-9.-]+)"/);
+    const obvUnchangedBox = atrZoomedHtml.match(/data-obv-yaxis-box="true"[^>]*height="([0-9.-]+)"/);
+    assert.ok(atrZoomBox && obvUnchangedBox);
+    assert.equal(Number(atrZoomBox[1]), expectedAtrMaxLayout.plotHeight + 24);
+    assert.equal(Number(obvUnchangedBox[1]), 94, 'OBV height must stay unchanged when only ATR is zoomed');
+
+    const atrZoomPath = atrZoomedHtml.match(/data-atr-line="true"[^>]*d="([^"]+)"/);
+    assert.ok(atrZoomPath);
+    const atrZoomPts = extractSvgPathPoints(atrZoomPath[1]);
+    const atrInPlot =
+      atrZoomPts.filter(
+        (p) => p.y >= ATR_PADDING_TOP - 0.01 && p.y <= ATR_PADDING_TOP + expectedAtrMaxLayout.plotHeight + 0.01
+      ).length / atrZoomPts.length;
+    assert.ok(atrInPlot >= 0.9, `Expected >=90% ATR points inside plot at max zoom-in, got ${(atrInPlot * 100).toFixed(1)}%`);
+
+    // 3. ATR extreme zoom-out clamps at 0.40x and NEVER shows negative tick
+    const atrZoomedOutHtml = renderToStaticMarkup(
+      React.createElement(ChartWidget, {
+        stock: makeStock(),
+        initialCustomAtrZoom: 0.01,
+      })
+    );
+    assert.equal(atrZoomedOutHtml.includes('data-atr-yscale="true">Y-SCALE: 0.40×</span>'), true);
+    const atrOutMinTick = atrZoomedOutHtml.match(/data-atr-axis-tick="min"[^>]*>([^<]+)</);
+    assert.ok(atrOutMinTick);
+    assert.equal(atrOutMinTick[1].startsWith('-'), false, `ATR min tick must never be negative; got "${atrOutMinTick[1]}"`);
+
+    // 4. OBV zoom-in independently on zero-crossing OBV (-1.4M..+2.8M) renders zero line and keeps >=90% unclipped
+    const crossBars: HistoryBar[] = bars.map((b, i) => ({
+      ...b,
+      obv: 700_000 + Math.sin(i / 3.5) * 2_000_000,
+    }));
+    setCachedMarketHistory('NVDA', '1h', crossBars);
+    const crossObvAuto = computeAutoObvRange(crossBars.map((b) => b.obv));
+    const crossObvMaxLayout = computeObvPanelLayout(crossObvAuto, 10);
+
+    const obvZoomedHtml = renderToStaticMarkup(
+      React.createElement(ChartWidget, {
+        stock: makeStock({ symbol: 'NVDA', name: 'NVIDIA Corp.' }),
+        initialCustomObvZoom: 10,
+      })
+    );
+    assert.equal(
+      obvZoomedHtml.includes(`data-obv-yscale="true">Y-SCALE: ${crossObvAuto.maxZoomFactor.toFixed(2)}×</span>`),
+      true
+    );
+    assert.equal(obvZoomedHtml.includes('data-atr-yscale="true"'), false, 'Zooming OBV must NOT zoom ATR');
+    assert.equal(obvZoomedHtml.includes('data-macd-yscale="true"'), false, 'Zooming OBV must NOT zoom MACD');
+    assert.equal(obvZoomedHtml.includes('data-obv-zero-line="true"'), true, 'Zero-crossing OBV should show zero reference line');
+
+    const obvZoomPath = obvZoomedHtml.match(/data-obv-line="true"[^>]*d="([^"]+)"/);
+    assert.ok(obvZoomPath);
+    const obvZoomPts = extractSvgPathPoints(obvZoomPath[1]);
+    const obvInPlot =
+      obvZoomPts.filter(
+        (p) => p.y >= OBV_PADDING_TOP - 0.01 && p.y <= OBV_PADDING_TOP + crossObvMaxLayout.plotHeight + 0.01
+      ).length / obvZoomPts.length;
+    assert.ok(obvInPlot >= 0.9, `Expected >=90% OBV points inside plot at max zoom-in, got ${(obvInPlot * 100).toFixed(1)}%`);
+
+    // Confirm expectedObvMaxLayout is also consistent on strictly positive AAPL OBV
+    assert.ok(expectedObvMaxLayout.min > 40_000_000);
+  });
+});
+
 

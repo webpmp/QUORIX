@@ -17,26 +17,37 @@ import {
   setCachedMarketHistory,
 } from '../utils/marketHistoryCache';
 import {
+  ATR_PADDING_BOTTOM,
+  ATR_PADDING_TOP,
   BASE_PRICE_HEIGHT,
   MACD_PADDING_BOTTOM,
   MACD_PADDING_TOP,
   MAX_PRICE_EXPANSION_PX,
+  OBV_PADDING_BOTTOM,
+  OBV_PADDING_TOP,
   PRICE_ZOOM_EDGE_PADDING_RATIO,
   RSI_NATURAL_MAX,
   RSI_NATURAL_MIN,
+  computeAtrPanelLayout,
+  computeAutoAtrRange,
   computeAutoMacdRange,
+  computeAutoObvRange,
   computeAutoPriceRange,
   computeMacdPanelLayout,
+  computeObvPanelLayout,
   computeOffscalePcBadgeLayout,
   computePriceZoomLimits,
   computeScaledBoundedRange,
   computeScaledMacdZoom,
   computeScaledRsiRange,
+  computeScaledStudyZoom,
   computeScaledVolumeMax,
   computeVolumePanelLayout,
   dragDeltaToZoomFactor,
   ensureRangeIncludesFocusBand,
+  formatAtrAxisValue,
   formatMacdAxisValue,
+  formatObvAxisValue,
   panBoundedRange,
   resolveReferenceLevelLabels,
   shouldShowYScaleIndicator,
@@ -44,12 +55,21 @@ import {
   type ReferenceLevelLabelInput,
   type YRange,
 } from '../utils/yAxisZoom';
+import {
+  dispatchChartResetShortcut,
+  isEditableKeyboardTarget,
+  isZoomableChartPanel,
+  type ChartPanelId,
+  type ZoomableChartPanelId,
+} from '../utils/chartFocus';
 
 interface ChartWidgetProps {
   stock: StockData;
   onTickTimeChange?: (val: string) => void;
   initialCustomYRange?: YRange | null;
   initialCustomMacdZoom?: number | null;
+  initialCustomAtrZoom?: number | null;
+  initialCustomObvZoom?: number | null;
 }
 
 type ChartType = 'candle' | 'line' | 'area';
@@ -81,6 +101,8 @@ export default function ChartWidget({
   onTickTimeChange,
   initialCustomYRange = null,
   initialCustomMacdZoom = null,
+  initialCustomAtrZoom = null,
+  initialCustomObvZoom = null,
 }: ChartWidgetProps) {
   const [chartType, setChartType] = useState<ChartType>('candle');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -93,11 +115,17 @@ export default function ChartWidget({
   } | null>(null);
   const [resolvedEmptyKey, setResolvedEmptyKey] = useState<string | null>(null);
   const [historyLoadingKey, setHistoryLoadingKey] = useState<string | null>(null);
+  const chartStackRef = useRef<HTMLDivElement | null>(null);
   const chartPanelRef = useRef<HTMLDivElement | null>(null);
+  const focusedChartRef = useRef<ChartPanelId | null>(null);
+  const chartPanelElsRef = useRef<Partial<Record<ChartPanelId, HTMLDivElement | null>>>({});
+  const visiblePanelsRef = useRef<ReadonlySet<ChartPanelId>>(new Set());
   const yAxisHitRef = useRef<SVGRectElement | null>(null);
   const volYAxisHitRef = useRef<SVGRectElement | null>(null);
   const rsiYAxisHitRef = useRef<SVGRectElement | null>(null);
   const macdYAxisHitRef = useRef<SVGRectElement | null>(null);
+  const atrYAxisHitRef = useRef<SVGRectElement | null>(null);
+  const obvYAxisHitRef = useRef<SVGRectElement | null>(null);
   const [chartWidth, setChartWidth] = useState<number>(600);
   const [customYRange, setCustomYRange] = useState<YRange | null>(initialCustomYRange);
   const [isYAxisHovered, setIsYAxisHovered] = useState<boolean>(false);
@@ -154,12 +182,123 @@ export default function ChartWidget({
     isModalOpen: boolean;
   } | null>(null);
 
+  // Independent ATR Study Y-axis zoom state (zoom factor relative to data-aware non-negative auto range)
+  const [customAtrZoom, setCustomAtrZoom] = useState<number | null>(initialCustomAtrZoom);
+  const [isAtrYAxisHovered, setIsAtrYAxisHovered] = useState<boolean>(false);
+  const [isAtrYAxisDragging, setIsAtrYAxisDragging] = useState<boolean>(false);
+  const atrDragStateRef = useRef<{ startY: number; startZoom: number } | null>(null);
+  const atrScaleContextRef = useRef<{
+    atrYZoomFactor: number;
+    computeScaledAtrZoomFactor: (baseZoom: number, factor: number) => number;
+    isModalOpen: boolean;
+  } | null>(null);
+
+  // Independent OBV Study Y-axis zoom state (zoom factor relative to data-aware cumulative auto range)
+  const [customObvZoom, setCustomObvZoom] = useState<number | null>(initialCustomObvZoom);
+  const [isObvYAxisHovered, setIsObvYAxisHovered] = useState<boolean>(false);
+  const [isObvYAxisDragging, setIsObvYAxisDragging] = useState<boolean>(false);
+  const obvDragStateRef = useRef<{ startY: number; startZoom: number } | null>(null);
+  const obvScaleContextRef = useRef<{
+    obvYZoomFactor: number;
+    computeScaledObvZoomFactor: (baseZoom: number, factor: number) => number;
+    isModalOpen: boolean;
+  } | null>(null);
+
   const isVolYAxisActiveRef = useRef<boolean>(false);
   isVolYAxisActiveRef.current = isVolYAxisHovered || isVolYAxisDragging;
   const isRsiYAxisActiveRef = useRef<boolean>(false);
   isRsiYAxisActiveRef.current = isRsiYAxisHovered || isRsiYAxisDragging;
   const isMacdYAxisActiveRef = useRef<boolean>(false);
   isMacdYAxisActiveRef.current = isMacdYAxisHovered || isMacdYAxisDragging;
+  const isAtrYAxisActiveRef = useRef<boolean>(false);
+  isAtrYAxisActiveRef.current = isAtrYAxisHovered || isAtrYAxisDragging;
+  const isObvYAxisActiveRef = useRef<boolean>(false);
+  isObvYAxisActiveRef.current = isObvYAxisHovered || isObvYAxisDragging;
+
+  // Shared active-chart focus tracker (ref-based so listeners never read stale state)
+  const focusChart = (panelId: ChartPanelId, options?: { focusDom?: boolean }) => {
+    focusedChartRef.current = panelId;
+    if (options?.focusDom === false) return;
+    const panelEl = chartPanelElsRef.current[panelId];
+    if (panelEl && typeof document !== 'undefined') {
+      const activeEl = document.activeElement;
+      if (!activeEl || !panelEl.contains(activeEl)) {
+        panelEl.focus?.({ preventScroll: true });
+      }
+    }
+  };
+
+  // Shared chart-specific reset logic reused by both double-click and the `0` keyboard shortcut
+  const resetChartPanel = (panelId: ZoomableChartPanelId) => {
+    switch (panelId) {
+      case 'price':
+        dragStateRef.current = null;
+        panStateRef.current = null;
+        setIsYAxisDragging(false);
+        setIsPlotPanning(false);
+        setCustomYRange(null);
+        return;
+      case 'volume':
+        volDragStateRef.current = null;
+        setIsVolYAxisDragging(false);
+        setCustomVolMax(null);
+        return;
+      case 'rsi':
+        rsiDragStateRef.current = null;
+        setIsRsiYAxisDragging(false);
+        setCustomRsiRange(null);
+        return;
+      case 'macd':
+        macdDragStateRef.current = null;
+        setIsMacdYAxisDragging(false);
+        setCustomMacdZoom(null);
+        return;
+      case 'atr':
+        atrDragStateRef.current = null;
+        setIsAtrYAxisDragging(false);
+        setCustomAtrZoom(null);
+        return;
+      case 'obv':
+        obvDragStateRef.current = null;
+        setIsObvYAxisDragging(false);
+        setCustomObvZoom(null);
+        return;
+    }
+  };
+
+  const resetHandlersRef = useRef<Record<ZoomableChartPanelId, () => void>>({
+    price: () => resetChartPanel('price'),
+    volume: () => resetChartPanel('volume'),
+    rsi: () => resetChartPanel('rsi'),
+    macd: () => resetChartPanel('macd'),
+    atr: () => resetChartPanel('atr'),
+    obv: () => resetChartPanel('obv'),
+  });
+  resetHandlersRef.current = {
+    price: () => resetChartPanel('price'),
+    volume: () => resetChartPanel('volume'),
+    rsi: () => resetChartPanel('rsi'),
+    macd: () => resetChartPanel('macd'),
+    atr: () => resetChartPanel('atr'),
+    obv: () => resetChartPanel('obv'),
+  };
+
+  const getPanelFocusProps = (panelId: ChartPanelId) => ({
+    'data-chart-panel': panelId,
+    tabIndex: -1,
+    onMouseDownCapture: (e: ReactMouseEvent<HTMLDivElement>) => {
+      const target = e.target instanceof Element ? e.target : null;
+      const isInteractiveChild = Boolean(
+        target?.closest(
+          'button, a, input, textarea, select, [contenteditable="true"], [contenteditable=""]'
+        )
+      );
+      focusChart(panelId, { focusDom: !isInteractiveChild });
+    },
+    onFocusCapture: () => {
+      focusChart(panelId, { focusDom: false });
+    },
+  });
 
   useEffect(() => {
     try {
@@ -207,6 +346,8 @@ export default function ChartWidget({
     setCustomVolMax(null);
     setCustomRsiRange(null);
     setCustomMacdZoom(null);
+    setCustomAtrZoom(null);
+    setCustomObvZoom(null);
 
     const existingCached = getCachedMarketHistory(sym, activeInt);
     if (existingCached) {
@@ -373,6 +514,68 @@ export default function ChartWidget({
 
   const hasChartData = isChartReady;
 
+  const visiblePanels = new Set<ChartPanelId>();
+  if (hasChartData) {
+    visiblePanels.add('price');
+    if (showVolumeStudy) visiblePanels.add('volume');
+    if (showRsiStudy) visiblePanels.add('rsi');
+    if (showMacdStudy) visiblePanels.add('macd');
+    if (showStochStudy) visiblePanels.add('stoch');
+    if (showCciStudy) visiblePanels.add('cci');
+    if (showAdxStudy) visiblePanels.add('adx');
+    if (showAtrStudy) visiblePanels.add('atr');
+    if (showObvStudy) visiblePanels.add('obv');
+    if (showRocStudy) visiblePanels.add('roc');
+  }
+  visiblePanelsRef.current = visiblePanels;
+
+  // Clear chart focus when the focused study is hidden or chart data unloads
+  useEffect(() => {
+    const current = focusedChartRef.current;
+    if (current && !visiblePanelsRef.current.has(current)) {
+      focusedChartRef.current = null;
+    }
+  }, [
+    hasChartData,
+    showVolumeStudy,
+    showRsiStudy,
+    showMacdStudy,
+    showStochStudy,
+    showCciStudy,
+    showAdxStudy,
+    showAtrStudy,
+    showObvStudy,
+    showRocStudy,
+  ]);
+
+  // Clear active chart focus when clicking or focusing outside the chart stack
+  useEffect(() => {
+    const handleDocumentMouseDown = (e: MouseEvent) => {
+      const stackEl = chartStackRef.current;
+      if (!stackEl) return;
+      const target = e.target as Node | null;
+      if (!target || !stackEl.contains(target)) {
+        focusedChartRef.current = null;
+      }
+    };
+
+    const handleDocumentFocusIn = (e: FocusEvent) => {
+      const stackEl = chartStackRef.current;
+      if (!stackEl) return;
+      const target = e.target as Node | null;
+      if (!target || !stackEl.contains(target)) {
+        focusedChartRef.current = null;
+      }
+    };
+
+    document.addEventListener('mousedown', handleDocumentMouseDown, true);
+    document.addEventListener('focusin', handleDocumentFocusIn);
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown, true);
+      document.removeEventListener('focusin', handleDocumentFocusIn);
+    };
+  }, []);
+
   // Clear transient hover/drag flags if Volume or RSI study is hidden
   useEffect(() => {
     if (!showVolumeStudy) {
@@ -398,6 +601,22 @@ export default function ChartWidget({
     }
   }, [showMacdStudy]);
 
+  useEffect(() => {
+    if (!showAtrStudy) {
+      atrDragStateRef.current = null;
+      setIsAtrYAxisDragging(false);
+      setIsAtrYAxisHovered(false);
+    }
+  }, [showAtrStudy]);
+
+  useEffect(() => {
+    if (!showObvStudy) {
+      obvDragStateRef.current = null;
+      setIsObvYAxisDragging(false);
+      setIsObvYAxisHovered(false);
+    }
+  }, [showObvStudy]);
+
   // Attach non-passive wheel listener on Price Chart left Y-axis area to zoom without scrolling page
   useEffect(() => {
     if (!hasChartData) return;
@@ -407,6 +626,7 @@ export default function ChartWidget({
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      focusChart('price');
       const ctx = scaleContextRef.current;
       if (!ctx) return;
 
@@ -435,6 +655,7 @@ export default function ChartWidget({
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      focusChart('volume');
       const ctx = volScaleContextRef.current;
       if (!ctx) return;
 
@@ -460,6 +681,7 @@ export default function ChartWidget({
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      focusChart('rsi');
       const ctx = rsiScaleContextRef.current;
       if (!ctx) return;
 
@@ -486,6 +708,7 @@ export default function ChartWidget({
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      focusChart('macd');
       const ctx = macdScaleContextRef.current;
       if (!ctx) return;
 
@@ -501,6 +724,58 @@ export default function ChartWidget({
       hitEl.removeEventListener('wheel', handleWheel);
     };
   }, [hasChartData, showMacdStudy]);
+
+  // Attach non-passive wheel listener on ATR left Y-axis area
+  useEffect(() => {
+    if (!hasChartData || !showAtrStudy) return;
+    const hitEl = atrYAxisHitRef.current;
+    if (!hitEl) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      focusChart('atr');
+      const ctx = atrScaleContextRef.current;
+      if (!ctx) return;
+
+      const factor = wheelDeltaToZoomFactor(e.deltaY);
+      setCustomAtrZoom((prev) => {
+        const curZoom = prev !== null ? prev : ctx.atrYZoomFactor;
+        return ctx.computeScaledAtrZoomFactor(curZoom, factor);
+      });
+    };
+
+    hitEl.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      hitEl.removeEventListener('wheel', handleWheel);
+    };
+  }, [hasChartData, showAtrStudy]);
+
+  // Attach non-passive wheel listener on OBV left Y-axis area
+  useEffect(() => {
+    if (!hasChartData || !showObvStudy) return;
+    const hitEl = obvYAxisHitRef.current;
+    if (!hitEl) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      focusChart('obv');
+      const ctx = obvScaleContextRef.current;
+      if (!ctx) return;
+
+      const factor = wheelDeltaToZoomFactor(e.deltaY);
+      setCustomObvZoom((prev) => {
+        const curZoom = prev !== null ? prev : ctx.obvYZoomFactor;
+        return ctx.computeScaledObvZoomFactor(curZoom, factor);
+      });
+    };
+
+    hitEl.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      hitEl.removeEventListener('wheel', handleWheel);
+    };
+  }, [hasChartData, showObvStudy]);
 
   // Smooth vertical Y-axis drag handling for Price Chart
   useEffect(() => {
@@ -636,113 +911,189 @@ export default function ChartWidget({
     };
   }, [isMacdYAxisDragging]);
 
-  // Keyboard zoom shortcuts (+ / =, - / _, 0) scoped to hovered/active study Y-axis or Price Chart by default
+  // Smooth vertical Y-axis drag handling for ATR Study
+  useEffect(() => {
+    if (!isAtrYAxisDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const drag = atrDragStateRef.current;
+      const ctx = atrScaleContextRef.current;
+      if (!drag || !ctx) return;
+      const dy = e.clientY - drag.startY;
+      const factor = dragDeltaToZoomFactor(dy);
+      setCustomAtrZoom(ctx.computeScaledAtrZoomFactor(drag.startZoom, factor));
+    };
+
+    const handleMouseUp = () => {
+      atrDragStateRef.current = null;
+      setIsAtrYAxisDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isAtrYAxisDragging]);
+
+  // Smooth vertical Y-axis drag handling for OBV Study
+  useEffect(() => {
+    if (!isObvYAxisDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const drag = obvDragStateRef.current;
+      const ctx = obvScaleContextRef.current;
+      if (!drag || !ctx) return;
+      const dy = e.clientY - drag.startY;
+      const factor = dragDeltaToZoomFactor(dy);
+      setCustomObvZoom(ctx.computeScaledObvZoomFactor(drag.startZoom, factor));
+    };
+
+    const handleMouseUp = () => {
+      obvDragStateRef.current = null;
+      setIsObvYAxisDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isObvYAxisDragging]);
+
+  // Keyboard zoom shortcuts (+ / =, - / _) and focused-chart reset (0)
   useEffect(() => {
     if (!hasChartData) return;
-
-    const isEditableElement = (el: EventTarget | null): boolean => {
-      if (!el || !(el instanceof HTMLElement)) return false;
-      const tag = el.tagName;
-      return (
-        tag === 'INPUT' ||
-        tag === 'TEXTAREA' ||
-        tag === 'SELECT' ||
-        el.isContentEditable
-      );
-    };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const priceCtx = scaleContextRef.current;
       if (!priceCtx || priceCtx.isModalOpen) return;
+      if (e.defaultPrevented) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (isEditableElement(e.target) || isEditableElement(document.activeElement)) return;
+      if (isEditableKeyboardTarget(e.target) || isEditableKeyboardTarget(document.activeElement)) {
+        return;
+      }
+
+      // `0` resets ONLY the currently focused visible zoomable chart via the shared double-click reset logic
+      if (e.key === '0') {
+        const resetPanel = dispatchChartResetShortcut(
+          {
+            key: e.key,
+            repeat: e.repeat,
+            ctrlKey: e.ctrlKey,
+            metaKey: e.metaKey,
+            altKey: e.altKey,
+            defaultPrevented: e.defaultPrevented,
+            target: e.target,
+            activeElement: typeof document !== 'undefined' ? document.activeElement : null,
+            isModalOpen: priceCtx.isModalOpen,
+            focusedPanel: focusedChartRef.current,
+            visiblePanels: visiblePanelsRef.current,
+          },
+          resetHandlersRef.current
+        );
+        if (resetPanel) {
+          e.preventDefault();
+        }
+        return;
+      }
 
       const isZoomIn = e.key === '+' || e.key === '=';
       const isZoomOut = e.key === '-' || e.key === '_';
-      const isReset = e.key === '0';
-      if (!isZoomIn && !isZoomOut && !isReset) return;
+      if (!isZoomIn && !isZoomOut) return;
 
-      if (isVolYAxisActiveRef.current) {
+      const focusedZoomablePanel =
+        focusedChartRef.current &&
+        visiblePanelsRef.current.has(focusedChartRef.current) &&
+        isZoomableChartPanel(focusedChartRef.current)
+          ? focusedChartRef.current
+          : null;
+
+      const activeZoomPanel: ZoomableChartPanelId = isVolYAxisActiveRef.current
+        ? 'volume'
+        : isRsiYAxisActiveRef.current
+        ? 'rsi'
+        : isMacdYAxisActiveRef.current
+        ? 'macd'
+        : isAtrYAxisActiveRef.current
+        ? 'atr'
+        : isObvYAxisActiveRef.current
+        ? 'obv'
+        : focusedZoomablePanel ?? 'price';
+
+      if (activeZoomPanel === 'volume') {
         const volCtx = volScaleContextRef.current;
         if (!volCtx) return;
         e.preventDefault();
-        if (isZoomIn) {
-          setCustomVolMax((prev) =>
-            volCtx.computeScaledVolMax(prev !== null ? prev : volCtx.visibleMaxVolume, 1.2)
-          );
-        } else if (isZoomOut) {
-          setCustomVolMax((prev) =>
-            volCtx.computeScaledVolMax(prev !== null ? prev : volCtx.visibleMaxVolume, 1 / 1.2)
-          );
-        } else if (isReset) {
-          setCustomVolMax(null);
-        }
+        setCustomVolMax((prev) =>
+          volCtx.computeScaledVolMax(
+            prev !== null ? prev : volCtx.visibleMaxVolume,
+            isZoomIn ? 1.2 : 1 / 1.2
+          )
+        );
         return;
       }
 
-      if (isRsiYAxisActiveRef.current) {
+      if (activeZoomPanel === 'rsi') {
         const rsiCtx = rsiScaleContextRef.current;
         if (!rsiCtx) return;
         e.preventDefault();
-        if (isZoomIn) {
-          setCustomRsiRange((prev) => {
-            const curMin = prev ? prev.min : rsiCtx.minRsi;
-            const curMax = prev ? prev.max : rsiCtx.maxRsi;
-            return rsiCtx.computeScaledRsiYRange(curMin, curMax, 1.2);
-          });
-        } else if (isZoomOut) {
-          setCustomRsiRange((prev) => {
-            const curMin = prev ? prev.min : rsiCtx.minRsi;
-            const curMax = prev ? prev.max : rsiCtx.maxRsi;
-            return rsiCtx.computeScaledRsiYRange(curMin, curMax, 1 / 1.2);
-          });
-        } else if (isReset) {
-          setCustomRsiRange(null);
-        }
+        setCustomRsiRange((prev) => {
+          const curMin = prev ? prev.min : rsiCtx.minRsi;
+          const curMax = prev ? prev.max : rsiCtx.maxRsi;
+          return rsiCtx.computeScaledRsiYRange(curMin, curMax, isZoomIn ? 1.2 : 1 / 1.2);
+        });
         return;
       }
 
-      if (isMacdYAxisActiveRef.current) {
+      if (activeZoomPanel === 'macd') {
         const macdCtx = macdScaleContextRef.current;
         if (!macdCtx) return;
         e.preventDefault();
-        if (isZoomIn) {
-          setCustomMacdZoom((prev) =>
-            macdCtx.computeScaledMacdZoomFactor(prev !== null ? prev : macdCtx.macdYZoomFactor, 1.2)
-          );
-        } else if (isZoomOut) {
-          setCustomMacdZoom((prev) =>
-            macdCtx.computeScaledMacdZoomFactor(
-              prev !== null ? prev : macdCtx.macdYZoomFactor,
-              1 / 1.2
-            )
-          );
-        } else if (isReset) {
-          setCustomMacdZoom(null);
-        }
+        setCustomMacdZoom((prev) =>
+          macdCtx.computeScaledMacdZoomFactor(
+            prev !== null ? prev : macdCtx.macdYZoomFactor,
+            isZoomIn ? 1.2 : 1 / 1.2
+          )
+        );
         return;
       }
 
-      if (isZoomIn) {
+      if (activeZoomPanel === 'atr') {
+        const atrCtx = atrScaleContextRef.current;
+        if (!atrCtx) return;
         e.preventDefault();
-        setCustomYRange((prev) => {
-          const base = prev
-            ? priceCtx.normalizeYRange(prev)
-            : { min: priceCtx.minPrice, max: priceCtx.maxPrice };
-          return priceCtx.computeScaledYRange(base.min, base.max, 1.2);
-        });
-      } else if (isZoomOut) {
-        e.preventDefault();
-        setCustomYRange((prev) => {
-          const base = prev
-            ? priceCtx.normalizeYRange(prev)
-            : { min: priceCtx.minPrice, max: priceCtx.maxPrice };
-          return priceCtx.computeScaledYRange(base.min, base.max, 1 / 1.2);
-        });
-      } else if (isReset) {
-        e.preventDefault();
-        setCustomYRange(null);
+        setCustomAtrZoom((prev) =>
+          atrCtx.computeScaledAtrZoomFactor(
+            prev !== null ? prev : atrCtx.atrYZoomFactor,
+            isZoomIn ? 1.2 : 1 / 1.2
+          )
+        );
+        return;
       }
+
+      if (activeZoomPanel === 'obv') {
+        const obvCtx = obvScaleContextRef.current;
+        if (!obvCtx) return;
+        e.preventDefault();
+        setCustomObvZoom((prev) =>
+          obvCtx.computeScaledObvZoomFactor(
+            prev !== null ? prev : obvCtx.obvYZoomFactor,
+            isZoomIn ? 1.2 : 1 / 1.2
+          )
+        );
+        return;
+      }
+
+      e.preventDefault();
+      setCustomYRange((prev) => {
+        const base = prev
+          ? priceCtx.normalizeYRange(prev)
+          : { min: priceCtx.minPrice, max: priceCtx.maxPrice };
+        return priceCtx.computeScaledYRange(base.min, base.max, isZoomIn ? 1.2 : 1 / 1.2);
+      });
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -984,6 +1335,7 @@ export default function ChartWidget({
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+    focusChart('price');
     setHoverIndex(null);
     dragStateRef.current = {
       startY: e.clientY,
@@ -996,6 +1348,7 @@ export default function ChartWidget({
   const handlePlotMouseDown = (e: ReactMouseEvent<SVGRectElement>) => {
     if (e.button !== 0) return;
     e.preventDefault();
+    focusChart('price');
     panStateRef.current = {
       startY: e.clientY,
       startMin: minPrice,
@@ -1060,6 +1413,7 @@ export default function ChartWidget({
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+    focusChart('volume');
     setHoverIndex(null);
     volDragStateRef.current = {
       startY: e.clientY,
@@ -1092,6 +1446,7 @@ export default function ChartWidget({
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+    focusChart('rsi');
     setHoverIndex(null);
     rsiDragStateRef.current = {
       startY: e.clientY,
@@ -1326,6 +1681,7 @@ export default function ChartWidget({
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+    focusChart('macd');
     setHoverIndex(null);
     macdDragStateRef.current = {
       startY: e.clientY,
@@ -1389,19 +1745,85 @@ export default function ChartWidget({
   const adxMax = Math.max(55, ...(adxVals.length ? adxVals : [55])) * 1.05;
   const getAdxY = (v: number) => subPadTop + subAdjHeight - (v / adxMax) * subAdjHeight;
 
-  // 5. ATR
-  const atrVals = history.map((h) => h.atr).filter((v): v is number => typeof v === 'number' && !isNaN(v));
-  const atrMax = (atrVals.length ? Math.max(...atrVals) : 1) * 1.1;
-  const atrMin = (atrVals.length ? Math.min(...atrVals) : 0) * 0.9;
+  // 5. ATR (14) — data-aware non-negative scale with independent Y-axis zoom matching MACD
+  const atrPadTop = ATR_PADDING_TOP;
+  const atrPadBottom = ATR_PADDING_BOTTOM;
+  const autoAtrRange = computeAutoAtrRange(history.map((h) => h.atr));
+  const {
+    min: atrMin,
+    max: atrMax,
+    zoomFactor: atrYZoomFactor,
+    isZoomed: isAtrYZoomed,
+    panelHeight: atrHeight,
+    plotHeight: atrAdjHeight,
+  } = computeAtrPanelLayout(autoAtrRange, customAtrZoom);
   const atrSpan = Math.max(atrMax - atrMin, 0.0001);
-  const getAtrY = (v: number) => subPadTop + subAdjHeight - ((v - atrMin) / atrSpan) * subAdjHeight;
+  const computeScaledAtrZoomFactor = (baseZoom: number, factor: number) =>
+    computeScaledStudyZoom(baseZoom, factor, autoAtrRange);
 
-  // 6. OBV
-  const obvVals = history.map((h) => h.obv ?? 0);
-  const obvMax = Math.max(...obvVals, 1);
-  const obvMin = Math.min(...obvVals, 0);
+  atrScaleContextRef.current = {
+    atrYZoomFactor,
+    computeScaledAtrZoomFactor,
+    isModalOpen: isStudiesModalOpen,
+  };
+
+  const handleAtrYAxisMouseDown = (e: ReactMouseEvent<SVGRectElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    focusChart('atr');
+    setHoverIndex(null);
+    atrDragStateRef.current = {
+      startY: e.clientY,
+      startZoom: atrYZoomFactor,
+    };
+    setIsAtrYAxisDragging(true);
+  };
+
+  const getAtrY = (v: number) => {
+    const safeVal = typeof v === 'number' && Number.isFinite(v) ? Math.max(0, v) : atrMin;
+    return atrPadTop + atrAdjHeight - ((safeVal - atrMin) / atrSpan) * atrAdjHeight;
+  };
+
+  // 6. OBV — data-aware cumulative volume scale with independent Y-axis zoom matching MACD
+  const obvPadTop = OBV_PADDING_TOP;
+  const obvPadBottom = OBV_PADDING_BOTTOM;
+  const autoObvRange = computeAutoObvRange(history.map((h) => h.obv));
+  const {
+    min: obvMin,
+    max: obvMax,
+    zoomFactor: obvYZoomFactor,
+    isZoomed: isObvYZoomed,
+    panelHeight: obvHeight,
+    plotHeight: obvAdjHeight,
+  } = computeObvPanelLayout(autoObvRange, customObvZoom);
   const obvSpan = Math.max(obvMax - obvMin, 1);
-  const getObvY = (v: number) => subPadTop + subAdjHeight - ((v - obvMin) / obvSpan) * subAdjHeight;
+  const computeScaledObvZoomFactor = (baseZoom: number, factor: number) =>
+    computeScaledStudyZoom(baseZoom, factor, autoObvRange);
+
+  obvScaleContextRef.current = {
+    obvYZoomFactor,
+    computeScaledObvZoomFactor,
+    isModalOpen: isStudiesModalOpen,
+  };
+
+  const handleObvYAxisMouseDown = (e: ReactMouseEvent<SVGRectElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    focusChart('obv');
+    setHoverIndex(null);
+    obvDragStateRef.current = {
+      startY: e.clientY,
+      startZoom: obvYZoomFactor,
+    };
+    setIsObvYAxisDragging(true);
+  };
+
+  const getObvY = (v: number) => {
+    const safeVal = typeof v === 'number' && Number.isFinite(v) ? v : (obvMin + obvMax) / 2;
+    return obvPadTop + obvAdjHeight - ((safeVal - obvMin) / obvSpan) * obvAdjHeight;
+  };
 
   // 7. ROC
   const rocVals = history.map((h) => h.roc).filter((v): v is number => typeof v === 'number' && !isNaN(v));
@@ -1606,9 +2028,19 @@ export default function ChartWidget({
       </div>
 
       {/* Primary SVG Stack Wrapper */}
-      <div className="flex flex-col gap-2 relative bg-black rounded p-1.5 border border-[#222]">
+      <div
+        ref={chartStackRef}
+        className="flex flex-col gap-2 relative bg-black rounded p-1.5 border border-[#222]"
+      >
         {/* PANEL 1: Main Price Chart */}
-        <div ref={chartPanelRef} className="relative pt-[6px]">
+        <div
+          ref={(el) => {
+            chartPanelRef.current = el;
+            chartPanelElsRef.current.price = el;
+          }}
+          {...getPanelFocusProps('price')}
+          className="relative pt-[6px] outline-none"
+        >
           {isChartReady && hoveredData ? (
             <>
               <svg
@@ -2160,7 +2592,8 @@ export default function ChartWidget({
               onDoubleClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setCustomYRange(null);
+                focusChart('price');
+                resetChartPanel('price');
               }}
             >
               <title>Scroll or drag vertically to zoom price scale (Double-click or press 0 to reset)</title>
@@ -2231,7 +2664,13 @@ export default function ChartWidget({
 
         {/* PANEL 2: Volume Study (+ Optional Vol MA 20) */}
         {isChartReady && hoveredData && showVolumeStudy && (
-          <div className="relative border-t border-[#161616] pt-1">
+          <div
+            ref={(el) => {
+              chartPanelElsRef.current.volume = el;
+            }}
+            {...getPanelFocusProps('volume')}
+            className="relative border-t border-[#161616] pt-1 outline-none"
+          >
             <svg
               width={width}
               height={volHeight}
@@ -2440,7 +2879,8 @@ export default function ChartWidget({
                 onDoubleClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setCustomVolMax(null);
+                  focusChart('volume');
+                  resetChartPanel('volume');
                 }}
               >
                 <title>Scroll or drag vertically to zoom volume scale (Double-click or press 0 to reset)</title>
@@ -2536,7 +2976,13 @@ export default function ChartWidget({
             : [];
 
           return (
-          <div className="relative border-t border-[#161616] pt-1">
+          <div
+            ref={(el) => {
+              chartPanelElsRef.current.rsi = el;
+            }}
+            {...getPanelFocusProps('rsi')}
+            className="relative border-t border-[#161616] pt-1 outline-none"
+          >
             <svg
               width={width}
               height={rsiHeight}
@@ -2754,7 +3200,8 @@ export default function ChartWidget({
                 onDoubleClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setCustomRsiRange(null);
+                  focusChart('rsi');
+                  resetChartPanel('rsi');
                 }}
               >
                 <title>Scroll or drag vertically to zoom RSI scale (Double-click or press 0 to reset)</title>
@@ -2836,7 +3283,13 @@ export default function ChartWidget({
 
         {/* PANEL 4: MACD (12, 26, 9) */}
         {isChartReady && hoveredData && showMacdStudy && (
-          <div className="relative border-t border-[#161616] pt-1">
+          <div
+            ref={(el) => {
+              chartPanelElsRef.current.macd = el;
+            }}
+            {...getPanelFocusProps('macd')}
+            className="relative border-t border-[#161616] pt-1 outline-none"
+          >
             <svg
               width={width}
               height={macdHeight}
@@ -3012,7 +3465,8 @@ export default function ChartWidget({
                 onDoubleClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setCustomMacdZoom(null);
+                  focusChart('macd');
+                  resetChartPanel('macd');
                 }}
               >
                 <title>Scroll or drag vertically to zoom MACD scale (Double-click or press 0 to reset)</title>
@@ -3064,7 +3518,13 @@ export default function ChartWidget({
 
         {/* PANEL 5: Slow Stochastic (14, 3, 3) */}
         {isChartReady && hoveredData && showStochStudy && (
-          <div className="relative border-t border-[#161616] pt-1">
+          <div
+            ref={(el) => {
+              chartPanelElsRef.current.stoch = el;
+            }}
+            {...getPanelFocusProps('stoch')}
+            className="relative border-t border-[#161616] pt-1 outline-none"
+          >
             <svg
               width={width}
               height={subPanelHeight}
@@ -3150,7 +3610,13 @@ export default function ChartWidget({
 
         {/* PANEL 6: CCI (20) */}
         {isChartReady && hoveredData && showCciStudy && (
-          <div className="relative border-t border-[#161616] pt-1">
+          <div
+            ref={(el) => {
+              chartPanelElsRef.current.cci = el;
+            }}
+            {...getPanelFocusProps('cci')}
+            className="relative border-t border-[#161616] pt-1 outline-none"
+          >
             <svg
               width={width}
               height={subPanelHeight}
@@ -3212,7 +3678,13 @@ export default function ChartWidget({
 
         {/* PANEL 7: ADX / DMI (14) */}
         {isChartReady && hoveredData && showAdxStudy && (
-          <div className="relative border-t border-[#161616] pt-1">
+          <div
+            ref={(el) => {
+              chartPanelElsRef.current.adx = el;
+            }}
+            {...getPanelFocusProps('adx')}
+            className="relative border-t border-[#161616] pt-1 outline-none"
+          >
             <svg
               width={width}
               height={subPanelHeight}
@@ -3294,14 +3766,46 @@ export default function ChartWidget({
 
         {/* PANEL 8: ATR (14) */}
         {isChartReady && hoveredData && showAtrStudy && (
-          <div className="relative border-t border-[#161616] pt-1">
+          <div
+            ref={(el) => {
+              chartPanelElsRef.current.atr = el;
+            }}
+            {...getPanelFocusProps('atr')}
+            className="relative border-t border-[#161616] pt-1 outline-none"
+          >
             <svg
               width={width}
-              height={subPanelHeight}
-              viewBox={`0 0 ${width} ${subPanelHeight}`}
+              height={atrHeight}
+              viewBox={`0 0 ${width} ${atrHeight}`}
               className="block w-full overflow-visible"
               onMouseLeave={() => setHoverIndex(null)}
             >
+              {/* Subtle interactive backdrop for left ATR Y-axis scale (matches MACD spacing) */}
+              <rect
+                data-atr-yaxis-box="true"
+                x={2}
+                y={atrPadTop - Y_AXIS_BACKDROP_PAD_Y}
+                width={paddingLeft - 6}
+                height={atrAdjHeight + Y_AXIS_BACKDROP_PAD_Y * 2}
+                rx="2"
+                fill={
+                  isAtrYAxisDragging
+                    ? 'rgba(255, 153, 0, 0.12)'
+                    : isAtrYAxisHovered
+                    ? 'rgba(255, 153, 0, 0.06)'
+                    : 'transparent'
+                }
+                stroke={
+                  isAtrYAxisDragging
+                    ? 'rgba(255, 153, 0, 0.45)'
+                    : isAtrYAxisHovered || isAtrYZoomed
+                    ? 'rgba(255, 153, 0, 0.22)'
+                    : 'transparent'
+                }
+                strokeWidth="1"
+              />
+
+              {/* Horizontal scale gridlines & synchronized Y-axis ticks */}
               {[atrMax, (atrMax + atrMin) / 2, atrMin].map((lvl, idx) => (
                 <g key={`atr-lvl-${idx}`}>
                   <line
@@ -3309,116 +3813,356 @@ export default function ChartWidget({
                     y1={getAtrY(lvl)}
                     x2={width - paddingRight}
                     y2={getAtrY(lvl)}
-                    stroke="#222"
+                    stroke={idx === 1 ? '#262626' : '#1f1f1f'}
                     strokeWidth="1"
                     strokeDasharray="2,2"
                   />
                   <text
+                    data-atr-axis-tick={idx === 0 ? 'max' : idx === 1 ? 'mid' : 'min'}
                     x={paddingLeft - 6}
                     y={getAtrY(lvl) + 3}
                     textAnchor="end"
-                    fill="#a1a1aa"
-                    fontSize="8.5"
+                    fill={isAtrYAxisHovered || isAtrYAxisDragging ? '#ff9900' : '#a1a1aa'}
+                    fontSize="9.5"
                     fontFamily="monospace"
                     fontWeight="bold"
+                    className="pointer-events-none"
                   >
-                    {lvl.toFixed(2)}
+                    {formatAtrAxisValue(lvl, atrSpan)}
                   </text>
                 </g>
               ))}
-              <path
-                d={generateSeriesPath((b) => b.atr, getAtrY)}
-                fill="none"
-                stroke="#f59e0b"
-                strokeWidth="1.5"
-              />
-              {renderPanelHoverStripes('atr')}
-            </svg>
-            <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
-              <span className="text-zinc-500 flex items-center gap-2 tabular-nums">
-                <span>ATR (14)</span>
-                <span className="text-[#f59e0b]">
-                  ${typeof hoveredData.atr === 'number' ? hoveredData.atr.toFixed(3) : '--'}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => toggleStudy('atr')}
-                title="Hide ATR study"
-                aria-label="Hide ATR study"
-                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer"
+
+              {/* Clipped ATR line */}
+              <g clipPath="url(#gp-atr-plot-clip)">
+                <path
+                  data-atr-line="true"
+                  d={generateSeriesPath((b) => b.atr, getAtrY)}
+                  fill="none"
+                  stroke="#f59e0b"
+                  strokeWidth="1.5"
+                />
+              </g>
+
+              {/* Synchronized ATR hover stripes, crosshair line, and hover indicator */}
+              {history.map((_, i) => {
+                const { x, stripeWidth } = getHoverStripeBounds(i);
+                return (
+                  <rect
+                    key={`atr-detect-${i}`}
+                    x={x}
+                    y={atrPadTop}
+                    width={stripeWidth}
+                    height={atrAdjHeight}
+                    fill="transparent"
+                    className="cursor-crosshair"
+                    onMouseEnter={() => setHoverIndex(i)}
+                  />
+                );
+              })}
+
+              {hoverIndex !== null && hoverIndex < history.length && (
+                <g>
+                  <line
+                    x1={getX(hoverIndex)}
+                    y1={atrPadTop}
+                    x2={getX(hoverIndex)}
+                    y2={atrPadTop + atrAdjHeight}
+                    stroke="#ff9900"
+                    strokeWidth="0.8"
+                    strokeDasharray="2,2"
+                  />
+                  {typeof history[hoverIndex]?.atr === 'number' &&
+                    Number.isFinite(history[hoverIndex].atr) && (
+                      <g clipPath="url(#gp-atr-plot-clip)">
+                        <circle
+                          cx={getX(hoverIndex)}
+                          cy={getAtrY(history[hoverIndex].atr as number)}
+                          r="2.8"
+                          fill="#f59e0b"
+                          stroke="black"
+                          strokeWidth="1"
+                        />
+                      </g>
+                    )}
+                </g>
+              )}
+
+              {/* Interactive Left Y-Axis Scale Hit Area for ATR (strictly left of plot boundary) */}
+              <rect
+                ref={atrYAxisHitRef}
+                x={0}
+                y={-Y_AXIS_VERTICAL_EXTRA_PAD}
+                width={paddingLeft}
+                height={atrHeight + Y_AXIS_VERTICAL_EXTRA_PAD * 2}
+                fill="transparent"
+                className="cursor-ns-resize"
+                onMouseEnter={() => {
+                  setIsAtrYAxisHovered(true);
+                  setHoverIndex(null);
+                }}
+                onMouseLeave={() => setIsAtrYAxisHovered(false)}
+                onMouseDown={handleAtrYAxisMouseDown}
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  focusChart('atr');
+                  resetChartPanel('atr');
+                }}
               >
-                <X size={10} />
-              </button>
+                <title>Scroll or drag vertically to zoom ATR scale (Double-click or press 0 to reset)</title>
+              </rect>
+
+              <defs>
+                <clipPath id="gp-atr-plot-clip">
+                  <rect
+                    x={paddingLeft}
+                    y={atrPadTop - 3}
+                    width={adjWidth}
+                    height={atrAdjHeight + 6}
+                  />
+                </clipPath>
+              </defs>
+            </svg>
+            <div className={CHART_PANEL_HEADER_CLASS} data-atr-header="true">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 min-w-0 tabular-nums">
+                <span className="text-zinc-500">ATR (14)</span>
+                <span className="text-[#f59e0b]">
+                  ${typeof hoveredData.atr === 'number' && Number.isFinite(hoveredData.atr) ? hoveredData.atr.toFixed(3) : '--'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {shouldShowYScaleIndicator(atrYZoomFactor) && (
+                  <span className="text-[#ff9900] font-bold tabular-nums" data-atr-yscale="true">
+                    Y-SCALE: {atrYZoomFactor.toFixed(2)}×
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => toggleStudy('atr')}
+                  title="Hide ATR study"
+                  aria-label="Hide ATR study"
+                  className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                >
+                  <X size={11} />
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* PANEL 9: OBV (On-Balance Volume) */}
         {isChartReady && hoveredData && showObvStudy && (
-          <div className="relative border-t border-[#161616] pt-1">
+          <div
+            ref={(el) => {
+              chartPanelElsRef.current.obv = el;
+            }}
+            {...getPanelFocusProps('obv')}
+            className="relative border-t border-[#161616] pt-1 outline-none"
+          >
             <svg
               width={width}
-              height={subPanelHeight}
-              viewBox={`0 0 ${width} ${subPanelHeight}`}
+              height={obvHeight}
+              viewBox={`0 0 ${width} ${obvHeight}`}
               className="block w-full overflow-visible"
               onMouseLeave={() => setHoverIndex(null)}
             >
-              {[obvMax, obvMin].map((lvl, idx) => (
+              {/* Subtle interactive backdrop for left OBV Y-axis scale (matches MACD spacing) */}
+              <rect
+                data-obv-yaxis-box="true"
+                x={2}
+                y={obvPadTop - Y_AXIS_BACKDROP_PAD_Y}
+                width={paddingLeft - 6}
+                height={obvAdjHeight + Y_AXIS_BACKDROP_PAD_Y * 2}
+                rx="2"
+                fill={
+                  isObvYAxisDragging
+                    ? 'rgba(255, 153, 0, 0.12)'
+                    : isObvYAxisHovered
+                    ? 'rgba(255, 153, 0, 0.06)'
+                    : 'transparent'
+                }
+                stroke={
+                  isObvYAxisDragging
+                    ? 'rgba(255, 153, 0, 0.45)'
+                    : isObvYAxisHovered || isObvYZoomed
+                    ? 'rgba(255, 153, 0, 0.22)'
+                    : 'transparent'
+                }
+                strokeWidth="1"
+              />
+
+              {/* Optional zero baseline reference when OBV crosses zero in the visible range */}
+              {obvMin < 0 && obvMax > 0 && (
+                <line
+                  data-obv-zero-line="true"
+                  x1={paddingLeft}
+                  y1={getObvY(0)}
+                  x2={width - paddingRight}
+                  y2={getObvY(0)}
+                  stroke="#333"
+                  strokeWidth="1"
+                  strokeDasharray="2,2"
+                />
+              )}
+
+              {/* Horizontal scale gridlines & synchronized Y-axis ticks */}
+              {[obvMax, (obvMax + obvMin) / 2, obvMin].map((lvl, idx) => (
                 <g key={`obv-lvl-${idx}`}>
                   <line
                     x1={paddingLeft}
                     y1={getObvY(lvl)}
                     x2={width - paddingRight}
                     y2={getObvY(lvl)}
-                    stroke="#222"
+                    stroke={idx === 1 ? '#262626' : '#1f1f1f'}
                     strokeWidth="1"
                     strokeDasharray="2,2"
                   />
                   <text
+                    data-obv-axis-tick={idx === 0 ? 'max' : idx === 1 ? 'mid' : 'min'}
                     x={paddingLeft - 6}
                     y={getObvY(lvl) + 3}
                     textAnchor="end"
-                    fill="#a1a1aa"
-                    fontSize="8.5"
+                    fill={isObvYAxisHovered || isObvYAxisDragging ? '#ff9900' : '#a1a1aa'}
+                    fontSize="9.5"
                     fontFamily="monospace"
                     fontWeight="bold"
+                    className="pointer-events-none"
                   >
-                    {formatAxisSigned(lvl)}
+                    {formatObvAxisValue(lvl, obvSpan)}
                   </text>
                 </g>
               ))}
-              <path
-                d={generateSeriesPath((b) => b.obv, getObvY)}
-                fill="none"
-                stroke="#06b6d4"
-                strokeWidth="1.5"
-              />
-              {renderPanelHoverStripes('obv')}
-            </svg>
-            <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
-              <span className="text-zinc-500 flex items-center gap-2 tabular-nums">
-                <span>OBV</span>
-                <span className="text-[#06b6d4]">
-                  {typeof hoveredData.obv === 'number' ? formatAxisSigned(hoveredData.obv) : '--'}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => toggleStudy('obv')}
-                title="Hide OBV study"
-                aria-label="Hide OBV study"
-                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer"
+
+              {/* Clipped OBV line */}
+              <g clipPath="url(#gp-obv-plot-clip)">
+                <path
+                  data-obv-line="true"
+                  d={generateSeriesPath((b) => b.obv, getObvY)}
+                  fill="none"
+                  stroke="#06b6d4"
+                  strokeWidth="1.5"
+                />
+              </g>
+
+              {/* Synchronized OBV hover stripes, crosshair line, and hover indicator */}
+              {history.map((_, i) => {
+                const { x, stripeWidth } = getHoverStripeBounds(i);
+                return (
+                  <rect
+                    key={`obv-detect-${i}`}
+                    x={x}
+                    y={obvPadTop}
+                    width={stripeWidth}
+                    height={obvAdjHeight}
+                    fill="transparent"
+                    className="cursor-crosshair"
+                    onMouseEnter={() => setHoverIndex(i)}
+                  />
+                );
+              })}
+
+              {hoverIndex !== null && hoverIndex < history.length && (
+                <g>
+                  <line
+                    x1={getX(hoverIndex)}
+                    y1={obvPadTop}
+                    x2={getX(hoverIndex)}
+                    y2={obvPadTop + obvAdjHeight}
+                    stroke="#ff9900"
+                    strokeWidth="0.8"
+                    strokeDasharray="2,2"
+                  />
+                  {typeof history[hoverIndex]?.obv === 'number' &&
+                    Number.isFinite(history[hoverIndex].obv) && (
+                      <g clipPath="url(#gp-obv-plot-clip)">
+                        <circle
+                          cx={getX(hoverIndex)}
+                          cy={getObvY(history[hoverIndex].obv as number)}
+                          r="2.8"
+                          fill="#06b6d4"
+                          stroke="black"
+                          strokeWidth="1"
+                        />
+                      </g>
+                    )}
+                </g>
+              )}
+
+              {/* Interactive Left Y-Axis Scale Hit Area for OBV (strictly left of plot boundary) */}
+              <rect
+                ref={obvYAxisHitRef}
+                x={0}
+                y={-Y_AXIS_VERTICAL_EXTRA_PAD}
+                width={paddingLeft}
+                height={obvHeight + Y_AXIS_VERTICAL_EXTRA_PAD * 2}
+                fill="transparent"
+                className="cursor-ns-resize"
+                onMouseEnter={() => {
+                  setIsObvYAxisHovered(true);
+                  setHoverIndex(null);
+                }}
+                onMouseLeave={() => setIsObvYAxisHovered(false)}
+                onMouseDown={handleObvYAxisMouseDown}
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  focusChart('obv');
+                  resetChartPanel('obv');
+                }}
               >
-                <X size={10} />
-              </button>
+                <title>Scroll or drag vertically to zoom OBV scale (Double-click or press 0 to reset)</title>
+              </rect>
+
+              <defs>
+                <clipPath id="gp-obv-plot-clip">
+                  <rect
+                    x={paddingLeft}
+                    y={obvPadTop - 3}
+                    width={adjWidth}
+                    height={obvAdjHeight + 6}
+                  />
+                </clipPath>
+              </defs>
+            </svg>
+            <div className={CHART_PANEL_HEADER_CLASS} data-obv-header="true">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 min-w-0 tabular-nums">
+                <span className="text-zinc-500">OBV</span>
+                <span className="text-[#06b6d4]">
+                  {typeof hoveredData.obv === 'number' && Number.isFinite(hoveredData.obv)
+                    ? formatAxisSigned(hoveredData.obv)
+                    : '--'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {shouldShowYScaleIndicator(obvYZoomFactor) && (
+                  <span className="text-[#ff9900] font-bold tabular-nums" data-obv-yscale="true">
+                    Y-SCALE: {obvYZoomFactor.toFixed(2)}×
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => toggleStudy('obv')}
+                  title="Hide OBV study"
+                  aria-label="Hide OBV study"
+                  className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                >
+                  <X size={11} />
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* PANEL 10: ROC (12) */}
         {isChartReady && hoveredData && showRocStudy && (
-          <div className="relative border-t border-[#161616] pt-1">
+          <div
+            ref={(el) => {
+              chartPanelElsRef.current.roc = el;
+            }}
+            {...getPanelFocusProps('roc')}
+            className="relative border-t border-[#161616] pt-1 outline-none"
+          >
             <svg
               width={width}
               height={subPanelHeight}
