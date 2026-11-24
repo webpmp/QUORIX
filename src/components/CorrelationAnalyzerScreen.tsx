@@ -54,16 +54,10 @@ const CORR_TOOLTIPS = {
     "Correlation measures how closely two securities' daily returns move together. +1 indicates perfect positive correlation, 0 indicates no linear correlation, and -1 indicates perfect negative correlation. Correlation does not establish causation.",
   rollingCorrelation:
     'Shows how the Pearson correlation between two securities changes over time using a moving observation window.',
-  zeroReferenceLine:
-    'Indicates zero linear correlation. Values above the line are positive; values below are negative.',
   normalizedPerformance:
-    'Compares historical percentage performance by setting both securities to a common starting value of 100.',
-  base100:
-    'Each security starts at 100 so changes in percentage performance can be compared regardless of share price.',
+    'Compares historical percentage performance using Base 100: both securities are indexed to a common starting value of 100 so their percentage performance can be compared regardless of share price.',
   returnDistribution:
-    'Each point represents the daily percentage returns of two securities on the same trading date. The fitted line illustrates their linear relationship.',
-  olsRegression:
-    'Least-squares regression line showing the best-fitting linear relationship between the two return series.',
+    'Each point represents the daily percentage returns of both securities on the same trading date. The fitted orange line is the ordinary least squares (OLS) regression line, showing their best-fitting linear relationship.',
   sameDirectionSessions:
     'Percentage of overlapping trading sessions in which both securities had returns with the same sign, whether positive or negative.',
   overlappingObservations:
@@ -71,25 +65,6 @@ const CORR_TOOLTIPS = {
   correlationInsights:
     'Rule-based observations derived from calculated historical correlation values. These are descriptive findings, not predictions.',
 } as const;
-
-const BAND_TOOLTIP_DESCRIPTIONS: Record<CorrelationBandId, string> = {
-  'strong-positive':
-    '+0.80 to +1.00: Daily returns consistently moved in the same direction with strong linear co-movement.',
-  'moderate-positive':
-    '+0.40 to +0.79: Daily returns frequently moved in the same direction with noticeable linear co-movement.',
-  'weak-positive':
-    '+0.10 to +0.39: Daily returns showed a mild tendency to move in the same direction.',
-  neutral:
-    '-0.09 to +0.09: Daily returns showed little or no consistent linear relationship over the period.',
-  'weak-negative':
-    '-0.39 to -0.10: Daily returns showed a mild tendency to move in opposite directions.',
-  'moderate-negative':
-    '-0.79 to -0.40: Daily returns frequently moved in opposite directions with noticeable inverse co-movement.',
-  'strong-negative':
-    '-1.00 to -0.80: Daily returns consistently moved in opposite directions with strong inverse linear co-movement.',
-  unavailable:
-    'Insufficient overlapping daily return observations or zero return variance to compute Pearson correlation.',
-};
 
 export const CORR_USAGE_WORKFLOW_STEPS = [
   {
@@ -444,23 +419,11 @@ const RollingCorrelationChart: React.FC<{
             {symbolA} / {symbolB}
           </span>
           <span aria-hidden="true">·</span>
-          <span className="inline-flex items-center gap-1">
-            <span>{rollingWindow} obs window</span>
-            <InfoTooltipIcon
-              label="Rolling window explanation"
-              title="ROLLING WINDOW"
-              content={CORR_TOOLTIPS.rollingWindow}
-            />
-          </span>
+          <span>{rollingWindow} obs window</span>
           <span aria-hidden="true">·</span>
           <span className="inline-flex items-center gap-1 text-zinc-300">
             <span className="inline-block w-3 border-t border-dashed border-zinc-400" aria-hidden="true" />
             <span>0.00 line</span>
-            <InfoTooltipIcon
-              label="Zero reference line explanation"
-              title="ZERO REFERENCE LINE"
-              content={CORR_TOOLTIPS.zeroReferenceLine}
-            />
           </span>
         </div>
         <div className="flex items-center gap-2 tabular-nums">
@@ -2234,11 +2197,6 @@ export default function CorrelationAnalyzerScreen({
             <div className="bg-[#080808] border border-[#3a3a3a] rounded p-2.5">
               <div className="flex items-center justify-between gap-1 text-xs text-zinc-300 uppercase font-bold">
                 <span>INTERPRETATION</span>
-                <InfoTooltipIcon
-                  label="Correlation interpretation explanation"
-                  title={activePairAnalysis.interpretation.label.toUpperCase()}
-                  content={BAND_TOOLTIP_DESCRIPTIONS[activePairAnalysis.interpretation.id]}
-                />
               </div>
               <div
                 className={`text-xs font-bold mt-1 leading-snug ${getInterpretationTextClass(
@@ -2297,11 +2255,6 @@ export default function CorrelationAnalyzerScreen({
             <div className="bg-[#080808] border border-[#3a3a3a] rounded p-2.5 col-span-2 md:col-span-1">
               <div className="flex items-center justify-between gap-1 text-xs text-zinc-300 uppercase font-bold">
                 <span>LATEST {rollingWindow}D ROLLING</span>
-                <InfoTooltipIcon
-                  label="Latest rolling correlation explanation"
-                  title="ROLLING CORRELATION"
-                  content={CORR_TOOLTIPS.rollingCorrelation}
-                />
               </div>
               <div className="text-lg font-extrabold text-[#ff9900] tabular-nums mt-0.5">
                 {activePairAnalysis.rollingSeries.length > 0
@@ -2361,11 +2314,6 @@ export default function CorrelationAnalyzerScreen({
                 </div>
                 <span className="inline-flex items-center gap-1 text-zinc-300 uppercase font-bold">
                   <span>BASE 100</span>
-                  <InfoTooltipIcon
-                    label="Base 100 explanation"
-                    title="BASE 100"
-                    content={CORR_TOOLTIPS.base100}
-                  />
                 </span>
               </div>
               <NormalizedPerformanceChart
@@ -2390,11 +2338,6 @@ export default function CorrelationAnalyzerScreen({
                 <span className="inline-flex items-center gap-1 text-zinc-300 uppercase font-bold">
                   <span className="inline-block w-3 h-0.5 bg-[#ff9900]" aria-hidden="true" />
                   <span>OLS REGRESSION</span>
-                  <InfoTooltipIcon
-                    label="OLS regression line explanation"
-                    title="OLS REGRESSION"
-                    content={CORR_TOOLTIPS.olsRegression}
-                  />
                 </span>
               </div>
               <DailyReturnScatterPlot

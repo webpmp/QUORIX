@@ -776,11 +776,8 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
     'Moderate negative: -0.79 to -0.40',
     'Strong negative: -1.00 to -0.80',
     'changes over time using a moving observation window.',
-    'Indicates zero linear correlation. Values above the line are positive; values below are negative.',
-    'setting both securities to a common starting value of 100.',
-    'regardless of share price.',
-    'daily percentage returns of two securities on the same trading date.',
-    'Least-squares regression line showing the best-fitting linear relationship',
+    'Compares historical percentage performance using Base 100: both securities are indexed to a common starting value of 100 so their percentage performance can be compared regardless of share price.',
+    'Each point represents the daily percentage returns of both securities on the same trading date. The fitted orange line is the ordinary least squares (OLS) regression line, showing their best-fitting linear relationship.',
     'same sign, whether positive or negative.',
     'trading-date observations available for both securities',
     'These are descriptive findings, not predictions.',
@@ -790,6 +787,50 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
       populatedHtml.includes(fragment),
       true,
       `Missing expected tooltip text: ${fragment}`
+    );
+  }
+
+  // Verify PAIRWISE COMPARISON contains exactly the 7 designated tooltip icons and none of the 6 removed ones
+  const pairwiseStart = populatedHtml.indexOf('PAIRWISE COMPARISON');
+  const insightsStart = populatedHtml.indexOf('CORRELATION INSIGHTS');
+  assert.ok(pairwiseStart > -1 && insightsStart > pairwiseStart, 'Expected PAIRWISE COMPARISON before CORRELATION INSIGHTS');
+  const pairwiseSectionHtml = populatedHtml.slice(pairwiseStart, insightsStart);
+
+  const expectedPairwiseTooltipLabels = [
+    'Rolling window explanation',
+    'Pearson correlation explanation',
+    'Same-direction sessions explanation',
+    'Overlapping observations explanation',
+    'Rolling correlation explanation',
+    'Normalized performance explanation',
+    'Return distribution scatter plot explanation',
+  ];
+  for (const label of expectedPairwiseTooltipLabels) {
+    const matches = pairwiseSectionHtml.match(new RegExp(`aria-label="${label}"`, 'g')) || [];
+    assert.equal(matches.length, 1, `Expected exactly 1 tooltip icon for "${label}" in PAIRWISE COMPARISON`);
+  }
+
+  const removedPairwiseTooltipLabels = [
+    'Correlation interpretation explanation',
+    'Latest rolling correlation explanation',
+    'Zero reference line explanation',
+    'Base 100 explanation',
+    'OLS regression line explanation',
+  ];
+  for (const label of removedPairwiseTooltipLabels) {
+    assert.equal(
+      pairwiseSectionHtml.includes(`aria-label="${label}"`),
+      false,
+      `Removed tooltip icon should not appear in PAIRWISE COMPARISON: ${label}`
+    );
+  }
+
+  // Verify labels and chart legends are still preserved after removing redundant tooltip icons
+  for (const preservedLabel of ['INTERPRETATION', 'LATEST 30D ROLLING', '0.00 line', 'BASE 100', 'OLS REGRESSION']) {
+    assert.equal(
+      pairwiseSectionHtml.includes(preservedLabel),
+      true,
+      `Expected preserved label/legend in PAIRWISE COMPARISON: ${preservedLabel}`
     );
   }
 
