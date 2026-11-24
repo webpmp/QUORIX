@@ -2893,55 +2893,57 @@ export default function ChartWidget({
                       : '--'}
                   </span>
                 </span>
-                <div className="relative group/vol-tip pointer-events-auto inline-flex items-center">
-                  <button
-                    type="button"
-                    aria-label="How to read Volume Study"
-                    className="text-zinc-300 hover:text-[#ff9900] focus:text-[#ff9900] focus:outline-none cursor-help p-0.5 inline-flex items-center justify-center"
-                  >
-                    <Info size={12} />
-                  </button>
-                  <div
-                    role="tooltip"
-                    className="hidden group-hover/vol-tip:block group-focus-within/vol-tip:block absolute left-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-xs leading-relaxed text-zinc-300 select-text"
-                  >
-                    <div className="text-xs font-bold uppercase tracking-wider text-[#ff9900] border-b border-[#3a3a3a] pb-1 mb-2">
-                      Volume Study
-                    </div>
-                    <div className="space-y-2">
-                      <p>
-                        <span className="text-zinc-100 font-bold">Bar Height:</span> The height of each vertical bar represents the total trading activity for that single candle. Taller bars indicate heavy participation from institutional and retail traders, while shorter bars show quiet trading.
-                      </p>
-                      <p>
-                        <span className="text-[#00ff00] font-bold">Bar Color:</span> The volume bar is green if the stock closed higher than it opened for that period, and red if it closed lower.
-                      </p>
-                      <p>
-                        <span className="text-[#ff9900] font-bold">Moving Average Line:</span> Many traders add a 20-period moving average line across the volume bars. Any bar rising well above this line signals unusual market interest.
-                      </p>
-                    </div>
-                  </div>
-                </div>
                 {showVolMaStudy && (
                   <span className="text-[#ff9900] tabular-nums">
                     MA(20): {typeof hoveredData.volMa === 'number' ? formatAxisVolume(hoveredData.volMa) : '--'}
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 self-start">
                 {shouldShowYScaleIndicator(volYZoomFactor) && (
                   <span className="text-[#ff9900] font-bold tabular-nums">
                     Y-SCALE: {volYZoomFactor.toFixed(2)}×
                   </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => toggleStudy('volume')}
-                  title="Hide Volume study"
-                  aria-label="Hide Volume study"
-                  className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
-                >
-                  <X size={11} />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <div className="relative group/vol-tip pointer-events-auto inline-flex items-center">
+                    <button
+                      type="button"
+                      aria-label="How to read Volume Study"
+                      className="text-zinc-300 hover:text-[#ff9900] focus:text-[#ff9900] focus:outline-none cursor-help p-0.5 inline-flex items-center justify-center"
+                    >
+                      <Info size={12} />
+                    </button>
+                    <div
+                      role="tooltip"
+                      className="hidden group-hover/vol-tip:block group-focus-within/vol-tip:block absolute right-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-xs leading-relaxed text-zinc-300 text-left select-text"
+                    >
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#ff9900] border-b border-[#3a3a3a] pb-1 mb-2">
+                        Volume Study
+                      </div>
+                      <div className="space-y-2">
+                        <p>
+                          <span className="text-zinc-100 font-bold">Bar Height:</span> The height of each vertical bar represents the total trading activity for that single candle. Taller bars indicate heavy participation from institutional and retail traders, while shorter bars show quiet trading.
+                        </p>
+                        <p>
+                          <span className="text-[#00ff00] font-bold">Bar Color:</span> The volume bar is green if the stock closed higher than it opened for that period, and red if it closed lower.
+                        </p>
+                        <p>
+                          <span className="text-[#ff9900] font-bold">Moving Average Line:</span> Many traders add a 20-period moving average line across the volume bars. Any bar rising well above this line signals unusual market interest.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleStudy('volume')}
+                    title="Hide Volume study"
+                    aria-label="Hide Volume study"
+                    className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -3213,53 +3215,55 @@ export default function ChartWidget({
                       : '--'}
                   </span>
                 </span>
-                <div className="relative group/rsi-tip pointer-events-auto inline-flex items-center">
-                  <button
-                    type="button"
-                    aria-label="How to read RSI Oscillator (14)"
-                    className="text-zinc-300 hover:text-[#9b59b6] focus:text-[#9b59b6] focus:outline-none cursor-help p-0.5 inline-flex items-center justify-center"
-                  >
-                    <Info size={12} />
-                  </button>
-                  <div
-                    role="tooltip"
-                    className="hidden group-hover/rsi-tip:block group-focus-within/rsi-tip:block absolute left-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-xs leading-relaxed text-zinc-300 select-text"
-                  >
-                    <div className="text-xs font-bold uppercase tracking-wider text-[#9b59b6] border-b border-[#3a3a3a] pb-1 mb-2">
-                      RSI Oscillator Study
-                    </div>
-                    <div className="space-y-2">
-                      <p>
-                        <span className="text-[#ef4444] font-bold">70 (Overbought):</span> An RSI reading above 70 suggests the stock has seen heavy buying pressure and may be overbought or due for a short-term pullback. (In strong bull markets, traders sometimes adjust this threshold to 80.)
-                      </p>
-                      <p>
-                        <span className="text-[#22c55e] font-bold">30 (Oversold):</span> An RSI reading below 30 suggests the stock has experienced heavy selling pressure and may be oversold or due for a bounce. (In strong downtrends, traders sometimes adjust this threshold to 20.)
-                      </p>
-                      <p>
-                        <span className="text-zinc-100 font-bold">50 (The Centerline):</span> Acts as the balance point between bullish and bearish momentum. Readings above 50 generally confirm bullish momentum, while readings below 50 confirm bearish momentum.
-                      </p>
-                      <p>
-                        <span className="text-[#9b59b6] font-bold">40 and 60 (Trend-Specific Zones):</span> During a strong uptrend, RSI often stays in the 40 to 90 range, with the 40–50 zone acting as support. During a strong downtrend, RSI tends to stay in the 10 to 60 range, with the 50–60 zone acting as resistance.
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 self-start">
                 {shouldShowYScaleIndicator(rsiYZoomFactor) && (
                   <span className="text-[#ff9900] font-bold tabular-nums">
                     Y-SCALE: {rsiYZoomFactor.toFixed(2)}×
                   </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => toggleStudy('rsi')}
-                  title="Hide RSI study"
-                  aria-label="Hide RSI study"
-                  className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
-                >
-                  <X size={11} />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <div className="relative group/rsi-tip pointer-events-auto inline-flex items-center">
+                    <button
+                      type="button"
+                      aria-label="How to read RSI Oscillator (14)"
+                      className="text-zinc-300 hover:text-[#9b59b6] focus:text-[#9b59b6] focus:outline-none cursor-help p-0.5 inline-flex items-center justify-center"
+                    >
+                      <Info size={12} />
+                    </button>
+                    <div
+                      role="tooltip"
+                      className="hidden group-hover/rsi-tip:block group-focus-within/rsi-tip:block absolute right-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-xs leading-relaxed text-zinc-300 text-left select-text"
+                    >
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#9b59b6] border-b border-[#3a3a3a] pb-1 mb-2">
+                        RSI Oscillator Study
+                      </div>
+                      <div className="space-y-2">
+                        <p>
+                          <span className="text-[#ef4444] font-bold">70 (Overbought):</span> An RSI reading above 70 suggests the stock has seen heavy buying pressure and may be overbought or due for a short-term pullback. (In strong bull markets, traders sometimes adjust this threshold to 80.)
+                        </p>
+                        <p>
+                          <span className="text-[#22c55e] font-bold">30 (Oversold):</span> An RSI reading below 30 suggests the stock has experienced heavy selling pressure and may be oversold or due for a bounce. (In strong downtrends, traders sometimes adjust this threshold to 20.)
+                        </p>
+                        <p>
+                          <span className="text-zinc-100 font-bold">50 (The Centerline):</span> Acts as the balance point between bullish and bearish momentum. Readings above 50 generally confirm bullish momentum, while readings below 50 confirm bearish momentum.
+                        </p>
+                        <p>
+                          <span className="text-[#9b59b6] font-bold">40 and 60 (Trend-Specific Zones):</span> During a strong uptrend, RSI often stays in the 40 to 90 range, with the 40–50 zone acting as support. During a strong downtrend, RSI tends to stay in the 10 to 60 range, with the 50–60 zone acting as resistance.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleStudy('rsi')}
+                    title="Hide RSI study"
+                    aria-label="Hide RSI study"
+                    className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -3481,21 +3485,54 @@ export default function ChartWidget({
                   H: {typeof hoveredData.macdHist === 'number' && Number.isFinite(hoveredData.macdHist) ? hoveredData.macdHist.toFixed(2) : '--'}
                 </span>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 self-start">
                 {shouldShowYScaleIndicator(macdYZoomFactor) && (
                   <span className="text-[#ff9900] font-bold tabular-nums" data-macd-yscale="true">
                     Y-SCALE: {macdYZoomFactor.toFixed(2)}×
                   </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => toggleStudy('macd')}
-                  title="Hide MACD study"
-                  aria-label="Hide MACD study"
-                  className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
-                >
-                  <X size={11} />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <div className="relative group/macd-tip pointer-events-auto inline-flex items-center">
+                    <button
+                      type="button"
+                      aria-label="How to read MACD (12,26,9)"
+                      className="text-zinc-300 hover:text-[#38bdf8] focus:text-[#38bdf8] focus:outline-none cursor-help p-0.5 inline-flex items-center justify-center"
+                    >
+                      <Info size={12} />
+                    </button>
+                    <div
+                      role="tooltip"
+                      className="hidden group-hover/macd-tip:block group-focus-within/macd-tip:block absolute right-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-xs leading-relaxed text-zinc-300 text-left select-text"
+                    >
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#38bdf8] border-b border-[#3a3a3a] pb-1 mb-2">
+                        MACD Study
+                      </div>
+                      <div className="space-y-2">
+                        <p>
+                          <span className="text-[#38bdf8] font-bold">MACD (M):</span> The MACD line. Measures the difference between the 12-period and 26-period exponential moving averages (EMAs). It helps identify trend direction and momentum. Positive values indicate the shorter-term average is above the longer-term average; negative values indicate it is below.
+                        </p>
+                        <p>
+                          <span className="text-[#ff9900] font-bold">Signal (S):</span> The signal line, a 9-period EMA of the MACD line. It smooths the MACD line and helps identify potential momentum shifts. When MACD crosses above the signal line, it can indicate bullish momentum. When it crosses below, it can indicate bearish momentum.
+                        </p>
+                        <p>
+                          <span className="text-[#00ff00] font-bold">Histogram (H):</span> The difference between the MACD line and signal line (M − S). Positive values indicate MACD is above the signal line; negative values indicate it is below. Increasing histogram bars suggest widening momentum separation, while decreasing bars suggest weakening separation.
+                        </p>
+                        <p className="border-t border-[#2a2a2a] pt-2">
+                          MACD is a lagging momentum indicator. Crossovers and changes in momentum can help identify potential trend shifts, but should not be treated as standalone buy or sell signals.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleStudy('macd')}
+                    title="Hide MACD study"
+                    aria-label="Hide MACD study"
+                    className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
