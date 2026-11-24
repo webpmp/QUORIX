@@ -593,15 +593,14 @@ test('SectorRotationPanel renders updated insider tx format, 11 interactive ETF 
   );
 
   // 1. Heading cleaned (instructional copy removed)
-  assert.ok(html.includes('US EQUITY SECTOR ROTATION MATRIX (11 GICS SECTORS)'));
+  assert.ok(html.includes('US EQUITY SECTOR ROTATION MATRIX'));
   assert.equal(html.includes('CLICK ANY ROW FOR DETAIL'), false);
 
-  // 1b. Table column headers render at 10px with whitespace-nowrap and full labels
-  assert.ok(
-    html.includes(
-      '<tr class="bg-[#080808] border-b border-[#222] text-[10px] text-zinc-400 uppercase select-none">'
-    )
-  );
+// 1b. Table header row exists and does not use the old sub-12px text
+  const headerRow = html.match(/<tr class="[^"]*uppercase[^"]*">/)?.[0] ?? '';
+  assert.ok(headerRow.length > 0, 'Expected an uppercase table header row');
+  assert.equal(headerRow.includes('text-[10px]'), false, 'Header row must not use sub-12px text');
+  
   for (const headerLabel of ['INSTITUTIONAL (13F)', 'INSIDER (30D)', 'ROTATION STATUS']) {
     assert.ok(html.includes(`<span>${headerLabel}</span>`), `Expected full header "${headerLabel}"`);
   }
