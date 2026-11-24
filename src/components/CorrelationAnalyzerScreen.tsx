@@ -3,6 +3,7 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowLeftRight,
+  ChevronDown,
   Info,
   Plus,
   RefreshCw,
@@ -2107,25 +2108,32 @@ export default function CorrelationAnalyzerScreen({
               <div className="flex flex-wrap items-center gap-2">
                 <label className="flex items-center gap-1.5 text-zinc-300">
                   <span className="uppercase font-bold">PAIR:</span>
-                  <select
-                    aria-label="First security in pair"
-                    value={activePair[0]}
-                    onChange={(e) => {
-                      const nextA = e.target.value;
-                      const nextB =
-                        nextA === activePair[1]
-                          ? selectedSymbols.find((s) => s !== nextA) || activePair[1]
-                          : activePair[1];
-                      setActivePair([nextA, nextB]);
-                    }}
-                    className="bg-black border border-[#333] focus:border-[#ff9900] rounded px-2 py-1 text-[#3498db] font-bold outline-none cursor-pointer"
-                  >
-                    {selectedSymbols.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
+                  <span className="relative inline-flex items-center">
+                    <select
+                      aria-label="First security in pair"
+                      value={activePair[0]}
+                      onChange={(e) => {
+                        const nextA = e.target.value;
+                        const nextB =
+                          nextA === activePair[1]
+                            ? selectedSymbols.find((s) => s !== nextA) || activePair[1]
+                            : activePair[1];
+                        setActivePair([nextA, nextB]);
+                      }}
+                      className="appearance-none bg-black border border-[#333] focus:border-[#ff9900] rounded pl-2 pr-7 py-1 text-[#3498db] font-bold outline-none cursor-pointer"
+                    >
+                      {selectedSymbols.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={12}
+                      aria-hidden="true"
+                      className="pointer-events-none absolute right-2 text-[#3498db]"
+                    />
+                  </span>
                 </label>
 
                 <button
@@ -2138,25 +2146,32 @@ export default function CorrelationAnalyzerScreen({
                   <ArrowLeftRight size={12} />
                 </button>
 
-                <select
-                  aria-label="Second security in pair"
-                  value={activePair[1]}
-                  onChange={(e) => {
-                    const nextB = e.target.value;
-                    const nextA =
-                      nextB === activePair[0]
-                        ? selectedSymbols.find((s) => s !== nextB) || activePair[0]
-                        : activePair[0];
-                    setActivePair([nextA, nextB]);
-                  }}
-                  className="bg-black border border-[#333] focus:border-[#ff9900] rounded px-2 py-1 text-[#3498db] font-bold outline-none cursor-pointer"
-                >
-                  {selectedSymbols.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                <span className="relative inline-flex items-center">
+                  <select
+                    aria-label="Second security in pair"
+                    value={activePair[1]}
+                    onChange={(e) => {
+                      const nextB = e.target.value;
+                      const nextA =
+                        nextB === activePair[0]
+                          ? selectedSymbols.find((s) => s !== nextB) || activePair[0]
+                          : activePair[0];
+                      setActivePair([nextA, nextB]);
+                    }}
+                    className="appearance-none bg-black border border-[#333] focus:border-[#ff9900] rounded pl-2 pr-7 py-1 text-[#3498db] font-bold outline-none cursor-pointer"
+                  >
+                    {selectedSymbols.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={12}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute right-2 text-[#3498db]"
+                  />
+                </span>
               </div>
             </div>
 
