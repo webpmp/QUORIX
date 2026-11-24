@@ -318,7 +318,7 @@ export default function CommandPanel({
                           <div className="font-bold text-white font-mono flex items-center gap-1">
                             {hasPrice ? `$${stock.price.toFixed(2)}` : '--'}
                             {stock.isPreMarket && (
-                              <span className="text-[7px] bg-amber-500/20 text-amber-500 px-1 rounded font-bold border border-amber-500/30">
+                              <span className="text-[10px] leading-tight bg-amber-500/20 text-amber-500 px-1 rounded font-bold border border-amber-500/30">
                                 PRE
                               </span>
                             )}

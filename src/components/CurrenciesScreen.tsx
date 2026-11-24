@@ -355,7 +355,7 @@ const HistoricalFxChart: React.FC<HistoricalFxChartProps> = ({
                 x={padLeft - 8}
                 y={tick.y + 3}
                 textAnchor="end"
-                fill="#71717a"
+                fill="#a1a1aa"
                 fontSize="10"
                 fontFamily="monospace"
               >
@@ -417,7 +417,7 @@ const HistoricalFxChart: React.FC<HistoricalFxChartProps> = ({
                   ? 'end'
                   : 'middle'
               }
-              fill="#71717a"
+              fill="#a1a1aa"
               fontSize="10"
               fontFamily="monospace"
             >

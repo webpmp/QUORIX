@@ -542,7 +542,7 @@ const RollingCorrelationChart: React.FC<{
             x={xOf(idx)}
             y={height - 8}
             textAnchor={idx === 0 ? 'start' : idx === series.length - 1 ? 'end' : 'middle'}
-            fill="#71717a"
+            fill="#a1a1aa"
             fontSize="9.5"
             fontFamily="monospace"
           >
@@ -673,7 +673,7 @@ const NormalizedPerformanceChart: React.FC<{
                 x={pad.left - 8}
                 y={y + 3}
                 textAnchor="end"
-                fill="#71717a"
+                fill="#a1a1aa"
                 fontSize="9"
                 fontFamily="monospace"
               >
@@ -703,7 +703,7 @@ const NormalizedPerformanceChart: React.FC<{
             x={xOf(idx)}
             y={height - 8}
             textAnchor={idx === 0 ? 'start' : idx === series.length - 1 ? 'end' : 'middle'}
-            fill="#71717a"
+            fill="#a1a1aa"
             fontSize="9"
             fontFamily="monospace"
           >
@@ -864,7 +864,7 @@ const DailyReturnScatterPlot: React.FC<{
             x={pad.left - 7}
             y={yOf(tick) + 3}
             textAnchor="end"
-            fill="#71717a"
+            fill="#a1a1aa"
             fontSize="9"
             fontFamily="monospace"
           >
@@ -879,7 +879,7 @@ const DailyReturnScatterPlot: React.FC<{
             x={xOf(tick)}
             y={height - 8}
             textAnchor={tick < 0 ? 'start' : tick > 0 ? 'end' : 'middle'}
-            fill="#71717a"
+            fill="#a1a1aa"
             fontSize="9"
             fontFamily="monospace"
           >

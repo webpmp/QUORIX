@@ -364,7 +364,7 @@ const SectorComparisonChart: React.FC<{
                 x={padLeft - 6}
                 y={y + 3}
                 textAnchor="end"
-                fill="#71717a"
+                fill="#a1a1aa"
                 fontSize="9"
                 fontFamily="monospace"
               >
@@ -429,14 +429,14 @@ const SectorComparisonChart: React.FC<{
         )}
 
         {/* X axis date labels */}
-        <text x={padLeft} y={height - 6} textAnchor="start" fill="#71717a" fontSize="9" fontFamily="monospace">
+        <text x={padLeft} y={height - 6} textAnchor="start" fill="#a1a1aa" fontSize="9" fontFamily="monospace">
           {series[0].date}
         </text>
         <text
           x={xFor(midIdx)}
           y={height - 6}
           textAnchor="middle"
-          fill="#71717a"
+          fill="#a1a1aa"
           fontSize="9"
           fontFamily="monospace"
         >
@@ -446,7 +446,7 @@ const SectorComparisonChart: React.FC<{
           x={width - padRight}
           y={height - 6}
           textAnchor="end"
-          fill="#71717a"
+          fill="#a1a1aa"
           fontSize="9"
           fontFamily="monospace"
         >
