@@ -316,7 +316,7 @@ export default function Workspace({
   focusAskQuorixSignal = 0,
   onTickTimeChange
 }: WorkspaceProps) {
-  // AI assistant conversational state (BWRITE)
+  // AI assistant conversational state (ASK)
   const [messages, setMessages] = useState<Array<{ sender: 'user' | 'terminal'; text: string; links?: any[] }>>([]);
   const [userInput, setUserInput] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -325,7 +325,7 @@ export default function Workspace({
   const [pressReleasesOnly, setPressReleasesOnly] = useState(false);
   const [bwriteFontIdx, setBwriteFontIdx] = useState<number>(() => {
     try {
-      const saved = localStorage.getItem('quorix_bwrite_font_size_idx');
+      const saved = localStorage.getItem('quorix_ask_font_size_idx') || localStorage.getItem('quorix_bwrite_font_size_idx');
       if (saved !== null) {
         const parsed = parseInt(saved, 10);
         if (!isNaN(parsed) && parsed >= 0 && parsed <= 5) return parsed;
@@ -382,7 +382,7 @@ export default function Workspace({
 
   useEffect(() => {
     try {
-      localStorage.setItem('quorix_bwrite_font_size_idx', String(bwriteFontIdx));
+      localStorage.setItem('quorix_ask_font_size_idx', String(bwriteFontIdx));
     } catch {
       // ignore storage errors
     }
@@ -990,7 +990,7 @@ export default function Workspace({
 
   useEffect(() => {
     if (
-      activeScreen === 'BWRITE' &&
+      (activeScreen === 'ASK' || activeScreen === 'BWRITE') &&
       pendingAiQuery &&
       pendingAiQuery.text.trim() &&
       lastProcessedQueryIdRef.current !== pendingAiQuery.id
@@ -1002,13 +1002,13 @@ export default function Workspace({
   }, [activeScreen, pendingAiQuery]);
 
   useEffect(() => {
-    if (activeScreen === 'BWRITE') {
+    if (activeScreen === 'ASK' || activeScreen === 'BWRITE') {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isAiLoading, activeScreen]);
 
   useEffect(() => {
-    if (activeScreen === 'BWRITE') {
+    if (activeScreen === 'ASK' || activeScreen === 'BWRITE') {
       const id = requestAnimationFrame(() => {
         bwriteInputRef.current?.focus();
       });
@@ -1057,7 +1057,7 @@ export default function Workspace({
 
   return (
     <div className={`flex-1 bg-[#010101] p-4 font-mono text-zinc-300 relative select-text ${
-      activeScreen === 'BWRITE' || activeScreen === 'ECO' || activeScreen === 'PRM'
+      activeScreen === 'ASK' || activeScreen === 'BWRITE' || activeScreen === 'ECO' || activeScreen === 'PRM'
         ? 'flex flex-col overflow-hidden min-h-0'
         : activeScreen === 'POLY'
         ? 'flex flex-col overflow-y-auto lg:overflow-hidden min-h-0'
@@ -1747,8 +1747,8 @@ export default function Workspace({
       )}
 
 
-      {/* 9. BWRITE: DIALOGING CHAT AND RESEARCH CONVERTER */}
-      {activeScreen === 'BWRITE' && (
+      {/* 9. ASK: DIALOGING CHAT AND RESEARCH CONVERTER (formerly BWRITE) */}
+      {(activeScreen === 'ASK' || activeScreen === 'BWRITE') && (
         <div className="bg-[#050505] border border-[#333] rounded flex flex-col flex-1 min-h-0 animate-fade-in shadow-xl overflow-hidden">
           
           <div className="border-b border-[#333] p-3 bg-black flex justify-between items-center select-none">
@@ -1773,7 +1773,7 @@ export default function Workspace({
                   ) : (
                     <ChevronRight size={13} className="text-[#ff9900]" />
                   )}
-                  QI — BWRITE COMMAND EXAMPLES
+                  QI — ASK COMMAND EXAMPLES
                 </span>
                 <span className={`${activeBwriteFont.badge} text-zinc-300 font-bold uppercase tracking-wider`}>
                   {examplesExpanded ? 'COLLAPSE' : 'EXPAND'}
@@ -2369,12 +2369,12 @@ export default function Workspace({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1 border-b border-[#3a3a3a]/35">
               <span className="text-[#3498db] font-bold">DIRECTORY_CODES</span>
-              <span className="text-zinc-200">CORR, PRM, INST, CRNC, ECO, POLY, BWRITE, HELP</span>
+              <span className="text-zinc-200">CORR, PRM, INST, CRNC, ECO, POLY, ASK, HELP</span>
               <span className="text-zinc-300">Instant directory modules access directly.</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1">
               <span className="text-[#3498db] font-bold">CONVERSATIONAL_PROMPTING</span>
-              <span className="text-zinc-200">BWRITE AI Helper</span>
+              <span className="text-zinc-200">ASK AI Helper</span>
               <span className="text-zinc-300">Ask any custom finance questions in standard natural English!</span>
             </div>
           </div>
@@ -2400,7 +2400,7 @@ export default function Workspace({
               <tbody className="divide-y divide-[#1a1a1a]">
                 {[
                   {
-                    command: 'BWRITE',
+                    command: 'ASK',
                     module: 'Ask QUORIX',
                     description: 'AI financial & macro analyst with Search Grounding',
                   },

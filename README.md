@@ -8,7 +8,7 @@ A retro CRT-styled financial market terminal built with React, TypeScript, Tailw
 
 ## Features
 
-- **Command-Driven Terminal UI**: Execute ticker and module commands directly from the top command bar (`AAPL GP`, `NVDA DES`, `ECO`, `CRNC`, `POLY`, `INST`, `PRM`, `CORR`, `NEWS`, `BWRITE`, `SETT`, `HELP`) or select shortcuts from the left sidebar.
+- **Command-Driven Terminal UI**: Execute ticker and module commands directly from the top command bar (`AAPL GP`, `NVDA DES`, `ECO`, `CRNC`, `POLY`, `INST`, `PRM`, `CORR`, `NEWS`, `ASK`, `SETT`, `HELP`) or select shortcuts from the left sidebar.
 - **Interactive Price, Volume & RSI Charting (`GP`)**:
   - Candlestick, Line, and Area chart modes with toggleable technical studies and indicators.
   - Multi-timeframe OHLCV intervals (`5m`, `15m`, `30m`, `1h`, `1D`, `1W`, `1M`).
@@ -41,7 +41,7 @@ A retro CRT-styled financial market terminal built with React, TypeScript, Tailw
   - Identify overlapping exposures and potential diversification limitations.
   - Support portfolio research and risk assessment through cross-asset correlation analysis.
 - **Real-Time Multi-Source News Hub & Ticker (`NEWS`)**: Aggregates financial headlines from Yahoo Finance, NYT Top Stories, NewsAPI, and NewsData.io with an auto-scrolling ticker and periodic refresh.
-- **Ask QUORIX (`BWRITE`)**: Server-side `@google/genai` (Gemini) analyst assistant enriched with Google Search grounding, live equity quotes, and FRED macro snapshots.
+- **Ask QUORIX (`ASK`)**: Server-side `@google/genai` (Gemini) analyst assistant enriched with Google Search grounding, live equity quotes, and FRED macro snapshots (legacy alias: `BWRITE`).
 - **Customizable Workspace (`SETT`)**:
   - Resizable left sidebar split between **Terminal Commands** and **Tracked Equities** (persisted to `localStorage`).
   - World market clocks (`GMT`, `NY`, `LDN`, `TYO`) with IANA timezone/DST accuracy.
@@ -203,7 +203,7 @@ cp .env.example .env
 | `NEWSDATA_API_KEY` | NewsData.io, real-time market event feeds | Optional |
 | `FRED_API_KEY` | FRED (St. Louis Fed), `ECO` macro data, release calendar, and `CRNC` FX rates | Recommended |
 | `3SPREAD_API_KEY` | 3spread, institutional holdings and Form 13F data in `INST` (`THREESPREAD_API_KEY` is also supported as a compatibility alias) | Required for INST |
-| `GEMINI_API_KEY` | Google Gemini API key for `BWRITE` (Ask QUORIX) and AI-grounded company/news analysis | Recommended |
+| `GEMINI_API_KEY` | Google Gemini API key for `ASK` (Ask QUORIX) and AI-grounded company/news analysis | Recommended |
 | `APP_URL` | Hosted application URL | Optional |
 
 Yahoo Finance news and SEC insider ownership reports are documented as data sources. No additional API key is listed here for those sources.
@@ -267,7 +267,7 @@ Type any command into the top `>` prompt and press **Enter** or click **EXEC**.
 
 | Command | Module | Description |
 | --- | --- | --- |
-| `BWRITE` | Ask QUORIX | AI financial and macro analyst with Search Grounding |
+| `ASK` | Ask QUORIX | AI financial and macro analyst with Search Grounding |
 | `NEWS` | News Hub | Multi-source financial news feed |
 | `GP` | Graph Price | Interactive OHLCV charts, technical studies, and insider ownership reports |
 | `HP` | Historical Pricing | Tabular OHLCV historical price archive |

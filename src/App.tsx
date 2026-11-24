@@ -335,11 +335,13 @@ export default function App() {
     const primary = parts[0];
     const secondary = parts.length > 1 ? parts[1] : null;
 
-    const directScreens = ['GP', 'CORR', 'PRM', 'HP', 'DES', 'ANR', 'INST', '13F', 'NEWS', 'CRNC', 'ECO', 'POLY', 'BWRITE', 'HELP', 'HLP', 'SETT', 'SETTINGS'];
+    const directScreens = ['GP', 'CORR', 'PRM', 'HP', 'DES', 'ANR', 'INST', '13F', 'NEWS', 'CRNC', 'ECO', 'POLY', 'ASK', 'BWRITE', 'HELP', 'HLP', 'SETT', 'SETTINGS'];
     const resolveScreenCode = (code: string): string => {
       if (code === 'SETTINGS' || code === 'SETT') return 'SETT';
       if (code === 'HLP') return 'HELP';
       if (code === '13F') return 'INST';
+      // BWRITE is a legacy alias for ASK (Ask QUORIX AI analyst)
+      if (code === 'BWRITE') return 'ASK';
       return code;
     };
 
@@ -388,13 +390,13 @@ export default function App() {
       return;
     }
 
-    setActiveScreen('BWRITE');
+    setActiveScreen('ASK');
     setPendingAiQuery({ id: Date.now(), text: rawCommand });
   };
 
   const handleSelectScreen = (screenCode: string) => {
     setActiveScreen(screenCode);
-    if (screenCode === 'BWRITE') {
+    if (screenCode === 'ASK' || screenCode === 'BWRITE') {
       setFocusAskQuorixSignal((n) => n + 1);
     }
   };

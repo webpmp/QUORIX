@@ -119,7 +119,7 @@ test('CommandPanel renders CORR immediately after GP while keeping all existing 
   assert.ok(gpIdx > -1 && corrIdx > gpIdx && prmIdx > corrIdx && hpIdx > prmIdx);
 
   // Verify existing commands remain intact
-  for (const code of ['BWRITE', 'NEWS', 'GP', 'CORR', 'HP', 'DES', 'ANR', 'INST', 'CRNC', 'ECO', 'POLY', 'SETT', 'HELP']) {
+  for (const code of ['ASK', 'NEWS', 'GP', 'CORR', 'HP', 'DES', 'ANR', 'INST', 'CRNC', 'ECO', 'POLY', 'SETT', 'HELP']) {
     assert.equal(html.includes(`id="cmd-shortcut-${code}"`), true, `Missing command ${code}`);
   }
 });
