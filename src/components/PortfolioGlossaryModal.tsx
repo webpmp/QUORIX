@@ -19,7 +19,13 @@ export type PrmGlossaryTermId =
   | 'unclassified'
   | 'leveraged-etf'
   | 'stress-test'
-  | 'lookback';
+  | 'lookback'
+  | 'form-13f'
+  | 'institutional-accumulation'
+  | 'relative-strength'
+  | 'sector-momentum'
+  | 'central-bank-rate'
+  | 'fx-cross-rate';
 
 export interface PrmGlossaryEntry {
   id: PrmGlossaryTermId;
@@ -135,6 +141,42 @@ export const PRM_GLOSSARY_TERMS: readonly PrmGlossaryEntry[] = [
     term: 'Lookback',
     definition:
       'The historical window of daily trading sessions (such as 30D, 90D, 6M, or 1Y) used to compute volatility, beta, max drawdown, and correlations.',
+  },
+  {
+    id: 'form-13f',
+    term: 'SEC Form 13F',
+    definition:
+      'Quarterly report filed with the SEC by institutional investment managers with at least $100 million in equity assets under management, disclosing long U.S. equity positions.',
+  },
+  {
+    id: 'institutional-accumulation',
+    term: 'Institutional Accumulation',
+    definition:
+      'Measures net buying and position expansion by hedge funds and institutions across consecutive quarters, signaling institutional sponsorship or conviction.',
+  },
+  {
+    id: 'relative-strength',
+    term: 'Relative Strength (RS)',
+    definition:
+      'Compares an individual sector or stock return directly against the benchmark (SPY), highlighting whether the asset is outperforming or lagging broad market momentum.',
+  },
+  {
+    id: 'sector-momentum',
+    term: 'Sector Momentum Rank',
+    definition:
+      'Ranks GICS economic sectors by weighted trailing returns across multiple lookback windows (1M, 3M, 6M, 1Y) to detect capital rotation and market leadership shifts.',
+  },
+  {
+    id: 'central-bank-rate',
+    term: 'Central Bank Policy Rate',
+    definition:
+      'The benchmark interest rate set by monetary authorities (e.g., Fed Funds, ECB deposit rate, BOJ short-term rate) driving currency valuation and yield spreads.',
+  },
+  {
+    id: 'fx-cross-rate',
+    term: 'FX Cross Rate',
+    definition:
+      'An exchange rate between two currencies that does not directly involve the U.S. Dollar (such as EUR/GBP or EUR/JPY), derived from their respective USD pairs.',
   },
 ] as const;
 
