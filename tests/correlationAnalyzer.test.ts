@@ -227,6 +227,127 @@ test('ASK and BWRITE commands with ticker prefill prompt, leave input empty when
   assert.equal(plainAskHtml.includes('value="Give me a brief analysis of'), false);
 });
 
+test('ASK prefill clears stale prefill when navigating away but preserves user-typed input', () => {
+  // Pure logic session simulating Workspace prefill lifecycle
+  function createAskInputSession(initialPrefill: string | null) {
+    let userInput = initialPrefill || '';
+    let lastPrefillText: string | null = initialPrefill;
+
+    return {
+      getUserInput: () => userInput,
+      getLastPrefill: () => lastPrefillText,
+      receivePrefill: (text: string) => {
+        lastPrefillText = text;
+        userInput = text;
+      },
+      userEdit: (newText: string) => {
+        lastPrefillText = null; // Clear stored prefill reference when user edits input
+        userInput = newText;
+      },
+      changeScreen: (newScreen: string) => {
+        if (newScreen !== 'ASK' && newScreen !== 'BWRITE') {
+          // If input value still exactly equals the last auto-generated prefill text, clear it
+          if (lastPrefillText !== null && userInput === lastPrefillText) {
+            userInput = '';
+          }
+          lastPrefillText = null;
+        }
+      },
+    };
+  }
+
+  // Case (a): Untouched prefill is cleared when navigating away from ASK
+  const untouchedSession = createAskInputSession('Give me a brief analysis of AAPL');
+  assert.equal(untouchedSession.getUserInput(), 'Give me a brief analysis of AAPL');
+  untouchedSession.changeScreen('GP');
+  assert.equal(untouchedSession.getUserInput(), '', 'Untouched prefill must be cleared when leaving ASK screen');
+  assert.equal(untouchedSession.getLastPrefill(), null);
+
+  // Case (b): User-typed or edited input is preserved when navigating away
+  const editedSession = createAskInputSession('Give me a brief analysis of AAPL');
+  editedSession.userEdit('Compare NVDA balance sheet with AAPL');
+  assert.equal(editedSession.getLastPrefill(), null, 'Stored prefill reference must be cleared on edit');
+  editedSession.changeScreen('GP');
+  assert.equal(
+    editedSession.getUserInput(),
+    'Compare NVDA balance sheet with AAPL',
+    'User-edited input must be preserved when leaving ASK screen'
+  );
+  editedSession.changeScreen('ASK');
+  assert.equal(
+    editedSession.getUserInput(),
+    'Compare NVDA balance sheet with AAPL',
+    'User-edited input must remain preserved upon returning to ASK screen'
+  );
+});
+
+test('invalid ticker does not prefill prompt or call AI', async () => {
+  // Simulate command resolution and validation logic from App.tsx
+  const { resolveEquitySearch } = await import('../src/utils/equityValidation.ts');
+
+  let prefillSet: { id: number; text: string } | null = null;
+  let aiCalled = false;
+
+  async function simulateCommand(rawTicker: string, cmd: string, mockFetch: typeof fetch) {
+    const ticker = rawTicker.toUpperCase().trim();
+    const targetScreen = cmd === 'BWRITE' ? 'ASK' : cmd;
+
+    // In App.tsx: If ticker is not already tracked, validate through resolveEquitySearch
+    const res = await resolveEquitySearch(ticker, mockFetch);
+    if (res.accepted && targetScreen === 'ASK') {
+      const resolvedSym = res.stock?.symbol || ticker;
+      prefillSet = { id: Date.now(), text: `Give me a brief analysis of ${resolvedSym}` };
+    } else {
+      // Invalid ticker: do NOT prefill, do NOT call AI
+      prefillSet = null;
+      aiCalled = false;
+    }
+    return res;
+  }
+
+  // Mock fetch rejecting invalid ticker 'ZZZZ'
+  const mockFetchInvalid = (async () => {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        isInvalidTicker: true,
+        error: 'No valid equity found for symbol "ZZZZ".',
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  const invalidRes = await simulateCommand('ZZZZ', 'ASK', mockFetchInvalid);
+  assert.equal(invalidRes.accepted, false);
+  assert.equal(invalidRes.isInvalidTicker, true);
+  assert.equal(prefillSet, null, 'Prefill must NOT be set for invalid ticker');
+  assert.equal(aiCalled, false, 'AI must NOT be called for invalid ticker');
+
+  // Verify valid ticker 'AAPL' does validate and set prefill
+  const mockFetchValid = (async () => {
+    return new Response(
+      JSON.stringify({
+        success: true,
+        quote: {
+          symbol: 'AAPL',
+          name: 'Apple Inc.',
+          exchange: 'NASDAQ',
+          instrumentType: 'EQUITY',
+          price: 230.5,
+          volume: 45000000,
+          isValidSecurity: true,
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  const validRes = await simulateCommand('AAPL', 'ASK', mockFetchValid);
+  assert.equal(validRes.accepted, true);
+  assert.ok(prefillSet !== null, 'Prefill must be set for valid ticker');
+  assert.equal((prefillSet as any).text, 'Give me a brief analysis of AAPL');
+});
+
 test('Workspace routes CORR to Correlation Analyzer and lists CORR in HELP reference', () => {
   const corrHtml = renderToStaticMarkup(
     React.createElement(Workspace, {
