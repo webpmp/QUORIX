@@ -47,6 +47,7 @@ import {
   clearSectorRotationCache,
   getSectorRotationData,
 } from "./src/server/sectorRotationService";
+import { newsPaywallService } from "./src/server/newsPaywallService";
 import {
   SECTOR_BY_ID,
   isBroadMarketOrMultiSectorFund,
@@ -4273,6 +4274,13 @@ app.get("/api/news/ticker", async (req, res) => {
     const minFreshCount = rotateMode ? 6 : 1;
     const finalNewsPool = recentNews.length >= minFreshCount ? recentNews : sortedNews;
     const finalNewsSlice = finalNewsPool.slice(0, 40);
+    let enrichedNewsSlice = finalNewsSlice;
+    try {
+      enrichedNewsSlice = await newsPaywallService.enrichNewsItemsWithPaywall(finalNewsSlice);
+    } catch {
+      // Paywall detection failures must never block news retrieval or rendering
+      enrichedNewsSlice = finalNewsSlice;
+    }
 
     return res.json({
       success: true,
@@ -4280,7 +4288,7 @@ app.get("/api/news/ticker", async (req, res) => {
       configuredSources,
       activeSource: chosenRotationSource,
       isSimulated: false,
-      data: finalNewsSlice
+      data: enrichedNewsSlice
     });
 
   } catch (err: any) {

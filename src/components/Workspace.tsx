@@ -22,6 +22,13 @@ import {
   selectBestHistoricalBars,
   type HistoricalPriceBar,
 } from '../utils/historicalPricing';
+import NewsPaywallBadge from './NewsPaywallBadge';
+import {
+  formatNewsSourceLabel,
+  isNewsItemPaywalled,
+  subscribePaywallUpdates,
+  syncNewsPaywallStatuses,
+} from '../utils/newsPaywall';
 import { Send, AlertCircle, RefreshCw, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 
 interface WorkspaceProps {
@@ -401,6 +408,7 @@ export default function Workspace({
   const [anrLoading, setAnrLoading] = useState(false);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsArticles, setNewsArticles] = useState<any[]>([]);
+  const [, setPaywallSyncVersion] = useState<number>(0);
   const [lastRefreshed, setLastRefreshed] = useState<number>(0);
   const lastNewsTickerRef = useRef<string>('');
 
@@ -817,6 +825,12 @@ export default function Workspace({
     return () => window.removeEventListener('quorix-news-refresh', handleForceNewsRefresh);
   }, [selectedTicker]);
 
+  useEffect(() => {
+    return subscribePaywallUpdates(() => {
+      setPaywallSyncVersion((v) => v + 1);
+    });
+  }, []);
+
   const fetchScreenData = async (
     screenKey: string,
     ticker: string,
@@ -940,6 +954,7 @@ export default function Workspace({
           }
         }
 
+        syncNewsPaywallStatuses(uniqueArticles);
         setNewsArticles(uniqueArticles);
         setLastRefreshed(Date.now());
       } else {
@@ -1141,22 +1156,45 @@ export default function Workspace({
                   {tickerNews.map((item, idx) => {
                     const displayTime = formatDisplayTime(item.publishedAt || item.time);
                     const cleanedTitle = cleanHeadline(item.title);
+                    const sourceLabel = formatNewsSourceLabel(item.source);
+                    const paywalled = isNewsItemPaywalled(item);
                     return (
-                      <div key={item.id || idx} className="bg-[#010101] border border-[#3a3a3a] hover:border-[#333] p-2.5 rounded flex flex-col text-xs/relaxed transition-all">
-                        <div className="flex justify-between items-center text-xs text-zinc-300 mb-1.5 font-mono uppercase">
-                          <span className="text-[#3498db] font-bold">
-                            {item.source.replace(' Business', '').toUpperCase()}
-                          </span>
-                          <span>{displayTime}</span>
+                      <div key={item.id || idx} className="bg-[#010101] border border-[#3a3a3a] hover:border-[#333] p-2.5 rounded flex items-start justify-between gap-3 text-xs/relaxed transition-all font-mono">
+                        <div className="min-w-0 flex-1 leading-snug break-words">
+                          <a
+                            href={item.url || 'https://www.reuters.com'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-zinc-100 hover:text-[#00ff00] text-sm md:text-base font-bold leading-snug hover:underline break-words"
+                          >
+                            {cleanedTitle}
+                          </a>
+                          {sourceLabel && (
+                            <>
+                              {' '}
+                              <span className="text-xs text-[#ff9900] font-extrabold uppercase ml-1.5 select-none">—{' '}</span>
+                              <a
+                                href={item.url || 'https://www.reuters.com'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-[#ff9900] font-extrabold uppercase hover:text-[#00ff00] hover:underline select-none"
+                              >
+                                [{sourceLabel}]
+                              </a>
+                            </>
+                          )}
+                          {paywalled && (
+                            <>
+                              {' '}
+                              <NewsPaywallBadge className="ml-1" />
+                            </>
+                          )}
                         </div>
-                        <a
-                          href={item.url || 'https://www.reuters.com'}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-zinc-100 hover:text-[#00ff00] text-sm md:text-base font-bold leading-snug hover:underline block"
-                        >
-                          {cleanedTitle}
-                        </a>
+                        {displayTime && (
+                          <span className="text-xs text-zinc-300 font-mono uppercase shrink-0 whitespace-nowrap pt-0.5">
+                            {displayTime}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
@@ -1439,6 +1477,8 @@ export default function Workspace({
                 {newsArticles.map((item, idx) => {
                   const displayTime = formatDisplayTime(item.publishedAt || item.time);
                   const cleanedTitle = cleanHeadline(item.title);
+                  const sourceLabel = formatNewsSourceLabel(item.source);
+                  const paywalled = isNewsItemPaywalled(item);
                   const apiTickers: string[] = Array.isArray(item.relatedTickers)
                     ? item.relatedTickers.filter((t: string) => /^[A-Z0-9-]{1,6}$/.test(t) && !t.includes('.'))
                     : [];
@@ -1449,7 +1489,7 @@ export default function Workspace({
                   return (
                     <div key={item.id || idx} className="bg-black border border-[#151515] hover:border-[#333] p-4 rounded transition-all flex flex-col justify-between font-mono">
                       <div>
-                        {/* Linked headline and source attribution on first line, timestamp on second line */}
+                        {/* Linked headline, source attribution, and paywall indicator on first line, timestamp on second line */}
                         <div className="mb-2 leading-snug break-words">
                           <a 
                             href={item.url || 'https://www.reuters.com'} 
@@ -1459,7 +1499,7 @@ export default function Workspace({
                           >
                             {cleanedTitle}
                           </a>
-                          {item.source && (
+                          {sourceLabel && (
                             <>
                               {' '}
                               <span className="text-xs text-[#ff9900] font-extrabold uppercase ml-1.5 select-none">—{' '}</span>
@@ -1469,8 +1509,14 @@ export default function Workspace({
                                 rel="noopener noreferrer"
                                 className="text-xs text-[#ff9900] font-extrabold uppercase hover:text-[#00ff00] hover:underline select-none"
                               >
-                                [{item.source.replace(' Business', '').toUpperCase()}]
+                                [{sourceLabel}]
                               </a>
+                            </>
+                          )}
+                          {paywalled && (
+                            <>
+                              {' '}
+                              <NewsPaywallBadge className="ml-1" />
                             </>
                           )}
                           {displayTime && (

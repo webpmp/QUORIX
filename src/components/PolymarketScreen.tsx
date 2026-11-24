@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search,
   RefreshCw,
@@ -6,8 +6,18 @@ import {
   ShieldCheck,
   AlertCircle,
   ExternalLink,
+  Pencil,
+  X,
+  Plus,
 } from 'lucide-react';
 import { PolymarketEvent, StockData } from '../types';
+import {
+  MAX_POLYMARKET_TICKERS,
+  addPolymarketTicker,
+  loadPolymarketTickers,
+  removePolymarketTicker,
+  savePolymarketTickers,
+} from '../utils/polymarketTickers';
 
 interface PolymarketScreenProps {
   stocks: Record<string, StockData>;
@@ -20,8 +30,6 @@ const POLYMARKET_DEPARTMENTS = [
   'IPOs & M&A',
   'Fed & Macro',
 ] as const;
-
-const EXCLUDED_QUICK_TICKERS = new Set(['SPX', 'DJI', 'IXIC', 'GC', 'CL', 'TNX', 'BTC']);
 
 function formatUsdVolume(vol?: number): string {
   if (!vol || vol <= 0) return '$0';
@@ -53,7 +61,7 @@ function formatSourceHost(url: string): string {
   }
 }
 
-export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
+export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenProps) {
   const [events, setEvents] = useState<PolymarketEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,14 +70,64 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [lastUpdated, setLastUpdated] = useState<string>('');
 
-  const quickTickers = useMemo(() => {
-    const fromStocks = Object.keys(stocks || {}).filter(
-      (sym) => !EXCLUDED_QUICK_TICKERS.has(sym)
+  const [quickTickers, setQuickTickers] = useState<string[]>(() =>
+    loadPolymarketTickers(typeof window !== 'undefined' ? window.localStorage : null),
+  );
+  const [isEditingTickers, setIsEditingTickers] = useState<boolean>(false);
+  const [draftTickers, setDraftTickers] = useState<string[]>([]);
+  const [tickerInput, setTickerInput] = useState<string>('');
+  const [tickerEditError, setTickerEditError] = useState<string | null>(null);
+  const tickerInputRef = useRef<HTMLInputElement | null>(null);
+
+  const isAtTickerLimit = draftTickers.length >= MAX_POLYMARKET_TICKERS;
+
+  const openTickerEditor = () => {
+    setDraftTickers([...quickTickers]);
+    setTickerInput('');
+    setTickerEditError(null);
+    setIsEditingTickers(true);
+  };
+
+  const cancelTickerEditor = () => {
+    setDraftTickers([]);
+    setTickerInput('');
+    setTickerEditError(null);
+    setIsEditingTickers(false);
+  };
+
+  const handleAddDraftTicker = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const result = addPolymarketTicker(draftTickers, tickerInput);
+    if (result.error) {
+      setTickerEditError(result.error);
+      return;
+    }
+    setDraftTickers(result.tickers);
+    setTickerInput('');
+    setTickerEditError(null);
+  };
+
+  const handleRemoveDraftTicker = (sym: string) => {
+    setDraftTickers((prev) => removePolymarketTicker(prev, sym));
+    setTickerEditError(null);
+  };
+
+  const handleSaveTickerEdits = () => {
+    const persisted = savePolymarketTickers(
+      typeof window !== 'undefined' ? window.localStorage : null,
+      draftTickers,
     );
-    const defaults = ['NVDA', 'AAPL', 'TSLA', 'MSFT', 'AMZN', 'META', 'GOOG'];
-    const merged = Array.from(new Set([...fromStocks, ...defaults]));
-    return merged.slice(0, 8);
-  }, [stocks]);
+    setQuickTickers(persisted);
+    setTickerInput('');
+    setTickerEditError(null);
+    setIsEditingTickers(false);
+  };
+
+  useEffect(() => {
+    if (isEditingTickers && !isAtTickerLimit) {
+      tickerInputRef.current?.focus();
+    }
+  }, [isEditingTickers, isAtTickerLimit]);
 
   // Fetch from the server-side API proxy
   const fetchActivePolymarketEvents = async (searchStr = '', catStr = 'Stocks') => {
@@ -360,25 +418,154 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
         </div>
 
         {/* Quick Stock Filter Bar */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
-          <span className="text-zinc-300 font-bold uppercase mr-1">TICKER FILTER:</span>
-          {quickTickers.map((sym) => {
-            const isActiveTicker = searchTerm.toUpperCase() === sym;
-            return (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
+            <div className="inline-flex items-center gap-1.5 mr-1">
+              <span className="text-zinc-300 font-bold uppercase">TICKER FILTER:</span>
               <button
-                key={sym}
                 type="button"
-                onClick={() => handleQuickTickerClick(sym)}
-                className={`px-2 py-0.5 rounded border font-bold transition-colors cursor-pointer ${
-                  isActiveTicker
-                    ? 'bg-[#3498db]/20 border-[#3498db] text-[#3498db]'
-                    : 'bg-black border-[#3a3a3a] text-zinc-300 hover:border-[#3498db] hover:text-white'
+                onClick={() => (isEditingTickers ? cancelTickerEditor() : openTickerEditor())}
+                aria-expanded={isEditingTickers}
+                aria-label={isEditingTickers ? 'Close ticker filter editor' : 'Edit ticker filter list'}
+                title={isEditingTickers ? 'Cancel editing ticker list' : 'Edit ticker filter list'}
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-xs font-bold uppercase transition-colors cursor-pointer ${
+                  isEditingTickers
+                    ? 'bg-[#38bdf8]/15 border-[#38bdf8] text-[#38bdf8]'
+                    : 'bg-transparent border-[#3a3a3a] text-zinc-400 hover:border-[#38bdf8] hover:text-[#38bdf8]'
                 }`}
               >
-                {sym}
+                <Pencil size={10} />
+                <span>EDIT</span>
               </button>
-            );
-          })}
+            </div>
+            {quickTickers.map((sym) => {
+              const isActiveTicker = searchTerm.toUpperCase() === sym;
+              return (
+                <button
+                  key={sym}
+                  type="button"
+                  onClick={() => handleQuickTickerClick(sym)}
+                  className={`px-2 py-0.5 rounded border font-bold transition-colors cursor-pointer ${
+                    isActiveTicker
+                      ? 'bg-[#3498db]/20 border-[#3498db] text-[#3498db]'
+                      : 'bg-black border-[#3a3a3a] text-zinc-300 hover:border-[#3498db] hover:text-white'
+                  }`}
+                >
+                  {sym}
+                </button>
+              );
+            })}
+            {quickTickers.length === 0 && !isEditingTickers && (
+              <span className="text-zinc-400 text-xs">No saved tickers — click EDIT to add symbols.</span>
+            )}
+          </div>
+
+          {isEditingTickers && (
+            <div
+              className="bg-[#0a0a0a] border border-[#3a3a3a] rounded p-2.5 space-y-2 text-xs font-mono"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  cancelTickerEditor();
+                }
+              }}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[#38bdf8] font-bold uppercase tracking-wider">
+                    EDIT TICKER LIST
+                  </span>
+                  <span
+                    className={`tabular-nums font-bold ${
+                      isAtTickerLimit ? 'text-[#ff9900]' : 'text-zinc-400'
+                    }`}
+                  >
+                    ({draftTickers.length}/{MAX_POLYMARKET_TICKERS})
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={cancelTickerEditor}
+                    className="px-2 py-0.5 rounded border border-[#3a3a3a] bg-black text-zinc-300 hover:text-white hover:border-zinc-400 font-bold uppercase transition-colors cursor-pointer"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveTickerEdits}
+                    className="px-2.5 py-0.5 rounded border border-[#38bdf8] bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 text-[#38bdf8] font-bold uppercase transition-colors cursor-pointer"
+                  >
+                    SAVE
+                  </button>
+                </div>
+              </div>
+
+              {/* Editable ticker chips */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {draftTickers.length > 0 ? (
+                  draftTickers.map((sym) => (
+                    <span
+                      key={sym}
+                      className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded border border-[#38bdf8]/50 bg-black text-zinc-100 font-bold"
+                    >
+                      <span>{sym}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDraftTicker(sym)}
+                        aria-label={`Remove ${sym}`}
+                        title={`Remove ${sym}`}
+                        className="p-0.5 rounded text-zinc-400 hover:text-[#ff4444] transition-colors cursor-pointer"
+                      >
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-zinc-400">No tickers in list. Add symbols below or save empty.</span>
+                )}
+              </div>
+
+              {/* Add ticker input + limit/error notice */}
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                <form onSubmit={handleAddDraftTicker} className="inline-flex items-center gap-1.5">
+                  <input
+                    ref={tickerInputRef}
+                    type="text"
+                    value={tickerInput}
+                    onChange={(e) => {
+                      setTickerInput(e.target.value.toUpperCase());
+                      if (tickerEditError) setTickerEditError(null);
+                    }}
+                    disabled={isAtTickerLimit}
+                    maxLength={12}
+                    placeholder={isAtTickerLimit ? 'Limit reached (10 max)' : 'Add ticker (e.g. AMD)'}
+                    aria-label="Add ticker symbol"
+                    className="w-40 bg-black border border-[#3a3a3a] focus:border-[#38bdf8] disabled:opacity-50 disabled:cursor-not-allowed rounded px-2 py-0.5 text-xs text-zinc-100 placeholder:text-zinc-400 outline-none uppercase font-mono transition-colors"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isAtTickerLimit || !tickerInput.trim()}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-[#38bdf8] bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 text-[#38bdf8] disabled:opacity-40 disabled:border-[#3a3a3a] disabled:bg-black disabled:text-zinc-400 disabled:cursor-not-allowed font-bold uppercase transition-colors cursor-pointer"
+                  >
+                    <Plus size={11} />
+                    <span>ADD</span>
+                  </button>
+                </form>
+
+                {isAtTickerLimit && (
+                  <span className="text-[#ff9900] text-xs font-bold" role="status">
+                    Maximum of {MAX_POLYMARKET_TICKERS} tickers reached. Remove a ticker to add another.
+                  </span>
+                )}
+                {!isAtTickerLimit && tickerEditError && (
+                  <span className="text-[#ff4444] text-xs font-bold" role="alert">
+                    {tickerEditError}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

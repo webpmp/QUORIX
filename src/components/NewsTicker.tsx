@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { RefreshCw, ExternalLink, Globe, AlertCircle, Info } from 'lucide-react';
 import { NewsItem } from '../types';
+import NewsPaywallBadge from './NewsPaywallBadge';
+import {
+  formatTickerTimestamp,
+  isNewsItemPaywalled,
+  normalizeClientNewsUrl,
+  subscribePaywallUpdates,
+  syncNewsPaywallStatuses,
+} from '../utils/newsPaywall';
 
 interface NewsTickerResponse {
   success: boolean;
@@ -70,7 +78,7 @@ function deduplicateTickerNews(items: NewsItem[]): NewsItem[] {
   for (const item of items) {
     const normTitle = normalizeTickerTitle(item?.title);
     if (!normTitle) continue;
-    const normUrl = normalizeTickerUrl(item?.url);
+    const normUrl = normalizeClientNewsUrl(item?.url) || normalizeTickerUrl(item?.url);
     if (normUrl && seenUrls.has(normUrl)) continue;
     if (seenTitles.has(normTitle)) continue;
 
@@ -97,6 +105,7 @@ export default function NewsTicker() {
   const [viewportWidth, setViewportWidth] = useState<number>(0);
   const [marqueeDurationSec, setMarqueeDurationSec] = useState<number>(150);
   const [feedVersion, setFeedVersion] = useState<number>(0);
+  const [paywallSyncVersion, setPaywallSyncVersion] = useState<number>(0);
   const lastSlotRef = React.useRef<number>(getCurrentRotationSlot());
   const lastFeedSigRef = React.useRef<string>('');
   const newsCountRef = React.useRef<number>(0);
@@ -157,8 +166,11 @@ export default function NewsTicker() {
       if (result.success && Array.isArray(result.data)) {
         setError(null);
         const uniqueNews = deduplicateTickerNews(result.data);
+        syncNewsPaywallStatuses(uniqueNews);
         const nextSource = result.activeSource ?? null;
-        const nextSig = `${nextSource || ''}|${uniqueNews.map((item) => `${item.id}:${item.title}:${item.url || ''}`).join('|')}`;
+        const nextSig = `${nextSource || ''}|${uniqueNews
+          .map((item) => `${item.id}:${item.title}:${item.url || ''}:${isNewsItemPaywalled(item) ? '1' : '0'}`)
+          .join('|')}`;
         if (nextSig !== lastFeedSigRef.current) {
           lastFeedSigRef.current = nextSig;
           newsCountRef.current = uniqueNews.length;
@@ -205,6 +217,9 @@ export default function NewsTicker() {
       fetchNews(true, getCurrentRotationSlot());
     };
     window.addEventListener('quorix-settings-updated', handleSettingsUpdate);
+    const unsubscribePaywall = subscribePaywallUpdates(() => {
+      setPaywallSyncVersion((v) => v + 1);
+    });
     return () => {
       isMountedRef.current = false;
       if (retryTimeoutRef.current) {
@@ -213,6 +228,7 @@ export default function NewsTicker() {
       }
       clearInterval(interval);
       window.removeEventListener('quorix-settings-updated', handleSettingsUpdate);
+      unsubscribePaywall();
     };
   }, []);
 
@@ -235,7 +251,7 @@ export default function NewsTicker() {
 
   React.useLayoutEffect(() => {
     updateMarqueeMetrics();
-  }, [updateMarqueeMetrics, news, feedVersion]);
+  }, [updateMarqueeMetrics, news, feedVersion, paywallSyncVersion]);
 
   useEffect(() => {
     const seqEl = firstSequenceRef.current;
@@ -362,14 +378,8 @@ export default function NewsTicker() {
             {/* First sequence */}
             <div ref={firstSequenceRef} className="marquee-sequence flex items-center gap-12 pr-12">
               {news.map((item, index) => {
-                /* Sentiment temporarily disabled until accuracy is improved
-                const sentimentColor = 
-                  item.sentiment === 'positive' ? 'text-[#00ff00]' : 
-                  item.sentiment === 'negative' ? 'text-[#ff4444]' : 'text-zinc-300';
-                const sentimentSymbol = 
-                  item.sentiment === 'positive' ? '▲' : 
-                  item.sentiment === 'negative' ? '▼' : '●';
-                */
+                const paywalled = isNewsItemPaywalled(item);
+                const tickerTime = formatTickerTimestamp(item.time);
 
                 return (
                   <a
@@ -386,14 +396,12 @@ export default function NewsTicker() {
                     <span className="text-xs text-[#3498db] font-bold uppercase shrink-0">
                       [{formatSourceLabel(item.source)}]
                     </span>
-                    <span className="text-xs text-zinc-300 shrink-0 font-mono">
-                      {item.time}
-                    </span>
-                    {/* Sentiment temporarily disabled until accuracy is improved
-                    <span className={`inline-flex items-center justify-center leading-none self-center text-xs font-bold shrink-0 ${sentimentColor}`} title={`Sentiment: ${item.sentiment}`}>
-                      {sentimentSymbol}
-                    </span>
-                    */}
+                    {paywalled && <NewsPaywallBadge />}
+                    {tickerTime && (
+                      <span className="text-xs text-zinc-300 shrink-0 font-mono">
+                        {tickerTime}
+                      </span>
+                    )}
                     <ExternalLink size={8} className="text-zinc-300 group-hover:text-[#00ff00] opacity-0 group-hover:opacity-100 transition-all ml-0.5" />
                   </a>
                 );
@@ -403,14 +411,8 @@ export default function NewsTicker() {
             {/* Identical cloned second sequence for seamless loop */}
             <div className="marquee-sequence flex items-center gap-12 pr-12" aria-hidden="true">
               {news.map((item, index) => {
-                /* Sentiment temporarily disabled until accuracy is improved
-                const sentimentColor = 
-                  item.sentiment === 'positive' ? 'text-[#00ff00]' : 
-                  item.sentiment === 'negative' ? 'text-[#ff4444]' : 'text-zinc-300';
-                const sentimentSymbol = 
-                  item.sentiment === 'positive' ? '▲' : 
-                  item.sentiment === 'negative' ? '▼' : '●';
-                */
+                const paywalled = isNewsItemPaywalled(item);
+                const tickerTime = formatTickerTimestamp(item.time);
 
                 return (
                   <a
@@ -428,14 +430,12 @@ export default function NewsTicker() {
                     <span className="text-xs text-[#3498db] font-bold uppercase shrink-0">
                       [{formatSourceLabel(item.source)}]
                     </span>
-                    <span className="text-xs text-zinc-300 shrink-0 font-mono">
-                      {item.time}
-                    </span>
-                    {/* Sentiment temporarily disabled until accuracy is improved
-                    <span className={`inline-flex items-center justify-center leading-none self-center text-xs font-bold shrink-0 ${sentimentColor}`} title={`Sentiment: ${item.sentiment}`}>
-                      {sentimentSymbol}
-                    </span>
-                    */}
+                    {paywalled && <NewsPaywallBadge />}
+                    {tickerTime && (
+                      <span className="text-xs text-zinc-300 shrink-0 font-mono">
+                        {tickerTime}
+                      </span>
+                    )}
                     <ExternalLink size={8} className="text-zinc-300 group-hover:text-[#00ff00] opacity-0 group-hover:opacity-100 transition-all ml-0.5" />
                   </a>
                 );
