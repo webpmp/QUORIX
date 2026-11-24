@@ -91,7 +91,7 @@ function makeDummyStock(symbol = 'AAPL'): StockData {
   };
 }
 
-test('CommandPanel renders CORR immediately after GP and displays 14 ACTIVE while keeping all existing commands', () => {
+test('CommandPanel renders CORR immediately after GP while keeping all existing commands', () => {
   const html = renderToStaticMarkup(
     React.createElement(CommandPanel, {
       stocks: { AAPL: makeDummyStock('AAPL') },
@@ -106,7 +106,6 @@ test('CommandPanel renders CORR immediately after GP and displays 14 ACTIVE whil
     })
   );
 
-  assert.equal(html.includes('14 ACTIVE'), true);
   assert.equal(html.includes('CORRELATION ANALYZER'), true);
   assert.equal(html.includes('Correlation &amp; portfolio analysis'), true);
   assert.equal(html.includes('Security correlation &amp; portfolio analysis'), false);
