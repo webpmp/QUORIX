@@ -1,0 +1,18 @@
+
+services:
+  quorix:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quorix
+    restart: unless-stopped
+
+    ports:
+      - "3002:3000"
+
+    env_file:
+      - .env
+
+    environment:
+      NODE_ENV: production
+      PORT: 3000
