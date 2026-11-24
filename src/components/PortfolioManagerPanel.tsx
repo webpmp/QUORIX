@@ -102,6 +102,9 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
   const [manualValidating, setManualValidating] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchOption[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchHighlightedIndex, setSearchHighlightedIndex] = useState<number>(-1);
+  const searchContainerRef = useRef<HTMLDivElement | null>(null);
+  const searchDropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Cash quick-edit state
   const [cashInput, setCashInput] = useState<string>(
@@ -153,11 +156,25 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
     setCashInput(activePortfolio ? String(activePortfolio.cashBalance) : '0');
   }, [activePortfolio?.id, activePortfolio?.cashBalance]);
 
+  // Close search dropdown on outside click
+  useEffect(() => {
+    if (!searchOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+        setSearchHighlightedIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [searchOpen]);
+
   // Live ticker autocomplete using existing /api/market/search
   useEffect(() => {
     const q = tickerInput.trim();
     if (!q || q.length < 1 || activeTab !== 'manual') {
       setSearchResults([]);
+      setSearchHighlightedIndex(-1);
       return;
     }
     let cancelled = false;
@@ -177,9 +194,13 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                 exchange: String(r.exchange || ''),
               }))
           );
+          setSearchHighlightedIndex(-1);
         }
       } catch {
-        if (!cancelled) setSearchResults([]);
+        if (!cancelled) {
+          setSearchResults([]);
+          setSearchHighlightedIndex(-1);
+        }
       }
     }, 220);
 
@@ -483,7 +504,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div className="relative">
+              <div ref={searchContainerRef} className="relative">
                 <label className="block text-[10px] text-zinc-400 uppercase font-bold mb-1">
                   Ticker Symbol *
                 </label>
@@ -495,9 +516,53 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                     onChange={(e) => {
                       setTickerInput(e.target.value.toUpperCase());
                       setSearchOpen(true);
+                      setSearchHighlightedIndex(-1);
                       setManualError(null);
                     }}
-                    onFocus={() => setSearchOpen(true)}
+                    onFocus={() => {
+                      if (searchResults.length > 0) setSearchOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowDown') {
+                        if (searchResults.length > 0) {
+                          e.preventDefault();
+                          if (!searchOpen) {
+                            setSearchOpen(true);
+                            setSearchHighlightedIndex(0);
+                          } else {
+                            setSearchHighlightedIndex((prev) =>
+                              prev < searchResults.length - 1 ? prev + 1 : 0
+                            );
+                          }
+                        }
+                      } else if (e.key === 'ArrowUp') {
+                        if (searchResults.length > 0) {
+                          e.preventDefault();
+                          if (!searchOpen) {
+                            setSearchOpen(true);
+                            setSearchHighlightedIndex(searchResults.length - 1);
+                          } else {
+                            setSearchHighlightedIndex((prev) =>
+                              prev <= 0 ? searchResults.length - 1 : prev - 1
+                            );
+                          }
+                        }
+                      } else if (e.key === 'Enter') {
+                        if (searchOpen && searchHighlightedIndex >= 0 && searchHighlightedIndex < searchResults.length) {
+                          e.preventDefault();
+                          const selected = searchResults[searchHighlightedIndex];
+                          setTickerInput(selected.symbol);
+                          setSearchOpen(false);
+                          setSearchHighlightedIndex(-1);
+                        }
+                      } else if (e.key === 'Escape') {
+                        if (searchOpen) {
+                          e.preventDefault();
+                          setSearchOpen(false);
+                          setSearchHighlightedIndex(-1);
+                        }
+                      }
+                    }}
                     placeholder="AAPL, SPY..."
                     className="w-full bg-transparent text-xs text-zinc-100 uppercase outline-none placeholder-zinc-600"
                     autoComplete="off"
@@ -505,24 +570,38 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                   />
                 </div>
                 {searchOpen && searchResults.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-[#0a0a0a] border border-[#444] rounded shadow-xl max-h-48 overflow-y-auto">
-                    {searchResults.map((opt) => (
-                      <button
-                        key={opt.symbol}
-                        type="button"
-                        onClick={() => {
-                          setTickerInput(opt.symbol);
-                          setSearchOpen(false);
-                        }}
-                        className="w-full text-left px-2.5 py-1.5 hover:bg-[#1a1a1a] border-b border-[#1c1c1c] last:border-b-0 flex items-center justify-between gap-2 text-[10.5px] cursor-pointer"
-                      >
-                        <div className="min-w-0">
-                          <span className="text-[#3498db] font-bold mr-1.5">{opt.symbol}</span>
-                          <span className="text-zinc-300 truncate">{opt.name}</span>
-                        </div>
-                        <span className="text-[9px] text-zinc-500 shrink-0">{opt.instrumentType}</span>
-                      </button>
-                    ))}
+                  <div
+                    ref={searchDropdownRef}
+                    role="listbox"
+                    aria-label="Search suggestions"
+                    className="absolute left-0 top-full mt-1 z-30 w-[32rem] max-w-[calc(100vw-2rem)] bg-[#0a0a0a] border border-[#444] rounded shadow-xl max-h-48 overflow-y-auto"
+                  >
+                    {searchResults.map((opt, idx) => {
+                      const isHighlighted = idx === searchHighlightedIndex;
+                      return (
+                        <button
+                          key={opt.symbol}
+                          type="button"
+                          role="option"
+                          aria-selected={isHighlighted}
+                          onClick={() => {
+                            setTickerInput(opt.symbol);
+                            setSearchOpen(false);
+                            setSearchHighlightedIndex(-1);
+                          }}
+                          onMouseEnter={() => setSearchHighlightedIndex(idx)}
+                          className={`w-full text-left px-2.5 py-1.5 border-b border-[#1c1c1c] last:border-b-0 flex items-center justify-between gap-3 text-[10.5px] cursor-pointer transition-colors ${
+                            isHighlighted ? 'bg-[#1e293b] text-white' : 'hover:bg-[#1a1a1a]'
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                            <span className="text-[#3498db] font-bold shrink-0">{opt.symbol}</span>
+                            <span className="text-zinc-300 truncate">{opt.name}</span>
+                          </div>
+                          <span className="text-[9px] text-zinc-500 shrink-0 uppercase">{opt.instrumentType}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
