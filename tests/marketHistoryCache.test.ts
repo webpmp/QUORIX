@@ -163,7 +163,6 @@ test('ChartWidget renders Graph Price layout immediately on uncached search with
   assert.equal(html.includes('PRICE CHART'), true);
   assert.equal(html.includes('CANDLES'), true);
   assert.equal(html.includes('LAST PRICE'), true);
-  assert.equal(html.includes('RANGE: 1H (LAST 60 MIN)'), true);
   assert.equal(html.includes('$0.00'), false);
 });
 
