@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StockData } from '../types';
+import { COMMAND_DEFINITIONS } from '../utils/commandParser';
 import { GripHorizontal, ChevronUp, ChevronDown, X, GripVertical, RotateCcw } from 'lucide-react';
 
 interface CommandPanelProps {
@@ -88,22 +89,7 @@ export default function CommandPanel({
   }, [isDragging]);
 
   // Command structures
-  const commands = [
-    { code: 'ASK', name: 'ASK QUORIX', desc: 'Consult AI analyst', category: 'Tools' },
-    { code: 'NEWS', name: 'NEWS HUB', desc: 'Real-time grounding', category: 'Information' },
-    { code: 'GP', name: 'GRAPH PRICE', desc: 'Candlestick / Vol Chart', category: 'Equities' },
-    { code: 'CORR', name: 'CORRELATION ANALYZER', desc: 'Correlation & portfolio analysis', category: 'Equities' },
-    { code: 'PRM', name: 'PORTFOLIO RISK MONITOR', desc: 'Exposure, risk & stress tests', category: 'Equities' },
-    { code: 'HP', name: 'HISTORICAL PRICING', desc: 'Price Archive table', category: 'Equities' },
-    { code: 'DES', name: 'SECURITY ANALYTICS', desc: 'Core Info & Bio', category: 'Equities' },
-    { code: 'ANR', name: 'ANALYST RECS', desc: 'Consensus estimates', category: 'Equities' },
-    { code: 'INST', name: 'INSTITUTIONAL ACTIVITY', desc: '13F Holdings & Accumulation', category: 'Equities' },
-    { code: 'CRNC', name: 'CURRENCIES (FX)', desc: 'Foreign Exchange Rates', category: 'Macro' },
-    { code: 'ECO', name: 'ECONOMIC INDICATOR', desc: 'FRED Macro & Calendar', category: 'Macro' },
-    { code: 'POLY', name: 'POLYMARKET SCREENER', desc: 'Predictive market arbitrage', category: 'Macro' },
-    { code: 'SETT', name: 'SYSTEM SETTINGS', desc: 'Configure API Keys', category: 'Tools' },
-    { code: 'HELP', name: 'USER MANUAL', desc: 'Syntax reference guide', category: 'Tools' }
-  ];
+  const commands = COMMAND_DEFINITIONS;
 
   return (
     <div className="w-full lg:w-72 h-full bg-[#050505] border-[#333] border-r flex flex-col font-mono text-xs select-none overflow-hidden">
