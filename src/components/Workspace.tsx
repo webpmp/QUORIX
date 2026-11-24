@@ -341,6 +341,7 @@ export default function Workspace({
   });
   const lastProcessedQueryIdRef = useRef<number | null>(null);
   const lastProcessedPrefillIdRef = useRef<number | null>(null);
+  const lastPrefillTextRef = useRef<string | null>(askPrefillPrompt?.text || null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const bwriteInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1014,6 +1015,7 @@ export default function Workspace({
       lastProcessedPrefillIdRef.current !== askPrefillPrompt.id
     ) {
       lastProcessedPrefillIdRef.current = askPrefillPrompt.id;
+      lastPrefillTextRef.current = askPrefillPrompt.text;
       setUserInput(askPrefillPrompt.text);
       onClearAskPrefillPrompt?.();
       const id = requestAnimationFrame(() => {
@@ -1026,6 +1028,16 @@ export default function Workspace({
       return () => cancelAnimationFrame(id);
     }
   }, [activeScreen, askPrefillPrompt]);
+
+  // When leaving the ASK/BWRITE screen, clear stale prefill if the user never modified it.
+  useEffect(() => {
+    if (activeScreen !== 'ASK' && activeScreen !== 'BWRITE') {
+      if (lastPrefillTextRef.current !== null && userInput === lastPrefillTextRef.current) {
+        setUserInput('');
+      }
+      lastPrefillTextRef.current = null;
+    }
+  }, [activeScreen, userInput]);
 
   useEffect(() => {
     if (activeScreen === 'ASK' || activeScreen === 'BWRITE') {
@@ -2034,7 +2046,10 @@ export default function Workspace({
               ref={bwriteInputRef}
               type="text"
               value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
+              onChange={(e) => {
+                lastPrefillTextRef.current = null;
+                setUserInput(e.target.value);
+              }}
               placeholder="Ask QUORIX AI (e.g., Explain inflation logic, summarize oil trends, compare NVDA and AAPL metrics...)"
               className={`flex-1 bg-black border border-[#333] focus:border-[#3498db] rounded p-2 ${activeBwriteFont.input} font-mono text-[#00ff00] outline-none placeholder-zinc-700`}
               disabled={isAiLoading}
