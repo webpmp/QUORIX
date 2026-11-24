@@ -124,6 +124,55 @@ test('CommandPanel renders CORR immediately after GP while keeping all existing 
   }
 });
 
+test('Command line and Workspace route BWRITE legacy alias directly to ASK', () => {
+  // CommandPanel should NOT list BWRITE as an explicit command shortcut or separate entry
+  const panelHtml = renderToStaticMarkup(
+    React.createElement(CommandPanel, {
+      stocks: { AAPL: makeDummyStock('AAPL') },
+      trackedTickers: ['AAPL'],
+      selectedTicker: 'AAPL',
+      onSelectTicker: () => {},
+      onReorderTicker: () => {},
+      onRemoveTicker: () => {},
+      onResetTrackedTickers: () => {},
+      activeScreen: 'ASK',
+      onSelectScreen: () => {},
+    })
+  );
+  assert.equal(panelHtml.includes('id="cmd-shortcut-ASK"'), true);
+  assert.equal(panelHtml.includes('id="cmd-shortcut-BWRITE"'), false);
+
+  // Workspace rendered with activeScreen='BWRITE' or 'ASK' resolves to same QUORIX INTELLIGENCE interface
+  const askHtml = renderToStaticMarkup(
+    React.createElement(Workspace, {
+      activeScreen: 'ASK',
+      selectedTicker: 'AAPL',
+      stocks: { AAPL: makeDummyStock('AAPL') },
+      trackedTickers: ['AAPL'],
+      currencies: [],
+      economics: [],
+      onExecuteCommand: () => {},
+    })
+  );
+
+  const bwriteHtml = renderToStaticMarkup(
+    React.createElement(Workspace, {
+      activeScreen: 'BWRITE',
+      selectedTicker: 'AAPL',
+      stocks: { AAPL: makeDummyStock('AAPL') },
+      trackedTickers: ['AAPL'],
+      currencies: [],
+      economics: [],
+      onExecuteCommand: () => {},
+    })
+  );
+
+  assert.equal(askHtml.includes('QUORIX INTELLIGENCE'), true);
+  assert.equal(bwriteHtml.includes('QUORIX INTELLIGENCE'), true);
+  assert.equal(askHtml.includes('QI — ASK COMMAND EXAMPLES'), true);
+  assert.equal(bwriteHtml.includes('QI — ASK COMMAND EXAMPLES'), true);
+});
+
 test('Workspace routes CORR to Correlation Analyzer and lists CORR in HELP reference', () => {
   const corrHtml = renderToStaticMarkup(
     React.createElement(Workspace, {
