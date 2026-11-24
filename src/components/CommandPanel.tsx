@@ -176,17 +176,17 @@ export default function CommandPanel({
           className="flex flex-col min-h-0 border-b border-[#333]"
           style={{ height: `${equitiesHeightPct}%` }}
         >
-          <div className="px-3 pt-3 pb-2 shrink-0 flex items-center justify-between text-xs text-zinc-300 font-bold tracking-widest uppercase">
-            <span>Tracked Equities</span>
-            <div className="flex items-center gap-1.5">
+          <div className="px-3 pt-3 pb-2 shrink-0 flex items-center justify-between text-xs text-zinc-300 font-bold tracking-wider uppercase gap-2">
+            <span className="whitespace-nowrap shrink-0">Tracked Equities</span>
+            <div className="flex items-center gap-1.5 shrink-0">
               {isEditingEquities && (
                 <button
                   type="button"
                   onClick={onResetTrackedTickers}
                   title="Restore default watchlist"
-                  className="text-xs text-zinc-300 hover:text-[#ff9900] border border-[#333] hover:border-[#ff9900] px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors cursor-pointer"
+                  className="text-xs text-zinc-300 hover:text-[#ff9900] border border-[#3a3a3a] hover:border-[#ff9900] px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors cursor-pointer"
                 >
-                  <RotateCcw size={9} />
+                  <RotateCcw size={10} />
                   <span>RESET</span>
                 </button>
               )}
@@ -194,19 +194,14 @@ export default function CommandPanel({
                 type="button"
                 onClick={() => setIsEditingEquities((prev) => !prev)}
                 title={isEditingEquities ? 'Finish editing watchlist' : 'Rearrange or remove tracked equities'}
-                className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                className={`text-xs font-mono font-bold px-2 py-0.5 rounded border transition-colors cursor-pointer ${
                   isEditingEquities
                     ? 'border-[#ff9900] bg-[#ff9900]/15 text-[#ff9900]'
-                    : 'border-[#333] text-zinc-300 hover:border-[#3498db] hover:text-[#3498db]'
+                    : 'border-[#3a3a3a] text-zinc-300 hover:border-[#3498db] hover:text-[#3498db]'
                 }`}
               >
                 {isEditingEquities ? 'DONE' : 'EDIT'}
               </button>
-              {!isEditingEquities && (
-                <span className="text-[#3498db] font-mono text-xs">
-                  {trackedTickers.length} TICKERS
-                </span>
-              )}
             </div>
           </div>
 
