@@ -147,7 +147,7 @@ export default function App() {
         ...prev,
         [sym]: resolution.isInvalidTicker ? 'invalid' : 'unavailable',
       }));
-      return;
+      return resolution;
     }
 
     const resolvedStock = resolution.stock;
@@ -174,6 +174,7 @@ export default function App() {
     if (resolvedSym !== sym) {
       setSelectedTicker((prev) => (prev === sym ? resolvedSym : prev));
     }
+    return resolution;
   }, []);
 
   const fetchFredEconomics = useCallback(async (force = false) => {
@@ -367,15 +368,21 @@ export default function App() {
       if (targetScreen === 'CORR') {
         setCorrSeedTicker({ id: Date.now(), symbol: ticker });
       }
-      if (targetScreen === 'ASK') {
-        setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${ticker}` });
-        setFocusAskQuorixSignal((n) => n + 1);
-      }
       if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker)) {
+        if (targetScreen === 'ASK') {
+          setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${ticker}` });
+          setFocusAskQuorixSignal((n) => n + 1);
+        }
         ensureTickerSlot(ticker, false);
         fetchLiveQuote(ticker, false, true);
-      } else if (quoteLoadState[ticker] !== 'loading') {
-        void searchAndAddTrackedEquity(ticker);
+      } else {
+        void searchAndAddTrackedEquity(ticker).then((res) => {
+          if (res?.accepted && targetScreen === 'ASK') {
+            const resolvedSym = res.stock?.symbol || ticker;
+            setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${resolvedSym}` });
+            setFocusAskQuorixSignal((n) => n + 1);
+          }
+        });
       }
       return;
     }
@@ -390,15 +397,21 @@ export default function App() {
       if (targetScreen === 'CORR') {
         setCorrSeedTicker({ id: Date.now(), symbol: ticker });
       }
-      if (targetScreen === 'ASK') {
-        setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${ticker}` });
-        setFocusAskQuorixSignal((n) => n + 1);
-      }
       if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker)) {
+        if (targetScreen === 'ASK') {
+          setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${ticker}` });
+          setFocusAskQuorixSignal((n) => n + 1);
+        }
         ensureTickerSlot(ticker, false);
         fetchLiveQuote(ticker, false, true);
-      } else if (quoteLoadState[ticker] !== 'loading') {
-        void searchAndAddTrackedEquity(ticker);
+      } else {
+        void searchAndAddTrackedEquity(ticker).then((res) => {
+          if (res?.accepted && targetScreen === 'ASK') {
+            const resolvedSym = res.stock?.symbol || ticker;
+            setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${resolvedSym}` });
+            setFocusAskQuorixSignal((n) => n + 1);
+          }
+        });
       }
       return;
     }
