@@ -92,6 +92,7 @@ export default function App() {
   // Custom global command input state
   const [currentCommand, setCurrentCommand] = useState<string>('');
   const [pendingAiQuery, setPendingAiQuery] = useState<{ id: number; text: string } | null>(null);
+  const [askPrefillPrompt, setAskPrefillPrompt] = useState<{ id: number; text: string } | null>(null);
   const [corrSeedTicker, setCorrSeedTicker] = useState<{ id: number; symbol: string } | null>(null);
   const [focusAskQuorixSignal, setFocusAskQuorixSignal] = useState<number>(0);
   const [tickTime, setTickTime] = useState<string>('');
@@ -346,7 +347,11 @@ export default function App() {
     };
 
     if (directScreens.includes(primary) && !secondary) {
-      setActiveScreen(resolveScreenCode(primary));
+      const resolved = resolveScreenCode(primary);
+      setActiveScreen(resolved);
+      if (resolved === 'ASK') {
+        setFocusAskQuorixSignal((n) => n + 1);
+      }
       return;
     }
 
@@ -361,6 +366,10 @@ export default function App() {
       setActiveScreen(targetScreen);
       if (targetScreen === 'CORR') {
         setCorrSeedTicker({ id: Date.now(), symbol: ticker });
+      }
+      if (targetScreen === 'ASK') {
+        setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${ticker}` });
+        setFocusAskQuorixSignal((n) => n + 1);
       }
       if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker)) {
         ensureTickerSlot(ticker, false);
@@ -380,6 +389,10 @@ export default function App() {
       setActiveScreen(targetScreen);
       if (targetScreen === 'CORR') {
         setCorrSeedTicker({ id: Date.now(), symbol: ticker });
+      }
+      if (targetScreen === 'ASK') {
+        setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${ticker}` });
+        setFocusAskQuorixSignal((n) => n + 1);
       }
       if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker)) {
         ensureTickerSlot(ticker, false);
@@ -476,6 +489,8 @@ export default function App() {
           }}
           pendingAiQuery={pendingAiQuery}
           onClearPendingAiQuery={() => setPendingAiQuery(null)}
+          askPrefillPrompt={askPrefillPrompt}
+          onClearAskPrefillPrompt={() => setAskPrefillPrompt(null)}
           focusAskQuorixSignal={focusAskQuorixSignal}
           onTickTimeChange={setTickTime}
         />

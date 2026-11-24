@@ -43,6 +43,8 @@ interface WorkspaceProps {
   onSelectTicker?: (ticker: string) => void;
   pendingAiQuery?: { id: number; text: string } | null;
   onClearPendingAiQuery?: () => void;
+  askPrefillPrompt?: { id: number; text: string } | null;
+  onClearAskPrefillPrompt?: () => void;
   focusAskQuorixSignal?: number;
   onTickTimeChange?: (val: string) => void;
 }
@@ -313,6 +315,8 @@ export default function Workspace({
   onSelectTicker,
   pendingAiQuery,
   onClearPendingAiQuery,
+  askPrefillPrompt,
+  onClearAskPrefillPrompt,
   focusAskQuorixSignal = 0,
   onTickTimeChange
 }: WorkspaceProps) {
@@ -336,6 +340,7 @@ export default function Workspace({
     return 1;
   });
   const lastProcessedQueryIdRef = useRef<number | null>(null);
+  const lastProcessedPrefillIdRef = useRef<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const bwriteInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1002,6 +1007,27 @@ export default function Workspace({
   }, [activeScreen, pendingAiQuery]);
 
   useEffect(() => {
+    if (
+      (activeScreen === 'ASK' || activeScreen === 'BWRITE') &&
+      askPrefillPrompt &&
+      askPrefillPrompt.text &&
+      lastProcessedPrefillIdRef.current !== askPrefillPrompt.id
+    ) {
+      lastProcessedPrefillIdRef.current = askPrefillPrompt.id;
+      setUserInput(askPrefillPrompt.text);
+      onClearAskPrefillPrompt?.();
+      const id = requestAnimationFrame(() => {
+        if (bwriteInputRef.current) {
+          bwriteInputRef.current.focus();
+          const len = askPrefillPrompt.text.length;
+          bwriteInputRef.current.setSelectionRange(len, len);
+        }
+      });
+      return () => cancelAnimationFrame(id);
+    }
+  }, [activeScreen, askPrefillPrompt]);
+
+  useEffect(() => {
     if (activeScreen === 'ASK' || activeScreen === 'BWRITE') {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
@@ -1010,7 +1036,11 @@ export default function Workspace({
   useEffect(() => {
     if (activeScreen === 'ASK' || activeScreen === 'BWRITE') {
       const id = requestAnimationFrame(() => {
-        bwriteInputRef.current?.focus();
+        if (bwriteInputRef.current) {
+          bwriteInputRef.current.focus();
+          const len = bwriteInputRef.current.value.length;
+          bwriteInputRef.current.setSelectionRange(len, len);
+        }
       });
       return () => cancelAnimationFrame(id);
     }
