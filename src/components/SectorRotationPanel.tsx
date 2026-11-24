@@ -732,7 +732,7 @@ export default function SectorRotationPanel({
                           <td className={`py-2 px-2 text-right font-bold ${getReturnColorClass(rs)}`}>
                             {formatReturnCell(rs)}
                           </td>
-                          <td className="py-2 px-2 text-right text-zinc-300">
+                          <td className="py-2 px-2 text-right text-zinc-100 font-bold tabular-nums">
                             {rank !== null ? `#${rank}` : '—'}
                           </td>
                           <td className="py-2 pl-2 text-right">
