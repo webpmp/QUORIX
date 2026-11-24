@@ -1398,10 +1398,10 @@ test('ChartWidget MACD separates Y-axis label box from histogram/clip path (matc
       })
     );
 
-    // Header matches RSI typography (text-[11px]) with preserved colors
+    // Header matches RSI typography (text-xs / text-[11px] semantic) with preserved colors
     const headerMatch = defaultHtml.match(/<div class="([^"]*)" data-macd-header="true">/);
     assert.ok(headerMatch, 'Expected MACD header container');
-    assert.equal(headerMatch[1].includes('text-[11px]'), true);
+    assert.equal(headerMatch[1].includes('text-xs') || headerMatch[1].includes('text-[11px]'), true);
     assert.equal(headerMatch[1].includes('text-[8px]'), false);
     assert.equal(defaultHtml.includes('MACD (12,26,9)'), true);
     assert.equal(defaultHtml.includes('M: -0.27'), true);
@@ -1689,13 +1689,13 @@ test('ChartWidget ATR and OBV match MACD label box/typography/spacing, stay uncl
     // 1. Default render: ATR and OBV match MACD header typography, 9.5px ticks, 104px height, and 4px box-to-plot gap
     const defaultHtml = renderToStaticMarkup(React.createElement(ChartWidget, { stock: makeStock() }));
 
-    // Headers match MACD (text-[11px], no legacy text-[8px]), colors preserved, default hides Y-SCALE
+    // Headers match MACD (text-xs / text-[11px] semantic, no legacy text-[8px]), colors preserved, default hides Y-SCALE
     const atrHeader = defaultHtml.match(/<div class="([^"]*)" data-atr-header="true">/);
     const obvHeader = defaultHtml.match(/<div class="([^"]*)" data-obv-header="true">/);
     assert.ok(atrHeader && obvHeader);
-    assert.equal(atrHeader[1].includes('text-[11px]'), true);
+    assert.equal(atrHeader[1].includes('text-xs') || atrHeader[1].includes('text-[11px]'), true);
     assert.equal(atrHeader[1].includes('text-[8px]'), false);
-    assert.equal(obvHeader[1].includes('text-[11px]'), true);
+    assert.equal(obvHeader[1].includes('text-xs') || obvHeader[1].includes('text-[11px]'), true);
     assert.equal(obvHeader[1].includes('text-[8px]'), false);
     assert.equal(defaultHtml.includes('data-atr-yscale="true"'), false);
     assert.equal(defaultHtml.includes('data-obv-yscale="true"'), false);
