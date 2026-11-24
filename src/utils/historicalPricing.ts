@@ -284,3 +284,175 @@ export function selectBestHistoricalBars(
   }
   return cleanIncoming;
 }
+
+export interface AlphaVantageEarningsParseResult {
+  reportedDates: string[];
+  rateLimited: boolean;
+  premiumRestricted: boolean;
+  notice: string | null;
+  errorMessage: string | null;
+}
+
+/**
+ * Validates that a string is a real ISO calendar date in YYYY-MM-DD format.
+ */
+export function isValidIsoCalendarDate(raw: unknown): raw is string {
+  if (typeof raw !== 'string') return false;
+  const trimmed = raw.trim();
+  const m = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const check = new Date(Date.UTC(year, month - 1, day));
+  return (
+    check.getUTCFullYear() === year &&
+    check.getUTCMonth() === month - 1 &&
+    check.getUTCDate() === day
+  );
+}
+
+/**
+ * Parses Alpha Vantage EARNINGS API payloads and extracts validated quarterly
+ * `reportedDate` strings (YYYY-MM-DD), strictly ignoring `fiscalDateEnding`
+ * and `annualEarnings`.
+ */
+export function parseAlphaVantageEarningsDates(
+  rawPayload: unknown
+): AlphaVantageEarningsParseResult {
+  if (!rawPayload || typeof rawPayload !== 'object') {
+    return {
+      reportedDates: [],
+      rateLimited: false,
+      premiumRestricted: false,
+      notice: null,
+      errorMessage: 'Empty Alpha Vantage earnings response.',
+    };
+  }
+
+  const payload = rawPayload as Record<string, unknown>;
+  const noticeText =
+    typeof payload.Information === 'string'
+      ? payload.Information
+      : typeof payload.Note === 'string'
+      ? payload.Note
+      : null;
+
+  const errorMessage =
+    typeof payload['Error Message'] === 'string' ? payload['Error Message'] : null;
+
+  const premiumRestricted = Boolean(
+    noticeText && /premium|subscription|paid/i.test(noticeText)
+  );
+  const rateLimited = Boolean(
+    noticeText && /rate limit|25 requests|per day|per minute|higher api call frequency/i.test(noticeText)
+  );
+
+  const quarterly = payload.quarterlyEarnings;
+  if (!Array.isArray(quarterly)) {
+    return {
+      reportedDates: [],
+      rateLimited,
+      premiumRestricted,
+      notice: noticeText,
+      errorMessage,
+    };
+  }
+
+  const uniqueDates = new Set<string>();
+  for (const record of quarterly) {
+    if (!record || typeof record !== 'object') continue;
+    const rawReportedDate = (record as Record<string, unknown>).reportedDate;
+    if (isValidIsoCalendarDate(rawReportedDate)) {
+      uniqueDates.add(rawReportedDate.trim());
+    }
+  }
+
+  return {
+    reportedDates: Array.from(uniqueDates).sort((a, b) => b.localeCompare(a)),
+    rateLimited,
+    premiumRestricted,
+    notice: noticeText,
+    errorMessage,
+  };
+}
+
+/**
+ * Derives the US Eastern Time (America/New_York) calendar date (YYYY-MM-DD) for a
+ * Historical Price Log bar using the same timezone convention as timestamp display
+ * and trading-day counting. Never fabricates a year if none is present.
+ */
+export function getHistoricalBarEasternIsoDate(
+  bar: Pick<HistoricalPriceBar, 'timestamp' | 'date'>
+): string | null {
+  if (!bar) return null;
+
+  if (typeof bar.timestamp === 'number' && Number.isFinite(bar.timestamp) && bar.timestamp > 0) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date(bar.timestamp * 1000));
+
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    if (year && month && day) {
+      const iso = `${year}-${month}-${day}`;
+      return isValidIsoCalendarDate(iso) ? iso : null;
+    }
+  }
+
+  if (typeof bar.date === 'string') {
+    const trimmed = bar.date.trim();
+    const isoMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})(?:\b|\s|$)/);
+    if (isoMatch && isValidIsoCalendarDate(isoMatch[1])) {
+      return isoMatch[1];
+    }
+
+    const usWithYearMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})(?:\s|$)/);
+    if (usWithYearMatch) {
+      const month = usWithYearMatch[1].padStart(2, '0');
+      const day = usWithYearMatch[2].padStart(2, '0');
+      const rawYear = usWithYearMatch[3];
+      const fullYear = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+      const iso = `${fullYear}-${month}-${day}`;
+      return isValidIsoCalendarDate(iso) ? iso : null;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Returns the subset of earnings `reportedDate` values (YYYY-MM-DD) that match
+ * actual trading dates present in the displayed Historical Price Log bars.
+ */
+export function matchEarningsDatesToBars(
+  reportedDates: readonly string[],
+  bars: readonly HistoricalPriceBar[]
+): Set<string> {
+  const matched = new Set<string>();
+  if (!Array.isArray(reportedDates) || reportedDates.length === 0) return matched;
+  if (!Array.isArray(bars) || bars.length === 0) return matched;
+
+  const reportedSet = new Set<string>();
+  for (const dateStr of reportedDates) {
+    if (isValidIsoCalendarDate(dateStr)) {
+      reportedSet.add(dateStr.trim());
+    }
+  }
+  if (reportedSet.size === 0) return matched;
+
+  for (const bar of bars) {
+    const barIso = getHistoricalBarEasternIsoDate(bar);
+    if (barIso && reportedSet.has(barIso)) {
+      matched.add(barIso);
+    }
+  }
+
+  return matched;
+}
+

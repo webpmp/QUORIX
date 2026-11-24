@@ -498,7 +498,7 @@ export default function App() {
 
       {/* Bottom status boundary line */}
       <footer className="bg-black text-xs text-zinc-300 border-t border-[#333] px-3 py-1.5 flex justify-center items-center select-none font-mono">
-        <span>Quorix © 2026 Chris Adkins</span>
+        <span>QUORIX © 2026 Chris Adkins</span>
       </footer>
     </div>
   );

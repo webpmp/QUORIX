@@ -7,7 +7,10 @@ import {
   countDistinctTradingDays,
   deduplicateAndSortHistoricalBars,
   formatHistoricalHourlyTimestamp,
+  getHistoricalBarEasternIsoDate,
   isClosingPriceSnapshotBar,
+  matchEarningsDatesToBars,
+  parseAlphaVantageEarningsDates,
   parseAlphaVantageIntradayBars,
   parseEasternTimestampToSeconds,
   selectBestHistoricalBars,
@@ -302,9 +305,9 @@ test('Workspace HP screen renders INTERVAL VOLUME header, all 7 columns, A-/A+ c
   assert.equal(html.includes('A-'), true);
   assert.equal(html.includes('A+'), true);
 
-  // Coverage indicator and accurate 4:00 PM snapshot vs active intraday labeling
-  assert.equal(html.includes('3 BARS'), true);
-  assert.equal(html.includes('2 TRADING DAYS'), true);
+  // Coverage indicator (trading days & 60M without bar count) and accurate 4:00 PM snapshot vs active intraday labeling
+  assert.equal(html.includes('BARS'), false);
+  assert.equal(html.includes('2 TRADING DAYS • 60M'), true);
   assert.equal(html.includes('11/20 16:00 (Market Close)'), true);
   assert.equal(html.includes('11/20 15:30 (Intraday)'), true);
   assert.equal(html.includes('11/19 09:30 (Intraday)'), true);
@@ -312,7 +315,7 @@ test('Workspace HP screen renders INTERVAL VOLUME header, all 7 columns, A-/A+ c
   // Header -> TEXT SIZE controls -> right-aligned statistics -> scrollable table ordering
   const idxTitle = html.indexOf('AAPL Historical Price Log');
   const idxTextSize = html.indexOf('TEXT SIZE');
-  const idxStats = html.indexOf('3 BARS');
+  const idxStats = html.indexOf('2 TRADING DAYS • 60M');
   const idxTableScroll = html.indexOf('overflow-y-auto overflow-x-auto');
   assert.ok(
     idxTitle > -1 && idxTextSize > idxTitle && idxStats > idxTextSize && idxTableScroll > idxStats,
@@ -324,4 +327,197 @@ test('Workspace HP screen renders INTERVAL VOLUME header, all 7 columns, A-/A+ c
   const idxLatestActive = html.indexOf('11/20 15:30 (Intraday)');
   const idxEarlierDay = html.indexOf('11/19 09:30 (Intraday)');
   assert.ok(idxClose > -1 && idxLatestActive > idxClose && idxEarlierDay > idxLatestActive);
+
+  // Without earnings dates, no earnings highlights or legend appear
+  assert.equal(html.includes('data-earnings-date='), false);
+  assert.equal(html.includes('EARNINGS DATE'), false);
 });
+
+test('parseAlphaVantageEarningsDates extracts quarterly reportedDate only, ignores fiscalDateEnding/annualEarnings, and handles rate limits/errors', () => {
+  const payload = {
+    symbol: 'AAPL',
+    annualEarnings: [
+      { fiscalDateEnding: '2026-09-30', reportedDate: '2026-10-30', reportedEPS: '7.45' },
+    ],
+    quarterlyEarnings: [
+      {
+        fiscalDateEnding: '2026-09-30',
+        reportedDate: '2026-10-29',
+        reportedEPS: '1.85',
+      },
+      {
+        fiscalDateEnding: '2026-06-30',
+        reportedDate: '2026-07-30',
+        reportedEPS: '1.52',
+      },
+      {
+        // Duplicate reportedDate and malformed dates must be deduplicated/ignored
+        fiscalDateEnding: '2026-09-30',
+        reportedDate: '2026-10-29',
+      },
+      {
+        fiscalDateEnding: '2026-03-31',
+        reportedDate: 'None',
+      },
+      {
+        fiscalDateEnding: '2025-12-31',
+        reportedDate: '2026-02-30',
+      },
+    ],
+  };
+
+  const parsed = parseAlphaVantageEarningsDates(payload);
+  assert.deepEqual(parsed.reportedDates, ['2026-10-29', '2026-07-30']);
+  // fiscalDateEnding and annualEarnings must never leak into reportedDates
+  assert.equal(parsed.reportedDates.includes('2026-09-30'), false);
+  assert.equal(parsed.reportedDates.includes('2026-06-30'), false);
+  assert.equal(parsed.reportedDates.includes('2026-10-30'), false);
+  assert.equal(parsed.rateLimited, false);
+  assert.equal(parsed.errorMessage, null);
+
+  const rateLimited = parseAlphaVantageEarningsDates({
+    Information: 'We have detected your API key and our standard API rate limit is 25 requests per day.',
+  });
+  assert.equal(rateLimited.reportedDates.length, 0);
+  assert.equal(rateLimited.rateLimited, true);
+
+  const emptyEtf = parseAlphaVantageEarningsDates({});
+  assert.deepEqual(emptyEtf.reportedDates, []);
+  assert.equal(emptyEtf.rateLimited, false);
+  assert.equal(emptyEtf.errorMessage, null);
+});
+
+test('getHistoricalBarEasternIsoDate and matchEarningsDatesToBars align US Eastern trading dates without fabricating years or extra dates', () => {
+  // 2026-10-29 19:30 ET (EDT = UTC-4) is 2026-10-29 23:30 UTC; 2026-11-19 19:30 ET (EST = UTC-5) is 2026-11-20 00:30 UTC!
+  const lateEstTs = parseEasternTimestampToSeconds('2026-11-19 19:30:00');
+  const openEdtTs = parseEasternTimestampToSeconds('2026-10-29 09:30:00');
+
+  const bars: HistoricalPriceBar[] = [
+    {
+      date: formatHistoricalHourlyTimestamp(lateEstTs, false),
+      timestamp: lateEstTs,
+      open: 200,
+      high: 202,
+      low: 199,
+      close: 201,
+      volume: 1000,
+    },
+    {
+      date: formatHistoricalHourlyTimestamp(openEdtTs, false),
+      timestamp: openEdtTs,
+      open: 195,
+      high: 198,
+      low: 194,
+      close: 197,
+      volume: 2000,
+    },
+    {
+      // Yearless string with no timestamp must return null rather than fabricating a year
+      date: '10/29 15:30',
+      timestamp: 0,
+      open: 196,
+      high: 197,
+      low: 195,
+      close: 196,
+      volume: 500,
+    },
+  ];
+
+  // Even though 19:30 EST rolls over to 2026-11-20 in UTC, Eastern calendar date is 2026-11-19
+  assert.equal(getHistoricalBarEasternIsoDate(bars[0]), '2026-11-19');
+  assert.equal(getHistoricalBarEasternIsoDate(bars[1]), '2026-10-29');
+  assert.equal(getHistoricalBarEasternIsoDate(bars[2]), null);
+
+  // Only overlapping trading dates match; non-overlapping or weekend dates are excluded
+  const matched = matchEarningsDatesToBars(
+    ['2026-11-20', '2026-10-29', '2026-07-30', '2026-11-01'],
+    bars
+  );
+  assert.deepEqual(Array.from(matched), ['2026-10-29']);
+});
+
+test('Workspace HP screen highlights matching earnings-date rows, displays legend, and isolates highlights per ticker', () => {
+  const tsEarnClose = parseEasternTimestampToSeconds('2026-10-29 16:00:00');
+  const tsEarnIntraday = parseEasternTimestampToSeconds('2026-10-29 15:30:00');
+  const tsNormal = parseEasternTimestampToSeconds('2026-10-28 15:30:00');
+
+  const bars: HistoricalPriceBar[] = [
+    {
+      date: '10/29 16:00',
+      timestamp: tsEarnClose,
+      open: 230,
+      high: 230,
+      low: 230,
+      close: 230,
+      volume: 0,
+      isMarketCloseSnapshot: true,
+    },
+    {
+      date: '10/29 15:30',
+      timestamp: tsEarnIntraday,
+      open: 228,
+      high: 231,
+      low: 227,
+      close: 230,
+      volume: 4200000,
+    },
+    {
+      date: '10/28 15:30',
+      timestamp: tsNormal,
+      open: 225,
+      high: 227,
+      low: 224,
+      close: 226,
+      volume: 3100000,
+    },
+  ];
+
+  const aapl = makeStock({ symbol: 'AAPL', history: bars });
+  const msft = makeStock({ symbol: 'MSFT', name: 'Microsoft Corp.', history: bars });
+
+  const aaplHtml = renderToStaticMarkup(
+    React.createElement(Workspace, {
+      activeScreen: 'HP',
+      selectedTicker: 'AAPL',
+      stocks: { AAPL: aapl, MSFT: msft },
+      currencies: [],
+      economics: [],
+      onExecuteCommand: () => {},
+      initialHpEarningsDates: {
+        // Includes one matching date and one non-overlapping historical date (must not add extra rows)
+        AAPL: ['2026-10-29', '2026-07-30'],
+      },
+    })
+  );
+
+  // Legend appears above the table and both 2026-10-29 rows are highlighted while 2026-10-28 is not
+  assert.equal(aaplHtml.includes('EARNINGS DATE'), true);
+  const highlightedMatches = aaplHtml.match(/data-earnings-date="2026-10-29"/g) || [];
+  assert.equal(highlightedMatches.length, 2);
+  assert.equal(aaplHtml.includes('data-earnings-date="2026-10-28"'), false);
+  assert.equal(aaplHtml.includes('data-earnings-date="2026-07-30"'), false);
+  assert.equal(aaplHtml.includes('bg-[#ff9900]/12'), true);
+  // Exact 3 rows rendered (no synthetic row added for 2026-07-30)
+  const tbodySlice = aaplHtml.slice(aaplHtml.indexOf('<tbody>'), aaplHtml.indexOf('</tbody>'));
+  const rowCount = (tbodySlice.match(/<tr\b/g) || []).length;
+  assert.equal(rowCount, 3);
+
+  // Switching to MSFT (no matching earnings dates) renders no highlights and no legend
+  const msftHtml = renderToStaticMarkup(
+    React.createElement(Workspace, {
+      activeScreen: 'HP',
+      selectedTicker: 'MSFT',
+      stocks: { AAPL: aapl, MSFT: msft },
+      currencies: [],
+      economics: [],
+      onExecuteCommand: () => {},
+      initialHpEarningsDates: {
+        AAPL: ['2026-10-29'],
+      },
+    })
+  );
+  assert.equal(msftHtml.includes('data-earnings-date='), false);
+  assert.equal(msftHtml.includes('EARNINGS DATE'), false);
+  assert.equal(msftHtml.includes('MSFT Historical Price Log'), true);
+});
+

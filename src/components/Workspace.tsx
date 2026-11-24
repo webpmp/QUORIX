@@ -18,7 +18,9 @@ import PortfolioRiskMonitorScreen from './PortfolioRiskMonitorScreen';
 import {
   countDistinctTradingDays,
   deduplicateAndSortHistoricalBars,
+  getHistoricalBarEasternIsoDate,
   isClosingPriceSnapshotBar,
+  matchEarningsDatesToBars,
   selectBestHistoricalBars,
   type HistoricalPriceBar,
 } from '../utils/historicalPricing';
@@ -54,6 +56,7 @@ interface WorkspaceProps {
   onClearAskPrefillPrompt?: () => void;
   focusAskQuorixSignal?: number;
   onTickTimeChange?: (val: string) => void;
+  initialHpEarningsDates?: Record<string, string[]>;
 }
 
 type DiagnosticProviderId = 'ALPHA_VANTAGE' | 'NYT' | 'NEWS_API' | 'NEWSDATA' | 'FRED' | '3SPREAD';
@@ -325,7 +328,8 @@ export default function Workspace({
   askPrefillPrompt,
   onClearAskPrefillPrompt,
   focusAskQuorixSignal = 0,
-  onTickTimeChange
+  onTickTimeChange,
+  initialHpEarningsDates,
 }: WorkspaceProps) {
   // AI assistant conversational state (ASK)
   const [messages, setMessages] = useState<Array<{ sender: 'user' | 'terminal'; text: string; links?: any[] }>>([]);
@@ -424,6 +428,17 @@ export default function Workspace({
   const [hpSymbolData, setHpSymbolData] = useState<HpCacheEntry | null>(null);
   const [hpLoading, setHpLoading] = useState<boolean>(false);
   const [hpError, setHpError] = useState<string | null>(null);
+
+  interface HpEarningsCacheEntry {
+    symbol: string;
+    reportedDates: string[];
+    fetchedAt: number;
+  }
+  const hpEarningsCacheRef = useRef<Map<string, HpEarningsCacheEntry>>(new Map());
+  const [hpEarningsData, setHpEarningsData] = useState<{
+    symbol: string;
+    reportedDates: string[];
+  } | null>(null);
 
   // Settings Screen States
   type SettingsKeyId =
@@ -583,6 +598,10 @@ export default function Workspace({
       if (response.ok && data.success) {
         if (data.maskedKeys || data.credentials) {
           applyServerKeyStatus(data.maskedKeys, data.credentials);
+        }
+        if (Object.prototype.hasOwnProperty.call(payload, 'ALPHA_VANTAGE_API_KEY')) {
+          hpCacheRef.current.clear();
+          hpEarningsCacheRef.current.clear();
         }
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
@@ -793,6 +812,55 @@ export default function Workspace({
       })
       .finally(() => {
         if (!cancelled) setHpLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [activeScreen, selectedTicker]);
+
+  // Load Alpha Vantage historical quarterly earnings reported dates for HP row highlighting (per-symbol cached)
+  useEffect(() => {
+    if (activeScreen !== 'HP') return;
+    const sym = (selectedTicker || '').trim().toUpperCase();
+    if (!sym) return;
+
+    const HP_EARNINGS_CLIENT_CACHE_TTL_MS = 30 * 60 * 1000;
+    const cached = hpEarningsCacheRef.current.get(sym);
+    if (cached) {
+      setHpEarningsData({ symbol: cached.symbol, reportedDates: cached.reportedDates });
+      if (Date.now() - cached.fetchedAt < HP_EARNINGS_CLIENT_CACHE_TTL_MS) {
+        return;
+      }
+    } else {
+      setHpEarningsData(null);
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    fetch(`/api/market/earnings?symbol=${encodeURIComponent(sym)}`, {
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.success && Array.isArray(data.reportedDates)) {
+          const reportedDates = data.reportedDates.filter(
+            (d: unknown): d is string => typeof d === 'string'
+          );
+          hpEarningsCacheRef.current.set(sym, {
+            symbol: sym,
+            reportedDates,
+            fetchedAt: Date.now(),
+          });
+          setHpEarningsData({ symbol: sym, reportedDates });
+        }
+      })
+      .catch((err: any) => {
+        if (cancelled || err?.name === 'AbortError') return;
+        // Degrade gracefully: keep Historical Price Log rendering normally without earnings highlights
       });
 
     return () => {
@@ -1253,6 +1321,13 @@ export default function Workspace({
             : countDistinctTradingDays(displayBars);
         const hpWarningMsg =
           hpSymbolData && hpSymbolData.symbol === activeHpSym ? hpSymbolData.warning : null;
+        const symbolEarningsDates =
+          hpEarningsData && hpEarningsData.symbol === activeHpSym
+            ? hpEarningsData.reportedDates
+            : initialHpEarningsDates && Array.isArray(initialHpEarningsDates[activeHpSym])
+            ? initialHpEarningsDates[activeHpSym]
+            : [];
+        const matchedEarningsDates = matchEarningsDatesToBars(symbolEarningsDates, displayBars);
 
         return (
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-lg">
@@ -1286,10 +1361,18 @@ export default function Workspace({
             )}
 
             {displayBars.length > 0 && (
-              <div className="shrink-0 flex justify-end mb-2 select-none">
-                <span className="text-xs text-zinc-300 font-mono uppercase tabular-nums">
-                  {displayBars.length.toLocaleString()} BARS • {tradingDaysCount}{' '}
-                  {tradingDaysCount === 1 ? 'DAY' : 'TRADING DAYS'} • 60M
+              <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 mb-2 select-none">
+                {matchedEarningsDates.size > 0 && (
+                  <div className="inline-flex items-center gap-1.5 text-xs text-zinc-300 font-mono uppercase">
+                    <span
+                      className="inline-block w-3 h-3 rounded-xs bg-[#ff9900]/15 border border-[#ff9900]/50 border-l-2 border-l-[#ff9900]"
+                      aria-hidden="true"
+                    />
+                    <span>EARNINGS DATE</span>
+                  </div>
+                )}
+                <span className="text-xs text-zinc-300 font-mono uppercase tabular-nums ml-auto">
+                  {tradingDaysCount} {tradingDaysCount === 1 ? 'DAY' : 'TRADING DAYS'} • 60M
                 </span>
               </div>
             )}
@@ -1298,13 +1381,13 @@ export default function Workspace({
               <table className={`w-full text-left ${activeBwriteFont.body} text-[#d4d4d4] border-collapse`}>
                 <thead className="sticky top-0 z-10 bg-[#050505]">
                   <tr className={`border-b border-[#333] text-zinc-300 ${activeBwriteFont.heading} uppercase font-bold`}>
-                    <th className="py-2.5 pr-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">TIME</th>
+                    <th className="py-2.5 pl-2 pr-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">TIME</th>
                     <th className="text-right px-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">OPEN VALUE</th>
                     <th className="text-right px-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">HIGH VALUE</th>
                     <th className="text-right px-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">LOW VALUE</th>
                     <th className="text-right px-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">CLOSE VALUE</th>
                     <th className="text-right px-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">INTERVAL VOLUME</th>
-                    <th className="text-right pl-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">DIFFERENTIAL</th>
+                    <th className="text-right pl-3 pr-2 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">DIFFERENTIAL</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1322,9 +1405,25 @@ export default function Workspace({
                       const diffRatio = h.open > 0 ? (((h.close - h.open) / h.open) * 100) : 0;
                       const isCloseSnapshot =
                         h.isMarketCloseSnapshot ?? isClosingPriceSnapshotBar(h);
+                      const barIsoDate = getHistoricalBarEasternIsoDate(h);
+                      const isEarningsDate = Boolean(
+                        barIsoDate && matchedEarningsDates.has(barIsoDate)
+                      );
                       return (
-                        <tr key={`${h.timestamp || h.date}-${i}`} className={`border-b border-[#3a3a3a] hover:bg-[#111] ${activeBwriteFont.body} font-mono`}>
-                          <td className="py-2.5 pr-3 text-[#3498db] font-bold font-mono whitespace-nowrap">
+                        <tr
+                          key={`${h.timestamp || h.date}-${i}`}
+                          data-earnings-date={isEarningsDate ? barIsoDate ?? undefined : undefined}
+                          className={`border-b border-[#3a3a3a] ${
+                            isEarningsDate
+                              ? 'bg-[#ff9900]/12 hover:bg-[#ff9900]/18'
+                              : 'hover:bg-[#111]'
+                          } ${activeBwriteFont.body} font-mono`}
+                        >
+                          <td
+                            className={`py-2.5 pl-2 pr-3 text-[#3498db] font-bold font-mono whitespace-nowrap${
+                              isEarningsDate ? ' shadow-[inset_2px_0_0_0_#ff9900]' : ''
+                            }`}
+                          >
                             {h.date} {isCloseSnapshot ? '(Market Close)' : '(Intraday)'}
                           </td>
                           <td className="text-right px-3 font-mono whitespace-nowrap">${h.open.toFixed(2)}</td>
@@ -1332,7 +1431,7 @@ export default function Workspace({
                           <td className="text-right px-3 font-mono text-[#ff4444] whitespace-nowrap">${h.low.toFixed(2)}</td>
                           <td className="text-right px-3 font-mono text-zinc-150 font-bold whitespace-nowrap">${h.close.toFixed(2)}</td>
                           <td className="text-right px-3 text-zinc-300 font-mono whitespace-nowrap">{h.volume.toLocaleString()}</td>
-                          <td className={`text-right pl-3 font-bold font-mono whitespace-nowrap ${isUp ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
+                          <td className={`text-right pl-3 pr-2 font-bold font-mono whitespace-nowrap ${isUp ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
                             {isUp ? '+' : ''}{diffRatio.toFixed(2)}%
                           </td>
                         </tr>

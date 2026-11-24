@@ -18,6 +18,7 @@ import {
   deduplicateAndSortHistoricalBars,
   formatHistoricalHourlyTimestamp,
   isClosingPriceSnapshotBar,
+  parseAlphaVantageEarningsDates,
   parseAlphaVantageIntradayBars,
   type HistoricalPriceBar,
 } from "./src/utils/historicalPricing";
@@ -2043,6 +2044,28 @@ function setHpHistoryCache(
   hpHistoryCache.set(symbol, entry);
 }
 
+// Server-side cache for Alpha Vantage quarterly earnings announcement dates (6-hour TTL for valid responses, 60s cooldown on rate-limit)
+const EARNINGS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const EARNINGS_RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
+const MAX_EARNINGS_CACHE_ENTRIES = 200;
+interface EarningsHistoryCacheEntry {
+  timestamp: number;
+  ttlMs: number;
+  success: boolean;
+  reportedDates: string[];
+  error: string | null;
+}
+const earningsHistoryCache = new Map<string, EarningsHistoryCacheEntry>();
+const earningsInFlight = new Map<string, Promise<EarningsHistoryCacheEntry>>();
+
+function setEarningsHistoryCache(symbol: string, entry: EarningsHistoryCacheEntry) {
+  if (earningsHistoryCache.size >= MAX_EARNINGS_CACHE_ENTRIES) {
+    const oldest = earningsHistoryCache.keys().next().value;
+    if (oldest) earningsHistoryCache.delete(oldest);
+  }
+  earningsHistoryCache.set(symbol, entry);
+}
+
 // In-memory cache for 2-year daily adjusted-close series used by Correlation Analyzer (15-min TTL)
 const DAILY_ADJ_CACHE_TTL_MS = 15 * 60 * 1000;
 const MAX_DAILY_ADJ_CACHE_ENTRIES = 200;
@@ -2255,6 +2278,131 @@ async function fetchAlphaVantageHourlyHistory(
     };
   }
 }
+
+// Historical quarterly earnings announcement dates via Alpha Vantage EARNINGS endpoint
+app.get("/api/market/earnings", async (req, res) => {
+  try {
+    const symbol = ((req.query.symbol as string) || "").toUpperCase().trim();
+    if (!symbol || !/^[A-Z0-9][A-Z0-9.-]{0,14}$/.test(symbol)) {
+      return res.status(400).json({
+        success: false,
+        symbol,
+        reportedDates: [],
+        error: "Valid ticker symbol is required",
+      });
+    }
+
+    const now = Date.now();
+    const cached = earningsHistoryCache.get(symbol);
+    if (cached && now - cached.timestamp < cached.ttlMs) {
+      return res.json({
+        success: cached.success,
+        symbol,
+        reportedDates: cached.reportedDates,
+        isCached: true,
+        ...(cached.error ? { error: cached.error } : {}),
+      });
+    }
+
+    const apiKey = getActiveApiKey("ALPHA_VANTAGE_API_KEY");
+    if (!apiKey) {
+      return res.json({
+        success: false,
+        symbol,
+        reportedDates: [],
+        isCached: false,
+        error: "Alpha Vantage API key not configured.",
+      });
+    }
+
+    let pending = earningsInFlight.get(symbol);
+    if (!pending) {
+      pending = (async (): Promise<EarningsHistoryCacheEntry> => {
+        try {
+          const url = `https://www.alphavantage.co/query?function=EARNINGS&symbol=${encodeURIComponent(
+            symbol
+          )}&apikey=${encodeURIComponent(apiKey)}`;
+          const resp = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+          if (!resp.ok) {
+            return {
+              timestamp: Date.now(),
+              ttlMs: 0,
+              success: false,
+              reportedDates: [],
+              error: `Alpha Vantage earnings returned HTTP ${resp.status}`,
+            };
+          }
+          const raw = await resp.json();
+          const parsed = parseAlphaVantageEarningsDates(raw);
+
+          if (parsed.rateLimited || parsed.premiumRestricted) {
+            const entry: EarningsHistoryCacheEntry = {
+              timestamp: Date.now(),
+              ttlMs: EARNINGS_RATE_LIMIT_COOLDOWN_MS,
+              success: false,
+              reportedDates: [],
+              error: parsed.notice
+                ? redactSecrets(parsed.notice, { extraSecrets: [apiKey], maxLength: 200 })
+                : "Alpha Vantage earnings rate limit reached.",
+            };
+            setEarningsHistoryCache(symbol, entry);
+            return entry;
+          }
+
+          if (parsed.errorMessage) {
+            return {
+              timestamp: Date.now(),
+              ttlMs: 0,
+              success: false,
+              reportedDates: [],
+              error: redactSecrets(parsed.errorMessage, { extraSecrets: [apiKey], maxLength: 200 }),
+            };
+          }
+
+          const entry: EarningsHistoryCacheEntry = {
+            timestamp: Date.now(),
+            ttlMs: EARNINGS_CACHE_TTL_MS,
+            success: true,
+            reportedDates: parsed.reportedDates,
+            error: null,
+          };
+          setEarningsHistoryCache(symbol, entry);
+          return entry;
+        } catch (err) {
+          return {
+            timestamp: Date.now(),
+            ttlMs: 0,
+            success: false,
+            reportedDates: [],
+            error: redactErrorMessage(err, "Alpha Vantage earnings request failed.", {
+              extraSecrets: [apiKey],
+            }),
+          };
+        } finally {
+          earningsInFlight.delete(symbol);
+        }
+      })();
+      earningsInFlight.set(symbol, pending);
+    }
+
+    const result = await pending;
+    return res.json({
+      success: result.success,
+      symbol,
+      reportedDates: result.reportedDates,
+      isCached: false,
+      ...(result.error ? { error: result.error } : {}),
+    });
+  } catch (err) {
+    return res.json({
+      success: false,
+      symbol: ((req.query.symbol as string) || "").toUpperCase().trim(),
+      reportedDates: [],
+      isCached: false,
+      error: redactErrorMessage(err, "Unable to retrieve earnings history."),
+    });
+  }
+});
 
 // Real OHLCV history endpoint via Yahoo Finance for GP multi-interval charts and HP expanded hourly archive
 app.get("/api/market/history", async (req, res) => {
@@ -3598,6 +3746,7 @@ app.post("/api/settings/keys", (req, res) => {
     if (result.updated) {
       if (id === "ALPHA_VANTAGE_API_KEY") {
         hpHistoryCache.clear();
+        earningsHistoryCache.clear();
       } else if (id === "NYT_API_KEY") {
         newsProviderCache.nyt = { timestamp: 0, items: [] };
         apiCooldowns.nyt = 0;

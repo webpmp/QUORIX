@@ -413,7 +413,7 @@ const RollingCorrelationChart: React.FC<{
 
   return (
     <div className="w-full min-w-0 bg-[#080808] border border-[#3a3a3a] rounded p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs font-mono">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5 text-xs font-mono">
         <div className="flex flex-wrap items-center gap-2 text-zinc-300">
           <span className="text-zinc-200 font-bold">
             {symbolA} / {symbolB}
@@ -433,6 +433,11 @@ const RollingCorrelationChart: React.FC<{
           </span>
           <span className="text-zinc-300">({activeBand.label})</span>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1.5 text-xs font-mono uppercase tracking-wider tabular-nums select-none">
+        <span className="font-semibold text-[#00ff00]">POSITIVE (+1.00)</span>
+        <span className="font-semibold text-[#ff4444]">NEGATIVE (-1.00)</span>
       </div>
 
       <div ref={svgContainerRef} className="w-full min-w-0">
@@ -499,28 +504,6 @@ const RollingCorrelationChart: React.FC<{
             </g>
           );
         })}
-
-        {/* Region subtle labels */}
-        <text
-          x={pad.left + 6}
-          y={pad.top + 11}
-          fill="#00ff00"
-          fillOpacity={0.45}
-          fontSize="8.5"
-          fontFamily="monospace"
-        >
-          POSITIVE (+1.00)
-        </text>
-        <text
-          x={pad.left + 6}
-          y={pad.top + plotH - 5}
-          fill="#ff4444"
-          fillOpacity={0.45}
-          fontSize="8.5"
-          fontFamily="monospace"
-        >
-          NEGATIVE (-1.00)
-        </text>
 
         {/* Shaded positive and negative fills under/over zero line */}
         <path d={areaBasePath} fill="#00ff00" fillOpacity={0.14} clipPath={`url(#${clipIdPos})`} />
@@ -986,6 +969,8 @@ export default function CorrelationAnalyzerScreen({
   const [validatingSymbol, setValidatingSymbol] = useState<string | null>(null);
 
   const searchBoxRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingSearchSelectionRef = useRef<{ start: number; end: number } | null>(null);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -993,6 +978,20 @@ export default function CorrelationAnalyzerScreen({
       mountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    const selection = pendingSearchSelectionRef.current;
+    const inputEl = searchInputRef.current;
+    if (!selection || !inputEl) return;
+    pendingSearchSelectionRef.current = null;
+    if (document.activeElement === inputEl) {
+      try {
+        inputEl.setSelectionRange(selection.start, selection.end);
+      } catch {
+        // ignore if selection range is unavailable
+      }
+    }
+  }, [searchQuery]);
 
   // Load daily adjusted history for a single symbol (uses cache and avoids duplicate fetches)
   const ensureSymbolLoaded = useCallback(async (rawSym: string, force = false) => {
@@ -1471,10 +1470,23 @@ export default function CorrelationAnalyzerScreen({
               <div className="flex-1 flex items-center bg-black border border-[#333] focus-within:border-[#3498db] rounded px-2.5 py-1.5 transition-colors">
                 <Search size={12} className="text-zinc-300 mr-2 shrink-0" />
                 <input
+                  ref={searchInputRef}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => {
-                    setSearchQuery(e.target.value);
+                    const rawValue = e.target.value;
+                    const upperValue = rawValue.toUpperCase();
+                    if (
+                      upperValue !== rawValue &&
+                      e.target.selectionStart !== null &&
+                      e.target.selectionEnd !== null
+                    ) {
+                      pendingSearchSelectionRef.current = {
+                        start: e.target.selectionStart,
+                        end: e.target.selectionEnd,
+                      };
+                    }
+                    setSearchQuery(upperValue);
                     setSearchOpen(true);
                     setSearchHighlightedIndex(-1);
                     setSelectionNotice(null);
