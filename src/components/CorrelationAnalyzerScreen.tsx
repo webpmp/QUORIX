@@ -1658,18 +1658,15 @@ export default function CorrelationAnalyzerScreen({
           <div className="pt-2 border-t border-[#1e1e1e] flex flex-wrap gap-2">
             {selectedSymbols.map((sym) => {
               const entry = loadMap[sym];
-              const series = seriesBySymbol.get(sym);
               const isErr = entry?.status === 'error';
               const isLoad = !entry || entry.status === 'loading';
               const cov = matrixResult.coverageBySymbol[sym];
               const partial = !isLoad && !isErr && cov && !cov.hasSufficientCoverage;
-              const securityName = (series?.name || sym).trim();
-              const securityType = (series?.instrumentType || 'EQUITY').trim();
 
               return (
                 <div
                   key={sym}
-                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded border text-xs max-w-full ${
+                  className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded border text-xs max-w-full ${
                     isErr
                       ? 'bg-red-950/20 border-red-800/60'
                       : partial
@@ -1677,31 +1674,8 @@ export default function CorrelationAnalyzerScreen({
                       : 'bg-[#0b0b0b] border-[#3a3a3a]'
                   }`}
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-[#3498db]">{sym}</span>
-                      {isLoad && <RefreshCw size={10} className="animate-spin text-[#ff9900] shrink-0" />}
-                    </div>
-                    <div className="text-xs text-zinc-300 leading-snug break-words">
-                      {isLoad ? (
-                        <span>Loading daily history...</span>
-                      ) : isErr ? (
-                        <span className="text-[#ff4444]">
-                          {entry.rateLimited
-                            ? 'Rate limited'
-                            : entry.unsupported
-                            ? 'Unsupported instrument'
-                            : entry.isInvalidTicker
-                            ? 'Invalid symbol'
-                            : 'Data unavailable'}
-                        </span>
-                      ) : (
-                        <span>
-                          {securityName} {securityType}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  <span className="font-bold text-[#3498db] whitespace-nowrap">{sym}</span>
+                  {isLoad && <RefreshCw size={10} className="animate-spin text-[#ff9900] shrink-0" />}
                   <button
                     type="button"
                     onClick={() => handleRemoveSymbol(sym)}
