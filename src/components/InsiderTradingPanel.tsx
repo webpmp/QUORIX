@@ -356,7 +356,7 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
               <span className="tabular-nums">
                 SHOWING {offset + 1}–{offset + records.length}
                 {activeResponse?.windowStart && activeResponse?.windowEnd
-                  ? ` · WINDOW ${activeResponse.windowStart} TO ${activeResponse.windowEnd}`
+                  ? ` · ${activeResponse.windowStart} TO ${activeResponse.windowEnd}`
                   : ''}
               </span>
               <div className="flex items-center gap-1.5">
