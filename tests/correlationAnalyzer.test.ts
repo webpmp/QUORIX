@@ -173,6 +173,60 @@ test('Command line and Workspace route BWRITE legacy alias directly to ASK', () 
   assert.equal(bwriteHtml.includes('QI — ASK COMMAND EXAMPLES'), true);
 });
 
+test('ASK and BWRITE commands with ticker prefill prompt, leave input empty when tickerless, and do not auto-submit', () => {
+  // 1. Ticker-qualified ASK prefill: "AAPL ASK" produces askPrefillPrompt with "Give me a brief analysis of AAPL"
+  const prefilledHtml = renderToStaticMarkup(
+    React.createElement(Workspace, {
+      activeScreen: 'ASK',
+      selectedTicker: 'AAPL',
+      stocks: { AAPL: makeDummyStock('AAPL') },
+      trackedTickers: ['AAPL'],
+      currencies: [],
+      economics: [],
+      onExecuteCommand: () => {},
+      askPrefillPrompt: { id: 1, text: 'Give me a brief analysis of AAPL' },
+      pendingAiQuery: null, // Critical: no auto-submit
+    })
+  );
+  assert.equal(prefilledHtml.includes('value="Give me a brief analysis of AAPL"'), true);
+  // Verify no immediate response / no auto-submit message rendered
+  assert.equal(prefilledHtml.includes('UNABLE TO REACH LIVE TERMINAL ANALYSIS SERVICE'), false);
+
+  // 2. Ticker-qualified BWRITE alias prefill: "NVDA BWRITE" produces identical prefill behavior
+  const bwritePrefilledHtml = renderToStaticMarkup(
+    React.createElement(Workspace, {
+      activeScreen: 'BWRITE',
+      selectedTicker: 'NVDA',
+      stocks: { NVDA: makeDummyStock('NVDA') },
+      trackedTickers: ['NVDA'],
+      currencies: [],
+      economics: [],
+      onExecuteCommand: () => {},
+      askPrefillPrompt: { id: 2, text: 'Give me a brief analysis of NVDA' },
+      pendingAiQuery: null,
+    })
+  );
+  assert.equal(bwritePrefilledHtml.includes('value="Give me a brief analysis of NVDA"'), true);
+  assert.equal(bwritePrefilledHtml.includes('UNABLE TO REACH LIVE TERMINAL ANALYSIS SERVICE'), false);
+
+  // 3. Plain "ASK" alone: leaves input empty
+  const plainAskHtml = renderToStaticMarkup(
+    React.createElement(Workspace, {
+      activeScreen: 'ASK',
+      selectedTicker: 'AAPL',
+      stocks: { AAPL: makeDummyStock('AAPL') },
+      trackedTickers: ['AAPL'],
+      currencies: [],
+      economics: [],
+      onExecuteCommand: () => {},
+      askPrefillPrompt: null,
+      pendingAiQuery: null,
+    })
+  );
+  assert.equal(plainAskHtml.includes('value=""'), true);
+  assert.equal(plainAskHtml.includes('value="Give me a brief analysis of'), false);
+});
+
 test('Workspace routes CORR to Correlation Analyzer and lists CORR in HELP reference', () => {
   const corrHtml = renderToStaticMarkup(
     React.createElement(Workspace, {

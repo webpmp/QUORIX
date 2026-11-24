@@ -322,7 +322,7 @@ export default function Workspace({
 }: WorkspaceProps) {
   // AI assistant conversational state (ASK)
   const [messages, setMessages] = useState<Array<{ sender: 'user' | 'terminal'; text: string; links?: any[] }>>([]);
-  const [userInput, setUserInput] = useState('');
+  const [userInput, setUserInput] = useState(() => askPrefillPrompt?.text || '');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [examplesExpanded, setExamplesExpanded] = useState(true);
   const [releaseSearch, setReleaseSearch] = useState('');
