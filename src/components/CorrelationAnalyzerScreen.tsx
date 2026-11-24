@@ -977,6 +977,7 @@ export default function CorrelationAnalyzerScreen({
   const [searchResults, setSearchResults] = useState<SearchCandidate[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchHighlightedIndex, setSearchHighlightedIndex] = useState<number>(-1);
   const [selectionNotice, setSelectionNotice] = useState<{
     tone: 'error' | 'warning' | 'info';
     text: string;
@@ -1079,6 +1080,7 @@ export default function CorrelationAnalyzerScreen({
     const onDocMouseDown = (e: MouseEvent) => {
       if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
         setSearchOpen(false);
+        setSearchHighlightedIndex(-1);
       }
     };
     document.addEventListener('mousedown', onDocMouseDown);
@@ -1091,6 +1093,7 @@ export default function CorrelationAnalyzerScreen({
     if (!trimmed) {
       setSearchResults([]);
       setSearchLoading(false);
+      setSearchHighlightedIndex(-1);
       return;
     }
 
@@ -1102,8 +1105,12 @@ export default function CorrelationAnalyzerScreen({
         const data = await resp.json();
         if (cancelled) return;
         setSearchResults(Array.isArray(data?.results) ? data.results : []);
+        setSearchHighlightedIndex(-1);
       } catch {
-        if (!cancelled) setSearchResults([]);
+        if (!cancelled) {
+          setSearchResults([]);
+          setSearchHighlightedIndex(-1);
+        }
       } finally {
         if (!cancelled) setSearchLoading(false);
       }
@@ -1199,6 +1206,7 @@ export default function CorrelationAnalyzerScreen({
       setSearchQuery('');
       setSearchResults([]);
       setSearchOpen(false);
+      setSearchHighlightedIndex(-1);
     },
     [selectedSymbols, loadMap]
   );
@@ -1467,10 +1475,53 @@ export default function CorrelationAnalyzerScreen({
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
                     setSearchOpen(true);
+                    setSearchHighlightedIndex(-1);
                     setSelectionNotice(null);
                   }}
                   onFocus={() => {
                     if (searchQuery.trim()) setSearchOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') {
+                      if (searchResults.length > 0) {
+                        e.preventDefault();
+                        if (!searchOpen) {
+                          setSearchOpen(true);
+                          setSearchHighlightedIndex(0);
+                        } else {
+                          setSearchHighlightedIndex((prev) =>
+                            prev < searchResults.length - 1 ? prev + 1 : 0
+                          );
+                        }
+                      }
+                    } else if (e.key === 'ArrowUp') {
+                      if (searchResults.length > 0) {
+                        e.preventDefault();
+                        if (!searchOpen) {
+                          setSearchOpen(true);
+                          setSearchHighlightedIndex(searchResults.length - 1);
+                        } else {
+                          setSearchHighlightedIndex((prev) =>
+                            prev <= 0 ? searchResults.length - 1 : prev - 1
+                          );
+                        }
+                      }
+                    } else if (e.key === 'Enter') {
+                      if (searchOpen && searchHighlightedIndex >= 0 && searchHighlightedIndex < searchResults.length) {
+                        const item = searchResults[searchHighlightedIndex];
+                        const alreadySelected = selectedSymbols.includes(item.symbol);
+                        if (!alreadySelected && item.supported) {
+                          e.preventDefault();
+                          void handleAddSymbol(item.symbol, item);
+                        }
+                      }
+                    } else if (e.key === 'Escape') {
+                      if (searchOpen) {
+                        e.preventDefault();
+                        setSearchOpen(false);
+                        setSearchHighlightedIndex(-1);
+                      }
+                    }
                   }}
                   placeholder="Search ticker or company name (e.g., AAPL, Microsoft, SPY, SPX, Gold, BTC)..."
                   aria-label="Search security by ticker symbol or company name"
@@ -1504,17 +1555,21 @@ export default function CorrelationAnalyzerScreen({
                     No directory matches for &ldquo;{searchQuery.trim()}&rdquo;. Press Enter to validate directly as a ticker.
                   </div>
                 ) : (
-                  searchResults.map((item) => {
+                  searchResults.map((item, idx) => {
                     const alreadySelected = selectedSymbols.includes(item.symbol);
+                    const isHighlighted = idx === searchHighlightedIndex;
                     return (
                       <button
                         key={item.symbol}
                         type="button"
                         role="option"
-                        aria-selected={alreadySelected}
+                        aria-selected={isHighlighted || alreadySelected}
                         disabled={alreadySelected || !item.supported}
                         onClick={() => void handleAddSymbol(item.symbol, item)}
-                        className="w-full text-left px-3 py-2 border-b border-[#181818] last:border-b-0 hover:bg-[#141414] flex items-center justify-between gap-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        onMouseEnter={() => setSearchHighlightedIndex(idx)}
+                        className={`w-full text-left px-3 py-2 border-b border-[#181818] last:border-b-0 flex items-center justify-between gap-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                          isHighlighted ? 'bg-[#1e293b] text-white' : 'hover:bg-[#141414]'
+                        }`}
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
