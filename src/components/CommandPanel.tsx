@@ -114,35 +114,32 @@ export default function CommandPanel({
           className="flex flex-col min-h-0"
           style={{ height: `${100 - equitiesHeightPct}%` }}
         >
-          <div className="px-3 pt-3 pb-2 shrink-0 text-xs text-zinc-300 font-bold tracking-widest uppercase flex items-center justify-between">
+          <div className="px-3 pt-3 pb-2 shrink-0 text-xs text-zinc-300 font-bold tracking-widest uppercase">
             <span>Terminal Commands</span>
-            <span className="text-zinc-300 font-mono text-xs">{commands.length} ACTIVE</span>
           </div>
           
-          <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 space-y-1.5">
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 space-y-1">
             {commands.map((cmd) => {
               const isSelected = activeScreen === cmd.code || (cmd.code === 'SETT' && activeScreen === 'SETTINGS');
               return (
                 <button
                   key={cmd.code}
                   onClick={() => onSelectScreen(cmd.code)}
-                  className={`w-full text-left p-1.5 rounded transition-all flex items-start space-x-2 ${
+                  title={`${cmd.name}: ${cmd.desc}`}
+                  className={`w-full text-left min-h-8 px-2 py-1.5 rounded transition-all flex items-center space-x-2.5 ${
                     isSelected
                       ? 'bg-[#1a1a1a] border border-[#ff9900] text-white'
                       : 'bg-[#010101] hover:bg-[#111] border border-transparent text-zinc-300'
                   }`}
                   id={`cmd-shortcut-${cmd.code}`}
                 >
-                  <div className="bg-black border border-[#333] px-1 py-0.5 rounded text-xs text-[#ff9900] font-bold min-w-[42px] text-center shrink-0">
+                  <div className="bg-black border border-[#3a3a3a] px-1.5 py-0.5 rounded text-xs text-[#ff9900] font-bold w-16 text-center shrink-0">
                     {cmd.code}
                   </div>
                   
                   <div className="min-w-0 flex-1">
-                    <div className="font-bold text-zinc-200 text-xs truncate flex items-center gap-1">
+                    <div className="font-bold text-zinc-200 text-xs truncate">
                       {cmd.name}
-                    </div>
-                    <div className="text-xs text-zinc-300 line-clamp-1 truncate">
-                      {cmd.desc}
                     </div>
                   </div>
                 </button>
