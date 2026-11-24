@@ -6,6 +6,7 @@ interface HeaderProps {
   onCommandSubmit: (e: React.FormEvent) => void;
   activeScreen: string;
   tickTime?: string;
+  errorMessage?: string | null;
 }
 
 const SEARCH_HISTORY_STORAGE_KEY = 'quorix_search_history_v1';
@@ -40,7 +41,8 @@ export default function Header({
   onCommandChange,
   onCommandSubmit,
   activeScreen,
-  tickTime
+  tickTime,
+  errorMessage
 }: HeaderProps) {
   const [time, setTime] = useState(new Date());
   const [searchHistory, setSearchHistory] = useState<string[]>(loadSearchHistory);
@@ -232,6 +234,16 @@ export default function Header({
               EXEC
             </button>
           </form>
+
+          {errorMessage && (
+            <div
+              role="alert"
+              className="absolute left-0 top-full mt-1 z-50 bg-[#110505] border border-[#ff4444] px-2.5 py-1 rounded text-xs font-mono text-[#ff4444] flex items-center gap-1.5 shadow-lg shadow-black/80 animate-fade-in"
+            >
+              <span className="font-bold">!</span>
+              <span>{errorMessage}</span>
+            </div>
+          )}
 
           {isHistoryOpen && (
             <div

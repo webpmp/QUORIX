@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import TickerTape from './components/TickerTape';
 import CommandPanel from './components/CommandPanel';
@@ -20,6 +20,7 @@ import {
   resolveEquitySearch,
   savePersistedTrackedTickers,
 } from './utils/equityValidation';
+import { parseCommandLineInput } from './utils/commandParser';
 
 export interface FredFeedStatus {
   loading: boolean;
@@ -96,6 +97,8 @@ export default function App() {
   const [corrSeedTicker, setCorrSeedTicker] = useState<{ id: number; symbol: string } | null>(null);
   const [focusAskQuorixSignal, setFocusAskQuorixSignal] = useState<number>(0);
   const [tickTime, setTickTime] = useState<string>('');
+  const [commandError, setCommandError] = useState<string | null>(null);
+  const activeValidationTokenRef = useRef<number>(0);
   const [quoteLoadState, setQuoteLoadState] = useState<
     Record<string, 'loading' | 'ready' | 'unavailable' | 'invalid'>
   >({});
@@ -329,93 +332,68 @@ export default function App() {
     e.preventDefault();
     if (!currentCommand.trim()) return;
 
-    const commandStr = currentCommand.toUpperCase().trim();
     const rawCommand = currentCommand.trim();
     setCurrentCommand('');
+    setCommandError(null);
 
-    const parts = commandStr.split(/\s+/);
-    const primary = parts[0];
-    const secondary = parts.length > 1 ? parts[1] : null;
+    const parsed = parseCommandLineInput(rawCommand);
+    const executionToken = ++activeValidationTokenRef.current;
 
-    const directScreens = ['GP', 'CORR', 'PRM', 'HP', 'DES', 'ANR', 'INST', '13F', 'NEWS', 'CRNC', 'ECO', 'POLY', 'ASK', 'BWRITE', 'HELP', 'HLP', 'SETT', 'SETTINGS'];
-    const resolveScreenCode = (code: string): string => {
-      if (code === 'SETTINGS' || code === 'SETT') return 'SETT';
-      if (code === 'HLP') return 'HELP';
-      if (code === '13F') return 'INST';
-      // BWRITE is a legacy alias for ASK (Ask QUORIX AI analyst)
-      if (code === 'BWRITE') return 'ASK';
-      return code;
-    };
-
-    if (directScreens.includes(primary) && !secondary) {
-      const resolved = resolveScreenCode(primary);
-      setActiveScreen(resolved);
-      if (resolved === 'ASK') {
+    if (parsed.type === 'SCREEN') {
+      setActiveScreen(parsed.screen);
+      if (parsed.screen === 'ASK') {
         setFocusAskQuorixSignal((n) => n + 1);
       }
       return;
     }
 
-    const TICKER_CMD_RE = /^(?:[A-Z]{1,5}(?:[.-][A-Z0-9]{1,4})?|[0-9]{3,5}\.[A-Z]{1,3})$/;
-    const isTickerPattern = TICKER_CMD_RE.test(primary);
-    const isSecondaryTickerPattern = secondary ? TICKER_CMD_RE.test(secondary) : false;
+    if (parsed.type === 'TICKER_SCREEN') {
+      const ticker = parsed.ticker.toUpperCase();
+      const targetScreen = parsed.screen;
 
-    if (secondary && (stocks[secondary] || isSecondaryTickerPattern) && directScreens.includes(primary)) {
-      const ticker = secondary.toUpperCase();
-      const targetScreen = resolveScreenCode(primary);
-      setSelectedTicker(ticker);
-      setActiveScreen(targetScreen);
-      if (targetScreen === 'CORR') {
-        setCorrSeedTicker({ id: Date.now(), symbol: ticker });
-      }
-      if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker)) {
+      // If ticker is already validly tracked or in tape, navigate immediately
+      if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker) || stocks[ticker]) {
+        setSelectedTicker(ticker);
+        setActiveScreen(targetScreen);
+        if (targetScreen === 'CORR') {
+          setCorrSeedTicker({ id: Date.now(), symbol: ticker });
+        }
         if (targetScreen === 'ASK') {
           setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${ticker}` });
           setFocusAskQuorixSignal((n) => n + 1);
         }
         ensureTickerSlot(ticker, false);
         fetchLiveQuote(ticker, false, true);
-      } else {
-        void searchAndAddTrackedEquity(ticker).then((res) => {
-          if (res?.accepted && targetScreen === 'ASK') {
-            const resolvedSym = res.stock?.symbol || ticker;
-            setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${resolvedSym}` });
-            setFocusAskQuorixSignal((n) => n + 1);
-          }
-        });
+        return;
       }
-      return;
-    }
 
-    if (parts.length <= 2 && isTickerPattern && !directScreens.includes(primary)) {
-      const ticker = primary;
-      const targetScreen =
-        secondary && directScreens.includes(secondary) ? resolveScreenCode(secondary) : 'GP';
-
-      setSelectedTicker(ticker);
-      setActiveScreen(targetScreen);
-      if (targetScreen === 'CORR') {
-        setCorrSeedTicker({ id: Date.now(), symbol: ticker });
-      }
-      if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker)) {
-        if (targetScreen === 'ASK') {
-          setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${ticker}` });
-          setFocusAskQuorixSignal((n) => n + 1);
+      // Untracked/unverified ticker: validate FIRST before changing screen or selected ticker
+      void searchAndAddTrackedEquity(ticker).then((res) => {
+        // Discard stale response if a newer command has already run
+        if (executionToken !== activeValidationTokenRef.current) {
+          return;
         }
-        ensureTickerSlot(ticker, false);
-        fetchLiveQuote(ticker, false, true);
-      } else {
-        void searchAndAddTrackedEquity(ticker).then((res) => {
-          if (res?.accepted && targetScreen === 'ASK') {
-            const resolvedSym = res.stock?.symbol || ticker;
+
+        if (res?.accepted && res.stock) {
+          const resolvedSym = res.stock.symbol || ticker;
+          setSelectedTicker(resolvedSym);
+          setActiveScreen(targetScreen);
+          if (targetScreen === 'CORR') {
+            setCorrSeedTicker({ id: Date.now(), symbol: resolvedSym });
+          }
+          if (targetScreen === 'ASK') {
             setAskPrefillPrompt({ id: Date.now(), text: `Give me a brief analysis of ${resolvedSym}` });
             setFocusAskQuorixSignal((n) => n + 1);
           }
-        });
-      }
+        } else {
+          // Validation failed: stay on current screen and selected ticker, show visible feedback
+          setCommandError(`${ticker}: ticker not found`);
+        }
+      });
       return;
     }
 
+    // Default: Conversational AI prompt
     setActiveScreen('ASK');
     setPendingAiQuery({ id: Date.now(), text: rawCommand });
   };
@@ -456,10 +434,16 @@ export default function App() {
       {/* Retro Header bar with dynamic input bar */}
       <Header
         currentCommand={currentCommand}
-        onCommandChange={setCurrentCommand}
+        onCommandChange={(val) => {
+          setCurrentCommand(val);
+          if (commandError) {
+            setCommandError(null);
+          }
+        }}
         onCommandSubmit={handleCommandSubmit}
         activeScreen={activeScreen}
         tickTime={tickTime}
+        errorMessage={commandError}
       />
 
       {/* Main dashboard space structure */}

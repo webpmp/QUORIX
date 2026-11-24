@@ -348,6 +348,133 @@ test('invalid ticker does not prefill prompt or call AI', async () => {
   assert.equal((prefillSet as any).text, 'Give me a brief analysis of AAPL');
 });
 
+test('command-line parser pure logic: multi-word aliases, ticker positions, and race condition prevention', async () => {
+  const { parseCommandLineInput } = await import('../src/utils/commandParser.ts');
+
+  // 1. Multi-word command names and aliases match BEFORE ticker parsing and do not select command words as tickers
+  assert.deepEqual(parseCommandLineInput('GRAPH PRICE'), { type: 'SCREEN', screen: 'GP' });
+  assert.deepEqual(parseCommandLineInput('PORTFOLIO RISK MONITOR'), { type: 'SCREEN', screen: 'PRM' });
+  assert.deepEqual(parseCommandLineInput('HISTORICAL PRICING'), { type: 'SCREEN', screen: 'HP' });
+  assert.deepEqual(parseCommandLineInput('CORRELATION ANALYZER'), { type: 'SCREEN', screen: 'CORR' });
+  assert.deepEqual(parseCommandLineInput('ASK QUORIX'), { type: 'SCREEN', screen: 'ASK' });
+  assert.deepEqual(parseCommandLineInput('SECURITY ANALYTICS'), { type: 'SCREEN', screen: 'DES' });
+  assert.deepEqual(parseCommandLineInput('ANALYST RECS'), { type: 'SCREEN', screen: 'ANR' });
+  assert.deepEqual(parseCommandLineInput('INSTITUTIONAL ACTIVITY'), { type: 'SCREEN', screen: 'INST' });
+  assert.deepEqual(parseCommandLineInput('ECONOMIC INDICATOR'), { type: 'SCREEN', screen: 'ECO' });
+  assert.deepEqual(parseCommandLineInput('POLYMARKET SCREENER'), { type: 'SCREEN', screen: 'POLY' });
+  assert.deepEqual(parseCommandLineInput('SYSTEM SETTINGS'), { type: 'SCREEN', screen: 'SETT' });
+  assert.deepEqual(parseCommandLineInput('USER MANUAL'), { type: 'SCREEN', screen: 'HELP' });
+
+  // 2. Ticker prefix and suffix syntax: "<TICKER> <COMMAND>" and "<COMMAND> <TICKER>"
+  assert.deepEqual(parseCommandLineInput('AAPL GP'), { type: 'TICKER_SCREEN', ticker: 'AAPL', screen: 'GP' });
+  assert.deepEqual(parseCommandLineInput('GP AAPL'), { type: 'TICKER_SCREEN', ticker: 'AAPL', screen: 'GP' });
+  assert.deepEqual(parseCommandLineInput('AAPL GRAPH PRICE'), { type: 'TICKER_SCREEN', ticker: 'AAPL', screen: 'GP' });
+  assert.deepEqual(parseCommandLineInput('GRAPH PRICE AAPL'), { type: 'TICKER_SCREEN', ticker: 'AAPL', screen: 'GP' });
+  assert.deepEqual(parseCommandLineInput('MSFT PORTFOLIO RISK MONITOR'), { type: 'TICKER_SCREEN', ticker: 'MSFT', screen: 'PRM' });
+  assert.deepEqual(parseCommandLineInput('PORTFOLIO RISK MONITOR MSFT'), { type: 'TICKER_SCREEN', ticker: 'MSFT', screen: 'PRM' });
+  assert.deepEqual(parseCommandLineInput('NVDA ASK'), { type: 'TICKER_SCREEN', ticker: 'NVDA', screen: 'ASK' });
+  assert.deepEqual(parseCommandLineInput('ASK NVDA'), { type: 'TICKER_SCREEN', ticker: 'NVDA', screen: 'ASK' });
+  assert.deepEqual(parseCommandLineInput('NVDA BWRITE'), { type: 'TICKER_SCREEN', ticker: 'NVDA', screen: 'ASK' });
+
+  // 3. Command words alone must never be treated as tickers
+  assert.deepEqual(parseCommandLineInput('GP'), { type: 'SCREEN', screen: 'GP' });
+  assert.deepEqual(parseCommandLineInput('ASK'), { type: 'SCREEN', screen: 'ASK' });
+  assert.deepEqual(parseCommandLineInput('NEWS'), { type: 'SCREEN', screen: 'NEWS' });
+  assert.deepEqual(parseCommandLineInput('ECO'), { type: 'SCREEN', screen: 'ECO' });
+
+  // 4. Pure state harness simulating App.tsx command submission, validation, and async race guard
+  function createTerminalParserSession() {
+    let selectedTicker = 'AAPL';
+    let activeScreen = 'GP';
+    let errorMessage: string | null = null;
+    let activeValidationToken = 0;
+    const trackedTickers = ['AAPL', 'MSFT', 'GOOG'];
+
+    const executeCommand = async (
+      rawInput: string,
+      validateFn: (sym: string) => Promise<{ accepted: boolean; symbol: string }>
+    ) => {
+      errorMessage = null;
+      const parsed = parseCommandLineInput(rawInput);
+      const executionToken = ++activeValidationToken;
+
+      if (parsed.type === 'SCREEN') {
+        activeScreen = parsed.screen;
+        return;
+      }
+
+      if (parsed.type === 'TICKER_SCREEN') {
+        const ticker = parsed.ticker.toUpperCase();
+        const targetScreen = parsed.screen;
+
+        if (trackedTickers.includes(ticker)) {
+          selectedTicker = ticker;
+          activeScreen = targetScreen;
+          return;
+        }
+
+        // Untracked ticker: token-based race protection
+        const res = await validateFn(ticker);
+        if (executionToken !== activeValidationToken) {
+          // Out of order response: discard
+          return;
+        }
+
+        if (res.accepted) {
+          selectedTicker = res.symbol;
+          activeScreen = targetScreen;
+        } else {
+          errorMessage = `${ticker}: ticker not found`;
+        }
+      }
+    };
+
+    return {
+      getState: () => ({ selectedTicker, activeScreen, errorMessage }),
+      executeCommand,
+    };
+  }
+
+  // 4a. Invalid ticker leaves selectedTicker and screen unchanged
+  const session1 = createTerminalParserSession();
+  await session1.executeCommand('ZZZZ ASK', async () => ({ accepted: false, symbol: 'ZZZZ' }));
+  assert.deepEqual(session1.getState(), {
+    selectedTicker: 'AAPL', // Unchanged
+    activeScreen: 'GP',     // Unchanged
+    errorMessage: 'ZZZZ: ticker not found',
+  });
+
+  // 4b. Out-of-order pending validation does not overwrite a newer command
+  const session2 = createTerminalParserSession();
+  let slowResolve: (val: any) => void = () => {};
+  const slowPromise = new Promise<{ accepted: boolean; symbol: string }>((resolve) => {
+    slowResolve = resolve;
+  });
+
+  // Command 1: Slow validation for untracked ticker 'SLOW'
+  const cmd1Promise = session2.executeCommand('SLOW GP', () => slowPromise);
+
+  // Command 2: Fast command for tracked ticker 'MSFT'
+  await session2.executeCommand('MSFT ASK', async () => ({ accepted: true, symbol: 'MSFT' }));
+  assert.equal(session2.getState().selectedTicker, 'MSFT');
+  assert.equal(session2.getState().activeScreen, 'ASK');
+
+  // Command 1 resolves late: must be safely discarded by activeValidationToken
+  slowResolve({ accepted: true, symbol: 'SLOW' });
+  await cmd1Promise;
+
+  assert.equal(
+    session2.getState().selectedTicker,
+    'MSFT',
+    'Out-of-order slow validation must not overwrite newer selected ticker'
+  );
+  assert.equal(
+    session2.getState().activeScreen,
+    'ASK',
+    'Out-of-order slow validation must not overwrite newer active screen'
+  );
+});
+
 test('Workspace routes CORR to Correlation Analyzer and lists CORR in HELP reference', () => {
   const corrHtml = renderToStaticMarkup(
     React.createElement(Workspace, {
