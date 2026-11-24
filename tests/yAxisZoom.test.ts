@@ -733,7 +733,7 @@ test('ChartWidget renders expanded 260px Price Chart, compact 75px Volume Study,
   assert.equal(html.includes('<text x="52" y="26" text-anchor="end"'), false);
   assert.equal(html.includes('<text x="52" y="68" text-anchor="end"'), false);
 
-  // Price Chart & Volume Study plot area starts at x="74" (20px gap from x="54" box) and preserves x2="568" right edge
+  // Price Chart, Volume Study, and RSI plot area starts at x="74" (20px gap from x="54" box) and preserves x2="568" right edge
   assert.equal(html.includes('<line x1="74" y1="18" x2="568" y2="18"'), true);
   assert.equal(html.includes('<line x1="74" y1="31.25" x2="568" y2="31.25"'), true);
   assert.equal(html.includes('<clipPath id="gp-price-plot-clip"><rect x="66" y="15" width="510"'), true);
@@ -741,9 +741,9 @@ test('ChartWidget renders expanded 260px Price Chart, compact 75px Volume Study,
   assert.equal(html.includes('<rect x="74" y="18"'), true);
   assert.equal(html.includes('<rect x="74" y="20"'), true);
 
-  // RSI Oscillator plot coordinates remain untouched (gridlines at x1="58", clip at x="50")
-  assert.equal(html.includes('<line x1="58" y1="46.6" x2="568" y2="46.6"'), true);
-  assert.equal(html.includes('<clipPath id="gp-rsi-plot-clip"><rect x="50" y="19" width="526"'), true);
+  // RSI Oscillator plot coordinates are aligned at x1="74" (clip at x="66")
+  assert.equal(html.includes('<line x1="74" y1="46.6" x2="568" y2="46.6"'), true);
+  assert.equal(html.includes('<clipPath id="gp-rsi-plot-clip"><rect x="66" y="19" width="510"'), true);
 
   // Default 1.00x zoom level never displays Y-SCALE indicator
   assert.equal(html.includes('Y-SCALE:'), false);
@@ -1409,7 +1409,7 @@ test('ChartWidget MACD separates Y-axis label box from histogram/clip path (matc
     assert.equal(defaultHtml.includes('H: -0.11'), true);
     assert.equal(defaultHtml.includes('data-macd-yscale="true"'), false);
 
-    // Container height = 104, clipPath strictly begins at x=58 (aligned with plot left, 4px clear of label box right edge 54)
+    // Container height = 104, clipPath strictly begins at x=74 (aligned with plot left, 20px clear of label box right edge 54)
     assert.equal(defaultHtml.includes('height="104" viewBox="0 0 600 104"'), true);
     const clipMatch = defaultHtml.match(
       /id="gp-macd-plot-clip"><rect[^>]*x="([0-9.-]+)"[^>]*y="([0-9.-]+)"[^>]*width="([0-9.-]+)"[^>]*height="([0-9.-]+)"/
@@ -1418,11 +1418,11 @@ test('ChartWidget MACD separates Y-axis label box from histogram/clip path (matc
     const clipX = Number(clipMatch[1]);
     const clipTop = Number(clipMatch[2]);
     const clipBottom = clipTop + Number(clipMatch[4]);
-    assert.equal(clipX, 58, 'MACD clipPath must start at plot left x=58 (not x=50 inside label box)');
+    assert.equal(clipX, 74, 'MACD clipPath must start at plot left x=74 (aligned with Price Chart)');
     assert.equal(clipTop, 19);
     assert.equal(clipBottom, 95);
 
-    // Label box matches RSI horizontal framing (x=2, y=10, width=52, right edge=54 -> 4px clear gap to x=58)
+    // Label box matches RSI horizontal framing (x=2, y=10, width=52, right edge=54 -> 20px clear gap to x=74)
     const boxMatch = defaultHtml.match(
       /data-macd-yaxis-box="true"[^>]*x="([0-9.-]+)"[^>]*y="([0-9.-]+)"[^>]*width="([0-9.-]+)"[^>]*height="([0-9.-]+)"[^>]*rx="([0-9.-]+)"/
     );
@@ -1433,20 +1433,20 @@ test('ChartWidget MACD separates Y-axis label box from histogram/clip path (matc
     assert.equal(Number(boxMatch[3]), 52);
     assert.equal(Number(boxMatch[4]), 94);
     assert.equal(Number(boxMatch[5]), 2);
-    assert.equal(clipX - boxRight, 4, 'Visible 4px separation gap between label box (x=54) and plot/clip (x=58)');
+    assert.equal(clipX - boxRight, 20, 'Visible 20px separation gap between label box (x=54) and plot/clip (x=74)');
 
-    // First histogram bar must NEVER cross into the label box or 4px separation gap (x >= 58)
+    // First histogram bar centers at x=74 (left edge x = 74 - macdBarHalf = 70) and is cleanly clipped at x=66
     const firstHistMatch = defaultHtml.match(/data-macd-hist-bar="0"[^>]*x="([0-9.-]+)"[^>]*width="([0-9.-]+)"/);
     assert.ok(firstHistMatch, 'Expected first histogram bar');
     assert.ok(
-      Number(firstHistMatch[1]) >= 58 - 0.001,
-      `Histogram bar 0 left edge x=${firstHistMatch[1]} must be >= 58 (clear of label box x=2..54)`
+      Number(firstHistMatch[1]) >= 66 - 0.001,
+      `Histogram bar 0 left edge x=${firstHistMatch[1]} must be >= 66 (clipped inside plot area)`
     );
 
     // Zero baseline centered at y = 57 (22 + 70/2) for balanced dataset
     const zeroLineDefault = defaultHtml.match(/data-macd-zero-line="true"[^>]*x1="([0-9.-]+)"[^>]*y1="([0-9.-]+)"/);
     assert.ok(zeroLineDefault);
-    assert.equal(Number(zeroLineDefault[1]), 58);
+    assert.equal(Number(zeroLineDefault[1]), 74);
     assert.equal(Number(zeroLineDefault[2]), 57);
 
     // Y-axis ticks use fontSize="9.5", sit strictly inside box [10, 104], and match plotted coordinates
@@ -1462,7 +1462,7 @@ test('ChartWidget MACD separates Y-axis label box from histogram/clip path (matc
     assert.equal(Number(zeroTick[1]), 60);
     assert.equal(Number(minTick[1]), 95);
 
-    // All default MACD & Signal coordinates sit strictly inside x=[58, 568] and y=[22, 92]
+    // All default MACD & Signal coordinates sit strictly inside x=[74, 568] and y=[22, 92]
     const defaultMacdPath = defaultHtml.match(/data-macd-line="true"[^>]*d="([^"]+)"/);
     const defaultSignalPath = defaultHtml.match(/data-macd-signal-line="true"[^>]*d="([^"]+)"/);
     assert.ok(defaultMacdPath && defaultSignalPath);
@@ -1470,7 +1470,7 @@ test('ChartWidget MACD separates Y-axis label box from histogram/clip path (matc
       ...extractSvgPathPoints(defaultMacdPath[1]),
       ...extractSvgPathPoints(defaultSignalPath[1]),
     ];
-    assert.ok(defaultPts.every((p) => p.x >= 58 && p.x <= 568));
+    assert.ok(defaultPts.every((p) => p.x >= 74 && p.x <= 568));
     assert.ok(defaultPts.every((p) => p.y >= 22 - 0.01 && p.y <= 92 + 0.01));
 
     // 2. Aggressive zoom-in (passing 10x) clamps to data-aware maxZoomFactor, expands panel & box height,
@@ -1504,7 +1504,7 @@ test('ChartWidget MACD separates Y-axis label box from histogram/clip path (matc
     assert.ok(zoomedClipMatch);
     const zClipTop = Number(zoomedClipMatch[2]);
     const zClipBottom = zClipTop + Number(zoomedClipMatch[4]);
-    assert.equal(Number(zoomedClipMatch[1]), 58);
+    assert.equal(Number(zoomedClipMatch[1]), 74);
 
     const zoomedMacdPath = zoomedInHtml.match(/data-macd-line="true"[^>]*d="([^"]+)"/);
     const zoomedSignalPath = zoomedInHtml.match(/data-macd-signal-line="true"[^>]*d="([^"]+)"/);
@@ -1700,7 +1700,7 @@ test('ChartWidget ATR and OBV match MACD label box/typography/spacing, stay uncl
     assert.equal(defaultHtml.includes('data-atr-yscale="true"'), false);
     assert.equal(defaultHtml.includes('data-obv-yscale="true"'), false);
 
-    // Label boxes match MACD exactly: x=2, y=10, width=52, height=94, rx=2 -> 4px gap to clip x=58
+    // Label boxes match MACD exactly: x=2, y=10, width=52, height=94, rx=2 -> 20px gap to clip x=74
     for (const prefix of ['atr', 'obv'] as const) {
       const box = defaultHtml.match(
         new RegExp(`data-${prefix}-yaxis-box="true"[^>]*x="([0-9.-]+)"[^>]*y="([0-9.-]+)"[^>]*width="([0-9.-]+)"[^>]*height="([0-9.-]+)"[^>]*rx="([0-9.-]+)"`)
@@ -1714,7 +1714,7 @@ test('ChartWidget ATR and OBV match MACD label box/typography/spacing, stay uncl
       assert.equal(Number(box[3]), 52);
       assert.equal(Number(box[4]), 94);
       assert.equal(Number(box[5]), 2);
-      assert.equal(Number(clip[1]), 58, `${prefix} clipPath must begin at x=58 (4px clear of label box x=2..54)`);
+      assert.equal(Number(clip[1]), 66, `${prefix} clipPath must begin at x=66 (aligned with plot left x=74 - 8)`);
       assert.equal(Number(clip[2]), 19);
       assert.equal(Number(clip[4]), 76);
 
@@ -1736,8 +1736,8 @@ test('ChartWidget ATR and OBV match MACD label box/typography/spacing, stay uncl
     const atrDefaultPath = defaultHtml.match(/data-atr-line="true"[^>]*d="([^"]+)"/);
     const obvDefaultPath = defaultHtml.match(/data-obv-line="true"[^>]*d="([^"]+)"/);
     assert.ok(atrDefaultPath && obvDefaultPath);
-    assert.ok(extractSvgPathPoints(atrDefaultPath[1]).every((p) => p.x >= 58 && p.y >= 22 - 0.01 && p.y <= 92 + 0.01));
-    assert.ok(extractSvgPathPoints(obvDefaultPath[1]).every((p) => p.x >= 58 && p.y >= 22 - 0.01 && p.y <= 92 + 0.01));
+    assert.ok(extractSvgPathPoints(atrDefaultPath[1]).every((p) => p.x >= 74 && p.y >= 22 - 0.01 && p.y <= 92 + 0.01));
+    assert.ok(extractSvgPathPoints(obvDefaultPath[1]).every((p) => p.x >= 74 && p.y >= 22 - 0.01 && p.y <= 92 + 0.01));
     // Strictly positive OBV (45M..48M) does NOT force a zero line
     assert.equal(defaultHtml.includes('data-obv-zero-line="true"'), false);
 

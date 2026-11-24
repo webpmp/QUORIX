@@ -1121,8 +1121,9 @@ export default function ChartWidget({
   const PRICE_VOL_PLOT_GUTTER_GAP = 16;
   const priceVolPaddingLeft = paddingLeft + PRICE_VOL_PLOT_GUTTER_GAP;
   const paddingRight = 32;
-  const adjWidth = Math.max(100, width - paddingLeft - paddingRight);
-  const priceVolAdjWidth = Math.max(100, width - priceVolPaddingLeft - paddingRight);
+  const plotLeft = priceVolPaddingLeft;
+  const adjWidth = Math.max(100, width - plotLeft - paddingRight);
+  const priceVolAdjWidth = adjWidth;
 
   const pricePaddingTop = 18;
   const pricePaddingBottom = 18;
@@ -1130,16 +1131,16 @@ export default function ChartWidget({
   const Y_AXIS_BACKDROP_PAD_Y = 6 + Y_AXIS_VERTICAL_EXTRA_PAD;
 
   const barStep = adjWidth / Math.max(history.length, 1);
-  const priceVolBarStep = priceVolAdjWidth / Math.max(history.length, 1);
+  const priceVolBarStep = barStep;
   const candleWidth = Math.max(4, Math.min(14, Math.floor(priceVolBarStep * 0.55)));
   const volBarWidth = Math.max(3, Math.min(12, Math.floor(barStep * 0.5)));
-  const priceVolBarWidth = Math.max(3, Math.min(12, Math.floor(priceVolBarStep * 0.5)));
+  const priceVolBarWidth = volBarWidth;
 
   const minLabelGapPx = (spansMultipleDays || interval === '1W') && interval !== '1M' ? 98 : 76;
   const maxLabels = Math.max(3, Math.floor(adjWidth / minLabelGapPx));
   const labelStep = Math.max(1, Math.ceil(history.length / maxLabels));
-  const priceVolMaxLabels = Math.max(3, Math.floor(priceVolAdjWidth / minLabelGapPx));
-  const priceVolLabelStep = Math.max(1, Math.ceil(history.length / priceVolMaxLabels));
+  const priceVolMaxLabels = maxLabels;
+  const priceVolLabelStep = labelStep;
   const lastIdx = history.length - 1;
 
   const formatAxisSigned = (val: number) => {
@@ -1457,35 +1458,26 @@ export default function ChartWidget({
   };
 
   const getX = (index: number) => {
-    if (history.length <= 1) return paddingLeft + adjWidth / 2;
-    return paddingLeft + (index / (history.length - 1)) * adjWidth;
+    if (history.length <= 1) return plotLeft + adjWidth / 2;
+    return plotLeft + (index / (history.length - 1)) * adjWidth;
   };
 
   const getPriceVolX = (index: number) => {
-    if (history.length <= 1) return priceVolPaddingLeft + priceVolAdjWidth / 2;
-    return priceVolPaddingLeft + (index / (history.length - 1)) * priceVolAdjWidth;
+    return getX(index);
   };
 
   const getHoverStripeBounds = (index: number) => {
     if (history.length <= 1) {
-      return { x: paddingLeft, stripeWidth: adjWidth };
+      return { x: plotLeft, stripeWidth: adjWidth };
     }
-    const left = index === 0 ? paddingLeft : (getX(index - 1) + getX(index)) / 2;
+    const left = index === 0 ? plotLeft : (getX(index - 1) + getX(index)) / 2;
     const right =
-      index === history.length - 1 ? paddingLeft + adjWidth : (getX(index) + getX(index + 1)) / 2;
+      index === history.length - 1 ? plotLeft + adjWidth : (getX(index) + getX(index + 1)) / 2;
     return { x: left, stripeWidth: Math.max(1, right - left) };
   };
 
   const getPriceVolHoverStripeBounds = (index: number) => {
-    if (history.length <= 1) {
-      return { x: priceVolPaddingLeft, stripeWidth: priceVolAdjWidth };
-    }
-    const left = index === 0 ? priceVolPaddingLeft : (getPriceVolX(index - 1) + getPriceVolX(index)) / 2;
-    const right =
-      index === history.length - 1
-        ? priceVolPaddingLeft + priceVolAdjWidth
-        : (getPriceVolX(index) + getPriceVolX(index + 1)) / 2;
-    return { x: left, stripeWidth: Math.max(1, right - left) };
+    return getHoverStripeBounds(index);
   };
 
   const getY = (price: number) => {
@@ -1690,7 +1682,7 @@ export default function ChartWidget({
     setIsMacdYAxisDragging(true);
   };
 
-  const macdPlotLeft = paddingLeft;
+  const macdPlotLeft = plotLeft;
   const macdPlotRight = width - paddingRight;
   const macdBarWidth = volBarWidth;
   const macdBarHalf = macdBarWidth / 2;
@@ -1698,18 +1690,11 @@ export default function ChartWidget({
   const macdSeriesRight = Math.max(macdSeriesLeft, macdPlotRight - macdBarHalf);
 
   const getMacdX = (index: number) => {
-    if (history.length <= 1) return macdPlotLeft + adjWidth / 2;
-    return macdSeriesLeft + (index / (history.length - 1)) * (macdSeriesRight - macdSeriesLeft);
+    return getX(index);
   };
 
   const getMacdHoverStripeBounds = (index: number) => {
-    if (history.length <= 1) {
-      return { x: macdPlotLeft, stripeWidth: adjWidth };
-    }
-    const left = index === 0 ? macdPlotLeft : (getMacdX(index - 1) + getMacdX(index)) / 2;
-    const right =
-      index === history.length - 1 ? macdPlotRight : (getMacdX(index) + getMacdX(index + 1)) / 2;
-    return { x: left, stripeWidth: Math.max(1, right - left) };
+    return getHoverStripeBounds(index);
   };
 
   const getMacdY = (v: number) => {
@@ -1832,7 +1817,7 @@ export default function ChartWidget({
     subPadTop + subAdjHeight - ((v + rocMaxAbs) / (2 * rocMaxAbs)) * subAdjHeight;
 
   const CHART_PANEL_HEADER_CLASS =
-    'absolute top-1 left-[64px] right-2 flex items-center justify-between gap-2 text-[11px] leading-tight font-bold uppercase select-none pointer-events-none';
+    'absolute top-1 left-[74px] right-2 flex items-center justify-between gap-2 text-[11px] leading-tight font-bold uppercase select-none pointer-events-none';
   const PRICE_VOL_PANEL_HEADER_CLASS =
     'absolute top-1 left-[74px] right-2 flex items-center justify-between gap-2 text-[11px] leading-tight font-bold uppercase select-none pointer-events-none';
 
@@ -3016,16 +3001,16 @@ export default function ChartWidget({
 
               <g clipPath="url(#gp-rsi-plot-clip)">
                 <rect
-                  x={paddingLeft}
+                  x={plotLeft}
                   y={getRsiY(100)}
-                  width={width - paddingLeft - paddingRight}
+                  width={width - plotLeft - paddingRight}
                   height={Math.max(0, getRsiY(70) - getRsiY(100))}
                   fill="rgba(239, 68, 68, 0.08)"
                 />
                 <rect
-                  x={paddingLeft}
+                  x={plotLeft}
                   y={getRsiY(30)}
-                  width={width - paddingLeft - paddingRight}
+                  width={width - plotLeft - paddingRight}
                   height={Math.max(0, getRsiY(0) - getRsiY(30))}
                   fill="rgba(34, 197, 94, 0.08)"
                 />
@@ -3048,7 +3033,7 @@ export default function ChartWidget({
                   <g key={`rsi-scale-${pct}`}>
                     {!nearRefLine && (
                       <line
-                        x1={paddingLeft}
+                        x1={plotLeft}
                         y1={yVal}
                         x2={width - paddingRight}
                         y2={yVal}
@@ -3092,7 +3077,7 @@ export default function ChartWidget({
                 return (
                   <g key={`rsi-lvl-${level}`}>
                     <line
-                      x1={paddingLeft}
+                      x1={plotLeft}
                       y1={yVal}
                       x2={width - paddingRight}
                       y2={yVal}
@@ -3210,7 +3195,7 @@ export default function ChartWidget({
               <defs>
                 <clipPath id="gp-rsi-plot-clip">
                   <rect
-                    x={paddingLeft - 8}
+                    x={plotLeft - 8}
                     y={rsiPaddingTop - 3}
                     width={adjWidth + 16}
                     height={rsiAdjHeight + 6}
@@ -3533,23 +3518,23 @@ export default function ChartWidget({
               onMouseLeave={() => setHoverIndex(null)}
             >
               <rect
-                x={paddingLeft}
+                x={plotLeft}
                 y={getStochY(100)}
-                width={width - paddingLeft - paddingRight}
+                width={width - plotLeft - paddingRight}
                 height={getStochY(80) - getStochY(100)}
                 fill="rgba(239, 68, 68, 0.08)"
               />
               <rect
-                x={paddingLeft}
+                x={plotLeft}
                 y={getStochY(20)}
-                width={width - paddingLeft - paddingRight}
+                width={width - plotLeft - paddingRight}
                 height={getStochY(0) - getStochY(20)}
                 fill="rgba(34, 197, 94, 0.08)"
               />
               {[20, 50, 80].map((lvl) => (
                 <g key={`stoch-lvl-${lvl}`}>
                   <line
-                    x1={paddingLeft}
+                    x1={plotLeft}
                     y1={getStochY(lvl)}
                     x2={width - paddingRight}
                     y2={getStochY(lvl)}
@@ -3585,7 +3570,7 @@ export default function ChartWidget({
               />
               {renderPanelHoverStripes('stoch')}
             </svg>
-            <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
+            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
               <span className="text-zinc-500 flex items-center gap-2 tabular-nums">
                 <span>STOCH (14,3,3)</span>
                 <span className="text-[#22d3ee]">
@@ -3627,7 +3612,7 @@ export default function ChartWidget({
               {[100, 0, -100].map((lvl) => (
                 <g key={`cci-lvl-${lvl}`}>
                   <line
-                    x1={paddingLeft}
+                    x1={plotLeft}
                     y1={getCciY(lvl)}
                     x2={width - paddingRight}
                     y2={getCciY(lvl)}
@@ -3656,7 +3641,7 @@ export default function ChartWidget({
               />
               {renderPanelHoverStripes('cci')}
             </svg>
-            <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
+            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
               <span className="text-zinc-500 flex items-center gap-2 tabular-nums">
                 <span>CCI (20)</span>
                 <span className="text-[#a3e635]">
@@ -3695,7 +3680,7 @@ export default function ChartWidget({
               {[25, Math.round(adxMax)].map((lvl, idx) => (
                 <g key={`adx-lvl-${idx}`}>
                   <line
-                    x1={paddingLeft}
+                    x1={plotLeft}
                     y1={getAdxY(lvl)}
                     x2={width - paddingRight}
                     y2={getAdxY(lvl)}
@@ -3738,7 +3723,7 @@ export default function ChartWidget({
               />
               {renderPanelHoverStripes('adx')}
             </svg>
-            <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
+            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
               <span className="text-zinc-500 flex items-center gap-2 tabular-nums">
                 <span>ADX / DMI (14)</span>
                 <span className="text-zinc-200">
@@ -3809,7 +3794,7 @@ export default function ChartWidget({
               {[atrMax, (atrMax + atrMin) / 2, atrMin].map((lvl, idx) => (
                 <g key={`atr-lvl-${idx}`}>
                   <line
-                    x1={paddingLeft}
+                    x1={plotLeft}
                     y1={getAtrY(lvl)}
                     x2={width - paddingRight}
                     y2={getAtrY(lvl)}
@@ -3916,9 +3901,9 @@ export default function ChartWidget({
               <defs>
                 <clipPath id="gp-atr-plot-clip">
                   <rect
-                    x={paddingLeft}
+                    x={plotLeft - 8}
                     y={atrPadTop - 3}
-                    width={adjWidth}
+                    width={adjWidth + 16}
                     height={atrAdjHeight + 6}
                   />
                 </clipPath>
@@ -3996,7 +3981,7 @@ export default function ChartWidget({
               {obvMin < 0 && obvMax > 0 && (
                 <line
                   data-obv-zero-line="true"
-                  x1={paddingLeft}
+                  x1={plotLeft}
                   y1={getObvY(0)}
                   x2={width - paddingRight}
                   y2={getObvY(0)}
@@ -4010,7 +3995,7 @@ export default function ChartWidget({
               {[obvMax, (obvMax + obvMin) / 2, obvMin].map((lvl, idx) => (
                 <g key={`obv-lvl-${idx}`}>
                   <line
-                    x1={paddingLeft}
+                    x1={plotLeft}
                     y1={getObvY(lvl)}
                     x2={width - paddingRight}
                     y2={getObvY(lvl)}
@@ -4117,9 +4102,9 @@ export default function ChartWidget({
               <defs>
                 <clipPath id="gp-obv-plot-clip">
                   <rect
-                    x={paddingLeft}
+                    x={plotLeft - 8}
                     y={obvPadTop - 3}
-                    width={adjWidth}
+                    width={adjWidth + 16}
                     height={obvAdjHeight + 6}
                   />
                 </clipPath>
@@ -4171,7 +4156,7 @@ export default function ChartWidget({
               onMouseLeave={() => setHoverIndex(null)}
             >
               <line
-                x1={paddingLeft}
+                x1={plotLeft}
                 y1={getRocY(0)}
                 x2={width - paddingRight}
                 y2={getRocY(0)}
@@ -4201,7 +4186,7 @@ export default function ChartWidget({
               />
               {renderPanelHoverStripes('roc')}
             </svg>
-            <div className="absolute top-1 left-[64px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
+            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
               <span className="text-zinc-500 flex items-center gap-2 tabular-nums">
                 <span>ROC (12)</span>
                 <span className="text-[#ec4899]">
