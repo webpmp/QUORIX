@@ -1114,7 +1114,7 @@ export default function Workspace({
 
   return (
     <div className={`flex-1 bg-[#010101] p-4 font-mono text-zinc-300 relative select-text ${
-      activeScreen === 'ASK' || activeScreen === 'BWRITE' || activeScreen === 'ECO' || activeScreen === 'PRM'
+      activeScreen === 'ASK' || activeScreen === 'BWRITE' || activeScreen === 'ECO' || activeScreen === 'PRM' || activeScreen === 'HP'
         ? 'flex flex-col overflow-hidden min-h-0'
         : activeScreen === 'POLY'
         ? 'flex flex-col overflow-y-auto lg:overflow-hidden min-h-0'
@@ -1255,18 +1255,12 @@ export default function Workspace({
           hpSymbolData && hpSymbolData.symbol === activeHpSym ? hpSymbolData.warning : null;
 
         return (
-          <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-lg">
-            <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2 select-none">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-lg">
+            <div className="shrink-0 border-b border-[#333] pb-2 mb-2.5 flex flex-wrap justify-between items-center gap-2 select-none">
               <div className="flex flex-wrap items-center gap-2.5">
                 <span className="text-white text-md font-bold uppercase tracking-wider">
-                  {currentStock.symbol} Historical Price Log System
+                  {currentStock.symbol} Historical Price Log
                 </span>
-                {displayBars.length > 0 && (
-                  <span className="text-xs text-zinc-300 font-mono uppercase tabular-nums">
-                    {displayBars.length.toLocaleString()} BARS • {tradingDaysCount}{' '}
-                    {tradingDaysCount === 1 ? 'DAY' : 'TRADING DAYS'} • 60M
-                  </span>
-                )}
                 {hpLoading && (
                   <span className="inline-flex items-center gap-1 text-xs text-[#ff9900] font-mono uppercase">
                     <RefreshCw size={10} className="animate-spin" />
@@ -1278,30 +1272,39 @@ export default function Workspace({
             </div>
 
             {hpWarningMsg && (
-              <div className="mb-3 px-3 py-2 rounded bg-amber-950/25 border border-amber-600/40 text-amber-300 text-xs font-mono flex items-center gap-2">
+              <div className="shrink-0 mb-2.5 px-3 py-2 rounded bg-amber-950/25 border border-amber-600/40 text-amber-300 text-xs font-mono flex items-center gap-2">
                 <AlertCircle size={12} className="shrink-0 text-amber-400" />
                 <span>{hpWarningMsg}</span>
               </div>
             )}
 
             {hpError && displayBars.length === 0 && !hpLoading && (
-              <div className="mb-3 px-3 py-2 rounded bg-red-950/25 border border-red-800/40 text-red-300 text-xs font-mono flex items-center gap-2">
+              <div className="shrink-0 mb-2.5 px-3 py-2 rounded bg-red-950/25 border border-red-800/40 text-red-300 text-xs font-mono flex items-center gap-2">
                 <AlertCircle size={12} className="shrink-0 text-[#ff4444]" />
                 <span>{hpError}</span>
               </div>
             )}
 
-            <div className="overflow-x-auto">
+            {displayBars.length > 0 && (
+              <div className="shrink-0 flex justify-end mb-2 select-none">
+                <span className="text-xs text-zinc-300 font-mono uppercase tabular-nums">
+                  {displayBars.length.toLocaleString()} BARS • {tradingDaysCount}{' '}
+                  {tradingDaysCount === 1 ? 'DAY' : 'TRADING DAYS'} • 60M
+                </span>
+              </div>
+            )}
+
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
               <table className={`w-full text-left ${activeBwriteFont.body} text-[#d4d4d4] border-collapse`}>
-                <thead>
+                <thead className="sticky top-0 z-10 bg-[#050505]">
                   <tr className={`border-b border-[#333] text-zinc-300 ${activeBwriteFont.heading} uppercase font-bold`}>
-                    <th className="py-2.5 pr-3 whitespace-nowrap">TIME</th>
-                    <th className="text-right px-3 whitespace-nowrap">OPEN VALUE</th>
-                    <th className="text-right px-3 whitespace-nowrap">HIGH VALUE</th>
-                    <th className="text-right px-3 whitespace-nowrap">LOW VALUE</th>
-                    <th className="text-right px-3 whitespace-nowrap">CLOSE VALUE</th>
-                    <th className="text-right px-3 whitespace-nowrap">INTERVAL VOLUME</th>
-                    <th className="text-right pl-3 whitespace-nowrap">DIFFERENTIAL</th>
+                    <th className="py-2.5 pr-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">TIME</th>
+                    <th className="text-right px-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">OPEN VALUE</th>
+                    <th className="text-right px-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">HIGH VALUE</th>
+                    <th className="text-right px-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">LOW VALUE</th>
+                    <th className="text-right px-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">CLOSE VALUE</th>
+                    <th className="text-right px-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">INTERVAL VOLUME</th>
+                    <th className="text-right pl-3 whitespace-nowrap bg-[#050505] shadow-[inset_0_-1px_0_0_#333]">DIFFERENTIAL</th>
                   </tr>
                 </thead>
                 <tbody>

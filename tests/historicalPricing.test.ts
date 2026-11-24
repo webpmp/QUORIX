@@ -294,7 +294,10 @@ test('Workspace HP screen renders INTERVAL VOLUME header, all 7 columns, A-/A+ c
   assert.equal(html.includes('CLOSE VALUE'), true);
   assert.equal(html.includes('DIFFERENTIAL'), true);
 
-  // Layout preservation: horizontal scroll wrapper & text-size controls
+  // Title updated without "System", fixed header with TEXT SIZE controls, stats right-aligned below header and above scrollable table
+  assert.equal(html.includes('AAPL Historical Price Log'), true);
+  assert.equal(html.includes('Historical Price Log System'), false);
+  assert.equal(html.includes('overflow-y-auto overflow-x-auto'), true);
   assert.equal(html.includes('overflow-x-auto'), true);
   assert.equal(html.includes('A-'), true);
   assert.equal(html.includes('A+'), true);
@@ -305,6 +308,16 @@ test('Workspace HP screen renders INTERVAL VOLUME header, all 7 columns, A-/A+ c
   assert.equal(html.includes('11/20 16:00 (Market Close)'), true);
   assert.equal(html.includes('11/20 15:30 (Intraday)'), true);
   assert.equal(html.includes('11/19 09:30 (Intraday)'), true);
+
+  // Header -> TEXT SIZE controls -> right-aligned statistics -> scrollable table ordering
+  const idxTitle = html.indexOf('AAPL Historical Price Log');
+  const idxTextSize = html.indexOf('TEXT SIZE');
+  const idxStats = html.indexOf('3 BARS');
+  const idxTableScroll = html.indexOf('overflow-y-auto overflow-x-auto');
+  assert.ok(
+    idxTitle > -1 && idxTextSize > idxTitle && idxStats > idxTextSize && idxTableScroll > idxStats,
+    'Expected fixed header & TEXT SIZE controls above right-aligned statistics and independent scrollable table'
+  );
 
   // Strictly newest-first ordering in rendered DOM
   const idxClose = html.indexOf('11/20 16:00 (Market Close)');
