@@ -49,6 +49,12 @@ import {
 } from "./src/server/sectorRotationService";
 import { newsPaywallService } from "./src/server/newsPaywallService";
 import {
+  filterPolymarketEventsByTicker,
+  getTickerCompanyProfile,
+  resolveTickerFromQuery,
+} from "./src/utils/polymarketFilter";
+import { polymarketTickerResolver } from "./src/server/polymarketTickerResolver";
+import {
   SECTOR_BY_ID,
   isBroadMarketOrMultiSectorFund,
   mapMarketSectorToGicsSector,
@@ -3338,8 +3344,11 @@ app.get("/api/fred/fx-intelligence", async (req, res) => {
 app.get("/api/polymarket/events", async (req, res) => {
   try {
     const search = ((req.query.search as string) || "").trim();
+    const tickerParam = ((req.query.ticker as string) || "").trim();
+    const companyNameParam = ((req.query.companyName as string) || "").trim();
     const category = ((req.query.category as string) || "Stocks").trim();
     const limitNum = Math.min(50, Math.max(10, parseInt(String(req.query.limit || "30"), 10) || 30));
+    const effectiveTicker = resolveTickerFromQuery(tickerParam, search);
 
     const fetchGammaByTag = async (tagSlug: string, tagLimit: number): Promise<any[]> => {
       try {
@@ -3351,6 +3360,16 @@ app.get("/api/polymarket/events", async (req, res) => {
       } catch {
         return [];
       }
+    };
+
+    const fetchGammaSearch = async (query: string, searchLimit: number): Promise<any[]> => {
+      const searchUrl = `https://gamma-api.polymarket.com/public-search?q=${encodeURIComponent(query)}&events_status=active&limit_per_type=${searchLimit}`;
+      const r = await fetch(searchUrl);
+      if (!r.ok) {
+        throw new Error(`Polymarket search returned status ${r.status}`);
+      }
+      const json = await r.json();
+      return Array.isArray(json?.events) ? json.events : [];
     };
 
     const getTagSlugs = (ev: any): string[] => {
@@ -3396,15 +3415,67 @@ app.get("/api/polymarket/events", async (req, res) => {
     };
 
     let rawEvents: any[] = [];
+    let resolvedCompanyName: string | null = null;
 
-    if (search) {
-      const searchUrl = `https://gamma-api.polymarket.com/public-search?q=${encodeURIComponent(search)}&events_status=active&limit_per_type=${limitNum}`;
-      const r = await fetch(searchUrl);
-      if (!r.ok) {
-        throw new Error(`Polymarket search returned status ${r.status}`);
+    if (effectiveTicker) {
+      const resolution = await polymarketTickerResolver.resolveTicker(
+        effectiveTicker,
+        companyNameParam || undefined,
+      );
+
+      if (resolution.status === "invalid" || resolution.status === "unrecognized") {
+        return res.json({
+          success: true,
+          status: "unrecognized_ticker",
+          appliedTicker: effectiveTicker,
+          resolvedCompanyName: null,
+          error:
+            resolution.reason ||
+            `Ticker "${effectiveTicker}" is not recognized as a valid stock symbol.`,
+          data: [],
+        });
       }
-      const json = await r.json();
-      rawEvents = Array.isArray(json?.events) ? json.events : [];
+
+      resolvedCompanyName = resolution.companyName || null;
+      const profile =
+        resolution.profile ||
+        getTickerCompanyProfile(effectiveTicker, resolvedCompanyName || undefined);
+      const searchWindow = Math.max(limitNum, 40);
+      const settledResults = await Promise.allSettled(
+        profile.searchQueries.map((q) => fetchGammaSearch(q, searchWindow)),
+      );
+
+      const fulfilledBatches = settledResults
+        .filter((r): r is PromiseFulfilledResult<any[]> => r.status === "fulfilled")
+        .map((r) => r.value);
+
+      if (fulfilledBatches.length === 0) {
+        const firstRejection = settledResults.find(
+          (r): r is PromiseRejectedResult => r.status === "rejected",
+        );
+        throw new Error(
+          firstRejection?.reason?.message ||
+            "Polymarket search provider did not respond.",
+        );
+      }
+
+      const seenIds = new Set<string>();
+      const mergedEvents: any[] = [];
+      for (const batch of fulfilledBatches) {
+        for (const ev of batch) {
+          const evId = String(ev?.id || ev?.slug || ev?.title || "");
+          if (!evId || seenIds.has(evId)) continue;
+          seenIds.add(evId);
+          mergedEvents.push(ev);
+        }
+      }
+
+      // Strictly filter events and multi-company contracts to only those belonging to the selected ticker/company
+      rawEvents = filterPolymarketEventsByTicker(mergedEvents, effectiveTicker, {
+        companyName: resolvedCompanyName || undefined,
+      });
+    } else if (search) {
+      rawEvents = await fetchGammaSearch(search, limitNum);
     } else {
       const catLower = category.toLowerCase();
       let batchArrays: any[][] = [];
@@ -3452,13 +3523,17 @@ app.get("/api/polymarket/events", async (req, res) => {
 
     return res.json({
       success: true,
+      status: normalized.length > 0 ? "ok" : "no_matching_markets",
+      appliedTicker: effectiveTicker || null,
+      resolvedCompanyName,
       data: normalized,
     });
   } catch (err: any) {
     console.log("Polymarket events fetch handled gracefully:", err.message);
     return res.json({
       success: false,
-      error: err.message,
+      status: "provider_error",
+      error: err.message || "Unable to retrieve market data from Polymarket.",
       data: [],
     });
   }

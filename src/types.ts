@@ -114,6 +114,7 @@ export interface PolymarketMarket {
   id: string;
   question: string;
   slug?: string;
+  groupItemTitle?: string;
   resolutionSource?: string;
   outcomes: string[];
   outcomePrices: string[];
@@ -131,6 +132,7 @@ export interface PolymarketEvent {
   image?: string;
   slug?: string;
   resolutionSource?: string;
+  tags?: Array<{ slug?: string; label?: string } | string>;
 }
 
 export type InstitutionalPositionStatus =

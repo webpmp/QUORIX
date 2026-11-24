@@ -18,6 +18,12 @@ import {
   removePolymarketTicker,
   savePolymarketTickers,
 } from '../utils/polymarketTickers';
+import {
+  createLatestRequestGuard,
+  filterPolymarketEventsByTicker,
+  resolveTickerFromQuery,
+  type LatestRequestGuard,
+} from '../utils/polymarketFilter';
 
 interface PolymarketScreenProps {
   stocks: Record<string, StockData>;
@@ -61,14 +67,23 @@ function formatSourceHost(url: string): string {
   }
 }
 
-export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenProps) {
+export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
   const [events, setEvents] = useState<PolymarketEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectedTicker, setSelectedTicker] = useState<string>('');
+  const [resolvedCompanyName, setResolvedCompanyName] = useState<string | null>(null);
+  const [resultStatus, setResultStatus] = useState<
+    'idle' | 'ok' | 'no_matching_markets' | 'unrecognized_ticker' | 'provider_error'
+  >('idle');
   const [selectedCategory, setSelectedCategory] = useState<string>('Stocks');
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const requestGuardRef = useRef<LatestRequestGuard | null>(null);
+  if (!requestGuardRef.current) {
+    requestGuardRef.current = createLatestRequestGuard();
+  }
 
   const [quickTickers, setQuickTickers] = useState<string[]>(() =>
     loadPolymarketTickers(typeof window !== 'undefined' ? window.localStorage : null),
@@ -129,19 +144,63 @@ export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenPr
     }
   }, [isEditingTickers, isAtTickerLimit]);
 
-  // Fetch from the server-side API proxy
-  const fetchActivePolymarketEvents = async (searchStr = '', catStr = 'Stocks') => {
+  // Fetch from the server-side API proxy with request sequencing + abort to prevent stale overwrites
+  const fetchActivePolymarketEvents = async (
+    searchStr = '',
+    catStr = 'Stocks',
+    tickerStr = '',
+  ) => {
+    const guard = requestGuardRef.current!;
+    const { requestId, signal } = guard.next();
+
     setLoading(true);
     setError(null);
+    setResultStatus('idle');
+    setResolvedCompanyName(null);
+    setEvents([]);
+    setSelectedEventId('');
     try {
-      let queryUrl = '/api/polymarket/events?limit=30';
-      if (searchStr.trim()) queryUrl += `&search=${encodeURIComponent(searchStr.trim())}`;
-      if (catStr) queryUrl += `&category=${encodeURIComponent(catStr)}`;
+      const trimmedSearch = searchStr.trim();
+      const effectiveTicker = resolveTickerFromQuery(tickerStr, trimmedSearch);
+      const companyHint = effectiveTicker ? stocks?.[effectiveTicker]?.name : undefined;
 
-      const res = await fetch(queryUrl);
+      const params = new URLSearchParams({ limit: '30' });
+      if (effectiveTicker) params.set('ticker', effectiveTicker);
+      if (companyHint) params.set('companyName', companyHint);
+      if (trimmedSearch) params.set('search', trimmedSearch);
+      if (catStr) params.set('category', catStr);
+
+      const res = await fetch(`/api/polymarket/events?${params.toString()}`, {
+        signal,
+      });
+      if (!res.ok) {
+        throw new Error(`Market data service returned HTTP ${res.status}`);
+      }
       const data = await res.json();
 
+      if (!guard.isCurrent(requestId)) {
+        return;
+      }
+
+      if (data.status === 'unrecognized_ticker') {
+        setEvents([]);
+        setSelectedEventId('');
+        setResolvedCompanyName(null);
+        setResultStatus('unrecognized_ticker');
+        setError(
+          data.error ||
+            `Ticker "${effectiveTicker || trimmedSearch}" is not recognized as a valid stock symbol.`,
+        );
+        return;
+      }
+
       if (data.success && Array.isArray(data.data)) {
+        const resolvedName =
+          typeof data.resolvedCompanyName === 'string' && data.resolvedCompanyName.trim()
+            ? data.resolvedCompanyName.trim()
+            : companyHint || null;
+        setResolvedCompanyName(resolvedName);
+
         const parsed: PolymarketEvent[] = data.data.map((item: any) => ({
           id: String(item.id || item.event_id || item.slug || item.title),
           title: item.title || item.name || 'Markets Event',
@@ -149,10 +208,12 @@ export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenPr
           volume: typeof item.volume === 'number' ? item.volume : Number(item.volume || 0),
           slug: item.slug || '',
           resolutionSource: typeof item.resolutionSource === 'string' ? item.resolutionSource.trim() : '',
+          tags: Array.isArray(item.tags) ? item.tags : undefined,
           markets: (item.markets || []).map((m: any) => ({
             id: String(m.id || m.question),
             question: m.question || m.title || 'Will event occur?',
             slug: typeof m.slug === 'string' ? m.slug : '',
+            groupItemTitle: typeof m.groupItemTitle === 'string' ? m.groupItemTitle : undefined,
             resolutionSource: typeof m.resolutionSource === 'string' ? m.resolutionSource.trim() : '',
             outcomes:
               typeof m.outcomes === 'string'
@@ -170,34 +231,69 @@ export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenPr
             closed: m.closed !== undefined ? m.closed : false,
           })),
         }));
-        setEvents(parsed);
-        if (parsed.length > 0) {
-          setSelectedEventId(parsed[0].id);
+
+        const finalEvents = effectiveTicker
+          ? filterPolymarketEventsByTicker(parsed, effectiveTicker, {
+              companyName: resolvedName || undefined,
+            })
+          : parsed;
+
+        setEvents(finalEvents);
+        setResultStatus(finalEvents.length > 0 ? 'ok' : 'no_matching_markets');
+        if (finalEvents.length > 0) {
+          setSelectedEventId(finalEvents[0].id);
         } else {
           setSelectedEventId('');
         }
         setLastUpdated(new Date().toLocaleTimeString());
       } else {
         setEvents([]);
-        setError(data.error || 'Failed to retrieve live Polymarket events.');
+        setSelectedEventId('');
+        setResultStatus('provider_error');
+        setError(data.error || 'Unable to retrieve live Polymarket market data.');
       }
     } catch (e: any) {
+      if (e?.name === 'AbortError' || !guard.isCurrent(requestId)) {
+        return;
+      }
       console.error('Polymarket proxy fetch failure:', e);
       setEvents([]);
-      setError(e.message || 'Network error fetching Polymarket events.');
+      setSelectedEventId('');
+      setResultStatus('provider_error');
+      setError(e.message || 'Unable to retrieve live Polymarket market data.');
     } finally {
-      setLoading(false);
+      if (guard.isCurrent(requestId)) {
+        setLoading(false);
+      }
     }
   };
 
   // Initial load (defaults to individual stocks & equities)
   useEffect(() => {
-    fetchActivePolymarketEvents('', 'Stocks');
+    fetchActivePolymarketEvents('', 'Stocks', '');
+    return () => {
+      requestGuardRef.current?.abortAll();
+    };
   }, []);
+
+  const clobSubscriptionKey = useMemo(() => {
+    const tokenIds: string[] = [];
+    for (const ev of events) {
+      for (const m of ev.markets) {
+        if (m.clobTokenIds && m.clobTokenIds.length > 0) {
+          tokenIds.push(m.clobTokenIds[0]);
+        }
+      }
+    }
+    return tokenIds.join(',');
+  }, [events]);
 
   // Direct WebSocket to Polymarket CLOB for live trade updates
   useEffect(() => {
-    if (events.length === 0) return;
+    if (!clobSubscriptionKey) return;
+    const tokensToSubscribe = clobSubscriptionKey.split(',').filter(Boolean);
+    if (tokensToSubscribe.length === 0) return;
+
     const wsUrl = 'wss://clob.polymarket.com/ws';
     let socket: WebSocket | null = null;
 
@@ -205,15 +301,6 @@ export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenPr
       socket = new WebSocket(wsUrl);
 
       socket.onopen = () => {
-        const tokensToSubscribe: string[] = [];
-        events.forEach((ev) => {
-          ev.markets.forEach((m) => {
-            if (m.clobTokenIds && m.clobTokenIds.length > 0) {
-              tokensToSubscribe.push(m.clobTokenIds[0]);
-            }
-          });
-        });
-
         if (tokensToSubscribe.length > 0 && socket) {
           socket.send(
             JSON.stringify({
@@ -264,22 +351,30 @@ export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenPr
     return () => {
       if (socket) socket.close();
     };
-  }, [events.length]);
+  }, [clobSubscriptionKey]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchActivePolymarketEvents(searchTerm, selectedCategory);
+    const trimmed = searchTerm.trim();
+    const upper = trimmed.toUpperCase();
+    const matchedTicker = quickTickers.includes(upper)
+      ? upper
+      : resolveTickerFromQuery('', trimmed);
+    setSelectedTicker(matchedTicker);
+    fetchActivePolymarketEvents(trimmed, selectedCategory, matchedTicker);
   };
 
   const handleCategorySwitch = (cat: string) => {
     setSelectedCategory(cat);
+    setSelectedTicker('');
     setSearchTerm('');
-    fetchActivePolymarketEvents('', cat);
+    fetchActivePolymarketEvents('', cat, '');
   };
 
   const handleQuickTickerClick = (ticker: string) => {
+    setSelectedTicker(ticker);
     setSearchTerm(ticker);
-    fetchActivePolymarketEvents(ticker, selectedCategory);
+    fetchActivePolymarketEvents(ticker, selectedCategory, ticker);
   };
 
   const activeEvent = useMemo(() => {
@@ -393,7 +488,7 @@ export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenPr
                 type="button"
                 onClick={() => handleCategorySwitch(cat)}
                 className={`px-2.5 py-1 rounded font-bold uppercase transition-all shrink-0 border cursor-pointer ${
-                  selectedCategory === cat && !searchTerm
+                  selectedCategory === cat && !searchTerm && !selectedTicker
                     ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
                     : 'bg-black border-[#3a3a3a] text-zinc-300 hover:border-zinc-600 hover:text-zinc-200'
                 }`}
@@ -405,9 +500,10 @@ export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenPr
             <button
               type="button"
               onClick={() => {
+                setSelectedTicker('');
                 setSearchTerm('');
                 setSelectedCategory('Stocks');
-                fetchActivePolymarketEvents('', 'Stocks');
+                fetchActivePolymarketEvents('', 'Stocks', '');
               }}
               className="ml-auto px-2 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-600 transition-colors shrink-0 cursor-pointer"
             >
@@ -439,7 +535,7 @@ export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenPr
               </button>
             </div>
             {quickTickers.map((sym) => {
-              const isActiveTicker = searchTerm.toUpperCase() === sym;
+              const isActiveTicker = selectedTicker === sym;
               return (
                 <button
                   key={sym}
@@ -575,8 +671,8 @@ export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenPr
         <div className="lg:col-span-5 border border-[#333] bg-black rounded flex flex-col min-h-[320px] lg:min-h-0 lg:h-full overflow-hidden">
           <div className="bg-[#0c0c0c] border-[#333] border-b p-2 flex justify-between items-center select-none shrink-0">
             <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
-              {searchTerm
-                ? `QUERY "${searchTerm.toUpperCase()}" (${events.length})`
+              {selectedTicker || searchTerm
+                ? `QUERY "${(selectedTicker || searchTerm).toUpperCase()}" (${events.length})`
                 : `${selectedCategory.toUpperCase()} MARKETS (${events.length})`}
             </span>
             {lastUpdated && <span className="text-zinc-300 text-xs tabular-nums">TICK: {lastUpdated}</span>}
@@ -587,14 +683,29 @@ export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenPr
               <RefreshCw className="animate-spin text-[#3498db]" size={18} />
               <span>LOADING STOCK PREDICTION MARKETS...</span>
             </div>
-          ) : error ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 text-[#ff4444] text-center text-xs py-10 gap-2">
+          ) : resultStatus === 'unrecognized_ticker' ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-[#ff9900] text-center text-xs py-10 gap-2 font-mono">
               <AlertCircle size={18} />
-              <span>{error}</span>
+              <span>
+                {error ||
+                  `Ticker "${selectedTicker || searchTerm}" is not recognized as a valid stock symbol.`}
+              </span>
+              <span className="text-zinc-300">
+                Verify the ticker symbol or click RESET to return to active markets.
+              </span>
+            </div>
+          ) : error || resultStatus === 'provider_error' ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-[#ff4444] text-center text-xs py-10 gap-2 font-mono">
+              <AlertCircle size={18} />
+              <span>Unable to retrieve Polymarket market data: {error || 'Provider error.'}</span>
             </div>
           ) : events.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center p-6 text-zinc-300 text-center text-xs py-10">
-              No active stock markets matched &ldquo;{searchTerm || selectedCategory}&rdquo;. Click RESET or try another ticker.
+            <div className="flex-1 flex items-center justify-center p-6 text-zinc-300 text-center text-xs py-10 font-mono">
+              {selectedTicker
+                ? `No active stock markets matched ${selectedTicker}${
+                    resolvedCompanyName ? ` (${resolvedCompanyName})` : ''
+                  }. Click RESET or try another ticker.`
+                : `No active stock markets matched "${searchTerm || selectedCategory}". Click RESET or try another ticker.`}
             </div>
           ) : (
             <div className="divide-y divide-[#222] overflow-y-auto flex-1 min-h-0">
@@ -818,10 +929,6 @@ export default function PolymarketScreen({ stocks: _stocks }: PolymarketScreenPr
                     );
                   })}
                 </div>
-              </div>
-
-              <div className="p-2 select-none shrink-0 bg-[#0c0c0c] text-xs text-zinc-300 font-mono text-center border-t border-[#3a3a3a] uppercase">
-                Live Polymarket CLOB implied probabilities for public equity &amp; market events.
               </div>
             </div>
           ) : (
