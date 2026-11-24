@@ -119,7 +119,7 @@ function formatAxisDate(isoDate: string, timeframe: FxTimeframeId): string {
 }
 
 function getValueColorClass(val: number | null): string {
-  if (val === null || !Number.isFinite(val)) return 'text-zinc-500';
+  if (val === null || !Number.isFinite(val)) return 'text-zinc-300';
   if (val > 0) return 'text-[#00ff00]';
   if (val < 0) return 'text-[#ff4444]';
   return 'text-zinc-300';
@@ -129,7 +129,7 @@ function getPolicyDirectionClass(direction: MonetaryPolicyDirection): string {
   if (direction === 'Increasing') return 'text-[#ff9900]';
   if (direction === 'Decreasing') return 'text-[#3498db]';
   if (direction === 'Unchanged') return 'text-zinc-300';
-  return 'text-zinc-500';
+  return 'text-zinc-300';
 }
 
 const FX_TOOLTIPS = {
@@ -274,7 +274,7 @@ const HistoricalFxChart: React.FC<HistoricalFxChartProps> = ({
     return (
       <div
         ref={containerRef}
-        className="w-full h-[250px] bg-black border border-[#222] rounded flex items-center justify-center text-xs text-zinc-500 font-mono"
+        className="w-full h-[250px] bg-black border border-[#3a3a3a] rounded flex items-center justify-center text-xs text-zinc-300 font-mono"
       >
         NO HISTORICAL OBSERVATIONS AVAILABLE FOR {series.label} ({timeframe})
       </div>
@@ -291,17 +291,17 @@ const HistoricalFxChart: React.FC<HistoricalFxChartProps> = ({
   return (
     <div ref={containerRef} className="w-full relative">
       {/* Live hover readout header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-zinc-400 mb-1.5 min-h-[18px]">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-zinc-300 mb-1.5 min-h-[18px]">
         <div className="flex items-center gap-2">
           <span className="text-[#ff9900] font-bold">{series.label}</span>
-          <span className="text-zinc-600">·</span>
-          <span className="text-zinc-500">{series.seriesId}</span>
-          <span className="text-zinc-600">·</span>
-          <span className="text-zinc-400">{points.length} OBSERVATIONS</span>
+          <span className="text-zinc-300">·</span>
+          <span className="text-zinc-300">{series.seriesId}</span>
+          <span className="text-zinc-300">·</span>
+          <span className="text-zinc-300">{points.length} OBSERVATIONS</span>
         </div>
         {activePoint ? (
           <div className="flex items-center gap-2 tabular-nums">
-            <span className="text-zinc-400">{activePoint.date}</span>
+            <span className="text-zinc-300">{activePoint.date}</span>
             <span className="text-white font-bold">
               {activePoint.value.toFixed(series.decimals)}
             </span>
@@ -312,13 +312,13 @@ const HistoricalFxChart: React.FC<HistoricalFxChartProps> = ({
             )}
           </div>
         ) : (
-          <span className="text-zinc-500">
+          <span className="text-zinc-300">
             {points[0].date} → {points[points.length - 1].date}
           </span>
         )}
       </div>
 
-      <div className="w-full bg-black border border-[#222] rounded overflow-hidden">
+      <div className="w-full bg-black border border-[#3a3a3a] rounded overflow-hidden">
         <svg
           width={chartWidth}
           height={chartHeight}
@@ -643,7 +643,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
 
   const renderSortIcon = (key: PerformanceSortKey) => {
     if (sortKey !== key) {
-      return <ArrowUpDown size={10} className="inline ml-1 text-zinc-600" />;
+      return <ArrowUpDown size={10} className="inline ml-1 text-zinc-300" />;
     }
     return sortDir === 'desc' ? (
       <ArrowDown size={10} className="inline ml-1 text-[#ff9900]" />
@@ -660,11 +660,11 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
           <span className="text-white text-md font-bold uppercase tracking-wider block">
             CURRENCIES (FX)
           </span>
-          <div className="text-[10px] text-zinc-400 mt-0.5">
+          <div className="text-xs text-zinc-300 mt-0.5">
             FEDERAL RESERVE H.10 DAILY FX OBSERVATIONS · BIS OFFICIAL POLICY RATES
           </div>
         </div>
-        <div className="flex items-center gap-3 text-[10px] text-zinc-400">
+        <div className="flex items-center gap-3 text-xs text-zinc-300">
           <span className="tabular-nums">
             {syncedTimeLabel ? `SYNCED ${syncedTimeLabel}` : 'ST. LOUIS FED H.10'}
           </span>
@@ -673,7 +673,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
             type="button"
             onClick={handleRefreshAll}
             disabled={isAnyLoading}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-[#333] bg-[#0c0c0c] text-zinc-200 hover:text-[#00ff00] hover:border-[#00ff00]/60 disabled:opacity-50 transition-colors cursor-pointer whitespace-nowrap shrink-0 text-[10px] font-bold uppercase tracking-wider"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-[#333] bg-[#0c0c0c] text-zinc-200 hover:text-[#00ff00] hover:border-[#00ff00]/60 disabled:opacity-50 transition-colors cursor-pointer whitespace-nowrap shrink-0 text-xs font-bold uppercase tracking-wider"
             title="Refresh FRED FX observations and BIS central bank rates"
           >
             <RefreshCw size={11} className={isAnyLoading ? 'animate-spin' : ''} />
@@ -689,7 +689,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
             <AlertCircle size={14} />
             <span>FRED_API_KEY Required for Exchange-Rate Sections</span>
           </div>
-          <p className="text-zinc-400 leading-relaxed">
+          <p className="text-zinc-300 leading-relaxed">
             Configure <span className="text-white font-bold">FRED_API_KEY</span> in System Settings (
             <span className="text-[#ff9900] font-bold">SETT</span>) or environment secrets to load live Federal Reserve H.10 daily exchange rates, currency performance, historical trends, and cross rates. Central bank policy rates below remain available via BIS.
           </p>
@@ -705,7 +705,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
           <button
             type="button"
             onClick={handleRefreshAll}
-            className="px-2 py-1 text-[10px] font-bold uppercase border border-[#ff4444]/50 rounded text-zinc-200 hover:bg-[#ff4444]/10 cursor-pointer shrink-0"
+            className="px-2 py-1 text-xs font-bold uppercase border border-[#ff4444]/50 rounded text-zinc-200 hover:bg-[#ff4444]/10 cursor-pointer shrink-0"
           >
             RETRY
           </button>
@@ -719,7 +719,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         aria-label="FX Market Overview"
         className="bg-[#050505] border border-[#333] rounded p-4"
       >
-        <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="border-b border-[#3a3a3a] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
               FX MARKET OVERVIEW
@@ -731,7 +731,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
               maxWidth={300}
             />
           </div>
-          <span className="text-[10px] text-zinc-500 uppercase">
+          <span className="text-xs text-zinc-300 uppercase">
             6 MAJOR CURRENCIES · USD-RELATIVE STRENGTH
           </span>
         </div>
@@ -741,7 +741,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
             {MAJOR_CURRENCIES.map((code) => (
               <div
                 key={code}
-                className="bg-[#0a0a0a] border border-[#222] rounded p-3 h-[126px] animate-pulse"
+                className="bg-[#0a0a0a] border border-[#3a3a3a] rounded p-3 h-[126px] animate-pulse"
               >
                 <div className="h-3 w-16 bg-zinc-800 rounded mb-2" />
                 <div className="h-5 w-24 bg-zinc-800 rounded mb-3" />
@@ -768,16 +768,16 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                   className={`text-left bg-[#080808] border rounded p-3 transition-colors cursor-pointer ${
                     isSelectedForChart
                       ? 'border-[#ff9900]/70 bg-[#0f0c06]'
-                      : 'border-[#242424] hover:border-[#444] hover:bg-[#0d0d0d]'
+                      : 'border-[#3a3a3a] hover:border-[#444] hover:bg-[#0d0d0d]'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-1.5 mb-1">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-white font-bold text-xs">{row.code}</span>
-                        <span className="text-[10px] text-zinc-500 truncate">{row.name}</span>
+                        <span className="text-xs text-zinc-300 truncate">{row.name}</span>
                       </div>
-                      <div className="text-[9.5px] text-[#3498db] font-semibold uppercase tracking-wide mt-0.5">
+                      <div className="text-xs text-[#3498db] font-semibold uppercase tracking-wide mt-0.5">
                         {row.pairLabel}
                       </div>
                     </div>
@@ -801,28 +801,28 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                       : '—'}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-[#1c1c1c] text-[9.5px] tabular-nums">
+                  <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-[#2e2e2e] text-xs tabular-nums">
                     <div>
-                      <div className="text-zinc-500 text-[8.5px]">1D</div>
+                      <div className="text-zinc-300 text-xs">1D</div>
                       <div className={`font-bold ${getValueColorClass(row.dailyPct)}`}>
                         {formatSignedPct(row.dailyPct, 2)}
                       </div>
                     </div>
                     <div>
-                      <div className="text-zinc-500 text-[8.5px]">1W</div>
+                      <div className="text-zinc-300 text-xs">1W</div>
                       <div className={`font-bold ${getValueColorClass(row.weeklyPct)}`}>
                         {formatSignedPct(row.weeklyPct, 2)}
                       </div>
                     </div>
                     <div>
-                      <div className="text-zinc-500 text-[8.5px]">1M</div>
+                      <div className="text-zinc-300 text-xs">1M</div>
                       <div className={`font-bold ${getValueColorClass(row.monthlyPct)}`}>
                         {formatSignedPct(row.monthlyPct, 2)}
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-1.5 text-[8.5px] text-zinc-500 flex items-center justify-between tabular-nums">
+                  <div className="mt-1.5 text-xs text-zinc-300 flex items-center justify-between tabular-nums">
                     <span>{row.seriesId}</span>
                     <span>{row.latestDate || 'UNAVAILABLE'}</span>
                   </div>
@@ -840,7 +840,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         aria-label="Currency Performance"
         className="bg-[#050505] border border-[#333] rounded p-4"
       >
-        <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="border-b border-[#3a3a3a] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
               CURRENCY PERFORMANCE
@@ -852,7 +852,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
               maxWidth={310}
             />
           </div>
-          <span className="text-[10px] text-zinc-500 uppercase">
+          <span className="text-xs text-zinc-300 uppercase">
             + STRENGTHENING · − WEAKENING
           </span>
         </div>
@@ -860,7 +860,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-zinc-300 font-mono">
             <thead>
-              <tr className="border-b border-[#333] text-zinc-400 text-[10px] uppercase font-bold">
+              <tr className="border-b border-[#333] text-zinc-300 text-xs uppercase font-bold">
                 <th className="py-2 pr-3">
                   <button
                     type="button"
@@ -918,13 +918,13 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                 return (
                   <tr
                     key={row.code}
-                    className="border-b border-[#1c1c1c] hover:bg-[#101010] text-[11px] transition-colors"
+                    className="border-b border-[#2e2e2e] hover:bg-[#101010] text-xs transition-colors"
                   >
                     <td className="py-2.5 pr-3">
                       <div className="flex items-center gap-2">
                         <span className="text-[#3498db] font-bold w-8">{row.code}</span>
                         <span className="text-zinc-300">{row.name}</span>
-                        <span className="text-[9.5px] text-zinc-500 hidden sm:inline">
+                        <span className="text-xs text-zinc-300 hidden sm:inline">
                           ({row.pairLabel})
                         </span>
                       </div>
@@ -954,7 +954,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                       <div className="flex items-center justify-end gap-2.5">
                         {/* Centered relative strength bar */}
                         <div
-                          className="w-20 sm:w-28 h-2 bg-[#141414] border border-[#262626] rounded-xs relative overflow-hidden shrink-0"
+                          className="w-20 sm:w-28 h-2 bg-[#141414] border border-[#3a3a3a] rounded-xs relative overflow-hidden shrink-0"
                           aria-hidden="true"
                         >
                           <div className="absolute left-1/2 top-0 bottom-0 w-px bg-zinc-600" />
@@ -971,14 +971,14 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                           )}
                         </div>
                         <span
-                          className={`text-[10px] font-semibold w-24 text-right ${
+                          className={`text-xs font-semibold w-24 text-right ${
                             row.trend === 'Strengthening'
                               ? 'text-[#00ff00]'
                               : row.trend === 'Weakening'
                               ? 'text-[#ff4444]'
                               : row.trend === 'Mixed'
                               ? 'text-zinc-300'
-                              : 'text-zinc-500'
+                              : 'text-zinc-300'
                           }`}
                         >
                           {row.trend.toUpperCase()}
@@ -1000,7 +1000,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         aria-label="Historical FX Trends"
         className="bg-[#050505] border border-[#333] rounded p-4"
       >
-        <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="border-b border-[#3a3a3a] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
               HISTORICAL FX TRENDS
@@ -1012,7 +1012,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
               maxWidth={290}
             />
           </div>
-          <span className="text-[10px] text-zinc-500 uppercase">
+          <span className="text-xs text-zinc-300 uppercase">
             ACTUAL FRED H.10 DAILY OBSERVATIONS · NO INTERPOLATED DATES
           </span>
         </div>
@@ -1028,10 +1028,10 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                     key={opt.id}
                     type="button"
                     onClick={() => setSelectedPairId(opt.id)}
-                    className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
+                    className={`px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
                       active
                         ? 'bg-[#1a1306] border-[#ff9900] text-[#ff9900]'
-                        : 'bg-[#0b0b0b] border-[#2a2a2a] text-zinc-400 hover:text-white hover:border-[#444]'
+                        : 'bg-[#0b0b0b] border-[#3a3a3a] text-zinc-300 hover:text-white hover:border-[#444]'
                     }`}
                   >
                     {opt.label}
@@ -1039,7 +1039,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                 );
               })
             ) : (
-              <span className="text-[10px] text-zinc-500">
+              <span className="text-xs text-zinc-300">
                 {loading ? 'LOADING HISTORICAL SERIES...' : 'NO HISTORICAL FX SERIES LOADED'}
               </span>
             )}
@@ -1053,10 +1053,10 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                   key={tf.id}
                   type="button"
                   onClick={() => setSelectedTimeframe(tf.id)}
-                  className={`px-2 py-1 rounded text-[10px] font-bold uppercase border transition-colors cursor-pointer ${
+                  className={`px-2 py-1 rounded text-xs font-bold uppercase border transition-colors cursor-pointer ${
                     active
                       ? 'bg-[#14202b] border-[#3498db] text-[#3498db]'
-                      : 'bg-[#0b0b0b] border-[#2a2a2a] text-zinc-400 hover:text-white hover:border-[#444]'
+                      : 'bg-[#0b0b0b] border-[#3a3a3a] text-zinc-300 hover:text-white hover:border-[#444]'
                   }`}
                 >
                   {tf.label}
@@ -1069,68 +1069,68 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         {/* Period Summary Metrics */}
         {activeChartSeries && historicalTrend && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
-            <div className="bg-[#080808] border border-[#222] rounded px-2.5 py-2">
-              <div className="text-[9px] text-zinc-500 uppercase">LATEST RATE</div>
+            <div className="bg-[#080808] border border-[#3a3a3a] rounded px-2.5 py-2">
+              <div className="text-xs text-zinc-300 uppercase">LATEST RATE</div>
               <div className="text-xs font-bold text-white tabular-nums mt-0.5">
                 {historicalTrend.latestRate !== null
                   ? historicalTrend.latestRate.toFixed(activeChartSeries.decimals)
                   : '—'}
               </div>
-              <div className="text-[8.5px] text-zinc-500 tabular-nums mt-0.5">
+              <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
                 {historicalTrend.latestDate || '—'}
               </div>
             </div>
 
-            <div className="bg-[#080808] border border-[#222] rounded px-2.5 py-2">
-              <div className="text-[9px] text-zinc-500 uppercase">PERIOD OPEN</div>
+            <div className="bg-[#080808] border border-[#3a3a3a] rounded px-2.5 py-2">
+              <div className="text-xs text-zinc-300 uppercase">PERIOD OPEN</div>
               <div className="text-xs font-bold text-zinc-200 tabular-nums mt-0.5">
                 {historicalTrend.periodOpen !== null
                   ? historicalTrend.periodOpen.toFixed(activeChartSeries.decimals)
                   : '—'}
               </div>
-              <div className="text-[8.5px] text-zinc-500 tabular-nums mt-0.5">
+              <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
                 {historicalTrend.periodOpenDate || '—'}
               </div>
             </div>
 
-            <div className="bg-[#080808] border border-[#222] rounded px-2.5 py-2">
-              <div className="text-[9px] text-zinc-500 uppercase">PERIOD CLOSE</div>
+            <div className="bg-[#080808] border border-[#3a3a3a] rounded px-2.5 py-2">
+              <div className="text-xs text-zinc-300 uppercase">PERIOD CLOSE</div>
               <div className="text-xs font-bold text-zinc-200 tabular-nums mt-0.5">
                 {historicalTrend.periodClose !== null
                   ? historicalTrend.periodClose.toFixed(activeChartSeries.decimals)
                   : '—'}
               </div>
-              <div className="text-[8.5px] text-zinc-500 tabular-nums mt-0.5">
+              <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
                 {historicalTrend.periodCloseDate || '—'}
               </div>
             </div>
 
-            <div className="bg-[#080808] border border-[#222] rounded px-2.5 py-2">
-              <div className="text-[9px] text-zinc-500 uppercase">PERIOD HIGH</div>
+            <div className="bg-[#080808] border border-[#3a3a3a] rounded px-2.5 py-2">
+              <div className="text-xs text-zinc-300 uppercase">PERIOD HIGH</div>
               <div className="text-xs font-bold text-[#00ff00] tabular-nums mt-0.5">
                 {historicalTrend.periodHigh !== null
                   ? historicalTrend.periodHigh.toFixed(activeChartSeries.decimals)
                   : '—'}
               </div>
-              <div className="text-[8.5px] text-zinc-500 tabular-nums mt-0.5">
+              <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
                 {historicalTrend.periodHighDate || '—'}
               </div>
             </div>
 
-            <div className="bg-[#080808] border border-[#222] rounded px-2.5 py-2">
-              <div className="text-[9px] text-zinc-500 uppercase">PERIOD LOW</div>
+            <div className="bg-[#080808] border border-[#3a3a3a] rounded px-2.5 py-2">
+              <div className="text-xs text-zinc-300 uppercase">PERIOD LOW</div>
               <div className="text-xs font-bold text-[#ff4444] tabular-nums mt-0.5">
                 {historicalTrend.periodLow !== null
                   ? historicalTrend.periodLow.toFixed(activeChartSeries.decimals)
                   : '—'}
               </div>
-              <div className="text-[8.5px] text-zinc-500 tabular-nums mt-0.5">
+              <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
                 {historicalTrend.periodLowDate || '—'}
               </div>
             </div>
 
-            <div className="bg-[#080808] border border-[#222] rounded px-2.5 py-2">
-              <div className="text-[9px] text-zinc-500 uppercase">
+            <div className="bg-[#080808] border border-[#3a3a3a] rounded px-2.5 py-2">
+              <div className="text-xs text-zinc-300 uppercase">
                 {selectedTimeframe} CHANGE
               </div>
               <div
@@ -1140,7 +1140,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
               >
                 {formatSignedPct(historicalTrend.periodChangePct)}
               </div>
-              <div className="text-[8.5px] text-zinc-500 tabular-nums mt-0.5">
+              <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
                 {historicalTrend.periodChangeAbs !== null
                   ? `${historicalTrend.periodChangeAbs >= 0 ? '+' : ''}${historicalTrend.periodChangeAbs.toFixed(
                       activeChartSeries.decimals
@@ -1153,7 +1153,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
 
         {/* Responsive Interactive Line Chart */}
         {loading && !activeChartSeries ? (
-          <div className="w-full h-[250px] bg-black border border-[#222] rounded flex flex-col items-center justify-center gap-2 text-xs text-zinc-500">
+          <div className="w-full h-[250px] bg-black border border-[#3a3a3a] rounded flex flex-col items-center justify-center gap-2 text-xs text-zinc-300">
             <RefreshCw className="animate-spin text-[#3498db]" size={18} />
             <span>LOADING FRED H.10 HISTORICAL SERIES...</span>
           </div>
@@ -1165,7 +1165,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
             periodOpen={historicalTrend.periodOpen}
           />
         ) : (
-          <div className="w-full h-[180px] bg-black border border-[#222] rounded flex items-center justify-center text-xs text-zinc-500">
+          <div className="w-full h-[180px] bg-black border border-[#3a3a3a] rounded flex items-center justify-center text-xs text-zinc-300">
             {isFredKeyMissing
               ? 'CONFIGURE FRED_API_KEY TO VIEW HISTORICAL FX TRENDS.'
               : 'NO HISTORICAL FX DATA AVAILABLE.'}
@@ -1180,7 +1180,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         aria-label="Foreign Exchange Rates Matrix"
         className="bg-[#050505] border border-[#333] rounded p-4"
       >
-        <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap justify-between items-center gap-2">
+        <div className="border-b border-[#3a3a3a] pb-2 mb-3 flex flex-wrap justify-between items-center gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
               FOREIGN EXCHANGE RATES MATRIX
@@ -1192,13 +1192,13 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
               maxWidth={290}
             />
           </div>
-          <div className="flex items-center gap-3 text-[10px] text-zinc-500">
+          <div className="flex items-center gap-3 text-xs text-zinc-300">
             <span>DAILY H.10 OBSERVATIONS · NOT INTRADAY QUOTES</span>
             <button
               type="button"
               onClick={handleRefreshAll}
               disabled={isAnyLoading}
-              className="text-zinc-500 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
+              className="text-zinc-300 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
               title="Refresh FRED H.10 rates"
               aria-label="Refresh FRED H.10 rates"
             >
@@ -1208,12 +1208,12 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         </div>
 
         {isAnyLoading && effectiveCurrencies.length === 0 ? (
-          <div className="flex flex-col items-center py-10 space-y-2 text-zinc-500 text-xs bg-black border border-[#222] rounded">
+          <div className="flex flex-col items-center py-10 space-y-2 text-zinc-300 text-xs bg-black border border-[#3a3a3a] rounded">
             <RefreshCw className="animate-spin text-[#3498db]" size={18} />
             <span>FETCHING FEDERAL RESERVE H.10 DAILY EXCHANGE RATES...</span>
           </div>
         ) : effectiveCurrencies.length === 0 ? (
-          <div className="text-center py-8 text-zinc-500 text-xs bg-black border border-[#222] rounded font-mono">
+          <div className="text-center py-8 text-zinc-300 text-xs bg-black border border-[#3a3a3a] rounded font-mono">
             {isFredKeyMissing
               ? 'FRED_API_KEY REQUIRED TO LOAD H.10 EXCHANGE RATES.'
               : 'NO FRED FX OBSERVATIONS RETURNED.'}
@@ -1222,7 +1222,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-zinc-300 font-mono">
               <thead>
-                <tr className="border-b border-[#333] text-zinc-500 text-[10px] uppercase font-bold">
+                <tr className="border-b border-[#333] text-zinc-300 text-xs uppercase font-bold">
                   <th className="py-2">CURRENCY PAIR</th>
                   <th className="py-2">FRED SERIES</th>
                   <th className="py-2 text-right">H.10 RATE</th>
@@ -1242,12 +1242,12 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                   return (
                     <tr
                       key={curr.seriesId || idx}
-                      className="border-b border-[#1c1c1c] hover:bg-[#101010] text-[11px] font-mono tabular-nums"
+                      className="border-b border-[#2e2e2e] hover:bg-[#101010] text-xs font-mono tabular-nums"
                     >
                       <td className="py-2.5 text-[#3498db] font-bold">{curr.pair}</td>
-                      <td className="text-zinc-500 text-[10px]">{curr.seriesId || '—'}</td>
+                      <td className="text-zinc-300 text-xs">{curr.seriesId || '—'}</td>
                       <td className="text-right font-bold text-white">{curr.rate.toFixed(4)}</td>
-                      <td className="text-right text-zinc-400">
+                      <td className="text-right text-zinc-300">
                         {typeof curr.prevRate === 'number' ? curr.prevRate.toFixed(4) : '—'}
                       </td>
                       <td
@@ -1258,13 +1258,13 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                         {isPositive ? '+' : ''}
                         {curr.change.toFixed(4)}
                         {pctDiff !== null && (
-                          <span className="text-[9.5px] font-normal text-zinc-400 ml-1.5">
+                          <span className="text-xs font-normal text-zinc-300 ml-1.5">
                             ({formatSignedPct(pctDiff)})
                           </span>
                         )}
                       </td>
-                      <td className="text-right text-zinc-400">{curr.date || '—'}</td>
-                      <td className="text-right text-[10px] text-[#00ff00] font-semibold uppercase">
+                      <td className="text-right text-zinc-300">{curr.date || '—'}</td>
+                      <td className="text-right text-xs text-[#00ff00] font-semibold uppercase">
                         FRED H.10
                       </td>
                     </tr>
@@ -1283,7 +1283,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         aria-label="Currency Cross Rates"
         className="bg-[#050505] border border-[#333] rounded p-4"
       >
-        <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="border-b border-[#3a3a3a] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
               CURRENCY CROSS RATES
@@ -1295,7 +1295,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
               maxWidth={300}
             />
           </div>
-          <div className="text-[10px] text-zinc-400 tabular-nums min-h-[15px]">
+          <div className="text-xs text-zinc-300 tabular-nums min-h-[15px]">
             {hoveredCrossDetail ? (
               <span>
                 <span className="text-white font-bold">
@@ -1304,7 +1304,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                   {hoveredCrossDetail.direct.quote}
                 </span>
                 {hoveredCrossDetail.inverse?.rate !== null && hoveredCrossDetail.inverse && (
-                  <span className="text-zinc-500 ml-2">
+                  <span className="text-zinc-300 ml-2">
                     · INVERSE: 1 {hoveredCrossDetail.inverse.base} ={' '}
                     {hoveredCrossDetail.inverse.rate.toFixed(hoveredCrossDetail.inverse.decimals)}{' '}
                     {hoveredCrossDetail.inverse.quote}
@@ -1312,7 +1312,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                 )}
               </span>
             ) : (
-              <span className="text-zinc-500 uppercase">
+              <span className="text-zinc-300 uppercase">
                 1 ROW CURRENCY = X COLUMN CURRENCY · DERIVED FROM FRED H.10
                 {crossMatrix.latestObservationDate
                   ? ` (AS OF ${crossMatrix.latestObservationDate})`
@@ -1325,8 +1325,8 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-xs font-mono border-collapse">
             <thead>
-              <tr className="border-b border-[#333] text-[10px] uppercase">
-                <th className="py-2 px-2 pr-3 text-left text-zinc-500 font-bold whitespace-nowrap">BASE \ QUOTE</th>
+              <tr className="border-b border-[#333] text-xs uppercase">
+                <th className="py-2 px-2 pr-3 text-left text-zinc-300 font-bold whitespace-nowrap">BASE \ QUOTE</th>
                 {crossMatrix.currencies.map((quote) => (
                   <th
                     key={quote}
@@ -1341,10 +1341,10 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
             </thead>
             <tbody>
               {crossMatrix.currencies.map((base) => (
-                <tr key={base} className="border-b border-[#1c1c1c]">
+                <tr key={base} className="border-b border-[#2e2e2e]">
                   <th
                     scope="row"
-                    className={`py-2.5 px-2 text-left text-[11px] font-bold transition-colors ${
+                    className={`py-2.5 px-2 text-left text-xs font-bold transition-colors ${
                       hoveredCross?.base === base ? 'text-[#ff9900]' : 'text-[#3498db]'
                     }`}
                   >
@@ -1363,9 +1363,9 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                         key={`${base}-${quote}`}
                         onMouseEnter={() => setHoveredCross({ base, quote })}
                         onMouseLeave={() => setHoveredCross(null)}
-                        className={`py-2.5 px-2 text-right text-[11px] tabular-nums transition-colors ${
+                        className={`py-2.5 px-2 text-right text-xs tabular-nums transition-colors ${
                           cell.isDiagonal
-                            ? 'text-zinc-600 bg-[#0a0a0a]'
+                            ? 'text-zinc-300 bg-[#0a0a0a]'
                             : isHovered
                             ? 'bg-[#1a1306] text-[#ff9900] font-bold'
                             : isAxisHighlighted
@@ -1383,7 +1383,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
           </table>
         </div>
 
-        <div className="mt-2.5 text-[10px] text-zinc-500 flex flex-wrap items-center justify-between gap-2">
+        <div className="mt-2.5 text-xs text-zinc-300 flex flex-wrap items-center justify-between gap-2">
           <span>
             Cross rates are mathematically derived from underlying Federal Reserve H.10 USD exchange-rate observations (A/B = USD-per-A ÷ USD-per-B).
           </span>
@@ -1400,7 +1400,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         aria-label="Central Bank and Interest Rates"
         className="bg-[#050505] border border-[#333] rounded p-4"
       >
-        <div className="border-b border-[#222] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="border-b border-[#3a3a3a] pb-2 mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
               CENTRAL BANK &amp; INTEREST RATES
@@ -1412,7 +1412,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
               maxWidth={310}
             />
           </div>
-          <div className="text-[10px] text-zinc-500 uppercase tabular-nums">
+          <div className="text-xs text-zinc-300 uppercase tabular-nums">
             {intelligence?.centralBanksSource
               ? `SOURCE: ${intelligence.centralBanksSource}`
               : 'SOURCE: BIS WS_CBPOL / FRED'}
@@ -1423,12 +1423,12 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
         </div>
 
         {loading && centralBanks.length === 0 ? (
-          <div className="flex flex-col items-center py-8 space-y-2 text-zinc-500 text-xs bg-black border border-[#222] rounded">
+          <div className="flex flex-col items-center py-8 space-y-2 text-zinc-300 text-xs bg-black border border-[#3a3a3a] rounded">
             <RefreshCw className="animate-spin text-[#3498db]" size={18} />
             <span>FETCHING OFFICIAL CENTRAL BANK POLICY RATES...</span>
           </div>
         ) : centralBanks.length === 0 ? (
-          <div className="bg-black border border-[#222] rounded p-4 text-xs text-zinc-400">
+          <div className="bg-black border border-[#3a3a3a] rounded p-4 text-xs text-zinc-300">
             {intelligence?.centralBanksError ||
               'Central bank policy rate observations are currently unavailable from official feeds.'}
           </div>
@@ -1436,7 +1436,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-zinc-300 font-mono">
               <thead>
-                <tr className="border-b border-[#333] text-zinc-500 text-[10px] uppercase font-bold">
+                <tr className="border-b border-[#333] text-zinc-300 text-xs uppercase font-bold">
                   <th className="py-2 pr-3">CENTRAL BANK</th>
                   <th className="py-2 px-2 text-right">POLICY RATE</th>
                   <th className="py-2 px-2 text-right">LAST DECISION</th>
@@ -1464,19 +1464,19 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                       ? 'text-[#ff9900]'
                       : cb.lastDecisionBps !== null && cb.lastDecisionBps < 0
                       ? 'text-[#3498db]'
-                      : 'text-zinc-400';
+                      : 'text-zinc-300';
 
                   return (
                     <tr
                       key={cb.currency}
-                      className="border-b border-[#1c1c1c] hover:bg-[#101010] text-[11px] tabular-nums"
+                      className="border-b border-[#2e2e2e] hover:bg-[#101010] text-xs tabular-nums"
                     >
                       <td className="py-2.5 pr-3">
                         <div className="flex items-center gap-2">
                           <span className="text-[#3498db] font-bold w-8">{cb.currency}</span>
                           <div>
                             <div className="text-white font-semibold">{cb.centralBank}</div>
-                            <div className="text-[9.5px] text-zinc-500">{cb.rateLabel}</div>
+                            <div className="text-xs text-zinc-300">{cb.rateLabel}</div>
                           </div>
                         </div>
                       </td>
@@ -1486,17 +1486,17 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                       <td className={`py-2.5 px-2 text-right font-semibold ${decisionColor}`}>
                         {cb.available && cb.lastDecisionLabel ? cb.lastDecisionLabel : 'Unavailable'}
                       </td>
-                      <td className="py-2.5 px-2 text-right text-zinc-400">
+                      <td className="py-2.5 px-2 text-right text-zinc-300">
                         {cb.lastDecisionDate || '—'}
                       </td>
                       <td
-                        className={`py-2.5 px-2 text-right font-bold uppercase text-[10px] ${getPolicyDirectionClass(
+                        className={`py-2.5 px-2 text-right font-bold uppercase text-xs ${getPolicyDirectionClass(
                           cb.direction
                         )}`}
                       >
                         {cb.direction}
                       </td>
-                      <td className="py-2.5 px-2 text-right text-zinc-500 text-[10px]">
+                      <td className="py-2.5 px-2 text-right text-zinc-300 text-xs">
                         {cb.nextMeetingDate ? (
                           <span className="text-zinc-200">{cb.nextMeetingDate}</span>
                         ) : (
@@ -1511,9 +1511,9 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                           </TerminalTooltip>
                         )}
                       </td>
-                      <td className="py-2.5 pl-2 text-right text-[10px] text-zinc-400">
+                      <td className="py-2.5 pl-2 text-right text-xs text-zinc-300">
                         <div>{cb.latestObservationDate || '—'}</div>
-                        <div className="text-[9px] text-zinc-500">
+                        <div className="text-xs text-zinc-300">
                           {cb.source} · {cb.seriesId}
                         </div>
                       </td>

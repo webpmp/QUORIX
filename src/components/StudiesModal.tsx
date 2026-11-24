@@ -69,7 +69,7 @@ export default function StudiesModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#262626] bg-[#050505]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#3a3a3a] bg-[#050505]">
           <div className="min-w-0">
             <h2
               id="studies-modal-title"
@@ -77,7 +77,7 @@ export default function StudiesModal({
             >
               Graph Price Studies &amp; Indicators
             </h2>
-            <p className="text-[11px] text-zinc-400 mt-0.5 tabular-nums">
+            <p className="text-xs text-zinc-300 mt-0.5 tabular-nums">
               {activeStudies.length} active · Selections persist automatically across sessions
             </p>
           </div>
@@ -85,18 +85,18 @@ export default function StudiesModal({
             type="button"
             onClick={onClose}
             aria-label="Close studies modal"
-            className="p-1.5 rounded border border-[#333] text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors cursor-pointer"
+            className="p-1.5 rounded border border-[#333] text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors cursor-pointer"
           >
             <X size={15} />
           </button>
         </div>
 
         {/* Search & Category Filters */}
-        <div className="p-4 pb-3 border-b border-[#1f1f1f] space-y-3 bg-[#080808]">
+        <div className="p-4 pb-3 border-b border-[#3a3a3a] space-y-3 bg-[#080808]">
           <div className="relative">
             <Search
               size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300 pointer-events-none"
             />
             <input
               type="text"
@@ -111,14 +111,14 @@ export default function StudiesModal({
                 type="button"
                 onClick={() => setSearchQuery('')}
                 aria-label="Clear search"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white cursor-pointer"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-300 hover:text-white cursor-pointer"
               >
                 <X size={13} />
               </button>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-1 bg-black p-1 rounded border border-[#222]">
+          <div className="flex flex-wrap items-center gap-1 bg-black p-1 rounded border border-[#3a3a3a]">
             {(
               [
                 { id: 'all', label: 'All Studies' },
@@ -131,10 +131,10 @@ export default function StudiesModal({
                 key={tab.id}
                 type="button"
                 onClick={() => setCategoryFilter(tab.id)}
-                className={`px-3 py-1.5 rounded text-[11px] font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   categoryFilter === tab.id
                     ? 'bg-[#ff9900] text-black'
-                    : 'text-zinc-400 hover:text-white hover:bg-[#141414]'
+                    : 'text-zinc-300 hover:text-white hover:bg-[#141414]'
                 }`}
               >
                 {tab.label}
@@ -146,7 +146,7 @@ export default function StudiesModal({
         {/* Study Grid */}
         <div className="p-4 overflow-y-auto max-h-[55vh] bg-[#060606]">
           {filteredStudies.length === 0 ? (
-            <div className="py-10 text-center text-xs text-zinc-500 space-y-2 border border-dashed border-[#262626] rounded">
+            <div className="py-10 text-center text-xs text-zinc-300 space-y-2 border border-dashed border-[#3a3a3a] rounded">
               <div>No studies match &ldquo;{searchQuery}&rdquo;.</div>
               <button
                 type="button"
@@ -172,7 +172,7 @@ export default function StudiesModal({
                     className={`w-full text-left p-3 rounded border transition-colors flex items-start gap-3 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] ${
                       isActive
                         ? 'bg-[#121212] border-[#ff9900]/70 text-white'
-                        : 'bg-[#0a0a0a] border-[#242424] hover:border-[#444] text-zinc-300'
+                        : 'bg-[#0a0a0a] border-[#3a3a3a] hover:border-[#444] text-zinc-300'
                     }`}
                   >
                     {/* Checkbox */}
@@ -196,14 +196,14 @@ export default function StudiesModal({
                             {study.code}
                           </span>
                         </div>
-                        <span className="text-[10px] text-zinc-500 whitespace-nowrap shrink-0">
+                        <span className="text-xs text-zinc-300 whitespace-nowrap shrink-0">
                           {study.placement}
                         </span>
                       </div>
-                      <div className="text-[11px] font-semibold text-zinc-200 mt-0.5 truncate">
+                      <div className="text-xs font-semibold text-zinc-200 mt-0.5 truncate">
                         {study.name}
                       </div>
-                      <p className="text-[10px] text-zinc-400 mt-1 leading-relaxed">
+                      <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
                         {study.description}
                       </p>
                     </div>
@@ -215,12 +215,12 @@ export default function StudiesModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-[#262626] bg-[#050505]">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-[#3a3a3a] bg-[#050505]">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onResetDefaults}
-              className="px-3 py-1.5 rounded border border-[#333] text-[11px] font-bold text-zinc-300 hover:text-[#ff9900] hover:border-[#ff9900] flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="px-3 py-1.5 rounded border border-[#333] text-xs font-bold text-zinc-300 hover:text-[#ff9900] hover:border-[#ff9900] flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               <RotateCcw size={12} />
               <span>Reset Defaults</span>
@@ -229,7 +229,7 @@ export default function StudiesModal({
               type="button"
               onClick={onClearAll}
               disabled={activeStudies.length === 0}
-              className="px-3 py-1.5 rounded border border-[#333] text-[11px] font-bold text-zinc-400 hover:text-[#ff4444] hover:border-[#ff4444] disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="px-3 py-1.5 rounded border border-[#333] text-xs font-bold text-zinc-300 hover:text-[#ff4444] hover:border-[#ff4444] disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               Clear All
             </button>

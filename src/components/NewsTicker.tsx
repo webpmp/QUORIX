@@ -279,7 +279,7 @@ export default function NewsTicker() {
       `}</style>
 
       {/* Source Badge Prefix */}
-      <div className="bg-[#111] border-r border-[#333] px-3 py-1 flex items-center gap-2 text-[10px] font-extrabold uppercase shrink-0 h-full relative z-30">
+      <div className="bg-[#111] border-r border-[#333] px-3 py-1 flex items-center gap-2 text-xs font-extrabold uppercase shrink-0 h-full relative z-30">
         <button
           onClick={() => setIsPaused(!isPaused)}
           className={`text-black font-extrabold px-1.5 py-0.5 rounded-sm transition-all cursor-pointer ${
@@ -305,9 +305,9 @@ export default function NewsTicker() {
             return (
               <span
                 key={src.id}
-                className={`text-[8px] px-1 rounded-sm border transition-colors ${
+                className={`text-xs px-1 rounded-sm border transition-colors ${
                   !src.active
-                    ? 'bg-zinc-900 text-zinc-500 border-zinc-700/80'
+                    ? 'bg-zinc-900 text-zinc-300 border-zinc-700/80'
                     : isCurrentFeed
                     ? 'bg-[#00ff00]/15 text-[#00ff00] border-[#00ff00] font-bold'
                     : 'bg-[#1a1a1a] text-[#00ff00] border-[#00ff00]/30'
@@ -334,7 +334,7 @@ export default function NewsTicker() {
             window.dispatchEvent(new Event('quorix-news-refresh'));
           }}
           disabled={loading}
-          className="text-zinc-500 hover:text-[#00ff00] active:text-[#00ff00] disabled:text-zinc-700 transition-colors ml-1 cursor-pointer"
+          className="text-zinc-300 hover:text-[#00ff00] active:text-[#00ff00] disabled:text-zinc-700 transition-colors ml-1 cursor-pointer"
           title="Manual news refresh"
         >
           <RefreshCw size={10} className={`${loading ? 'animate-spin' : ''}`} />
@@ -344,12 +344,12 @@ export default function NewsTicker() {
       {/* Scrolling Content Wrapper */}
       <div ref={viewportRef} className="flex-1 overflow-hidden relative flex items-center h-full">
         {error ? (
-          <div className="px-3 text-[#ff4444] text-[10px] flex items-center gap-1 font-bold">
+          <div className="px-3 text-[#ff4444] text-xs flex items-center gap-1 font-bold">
             <AlertCircle size={11} />
             <span>NEWS WIRE ERROR: {error}. RE-SYNCHRONIZING...</span>
           </div>
         ) : news.length === 0 ? (
-          <div className="px-3 text-zinc-500 text-[10px] flex items-center gap-1.5 font-bold">
+          <div className="px-3 text-zinc-300 text-xs flex items-center gap-1.5 font-bold">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>
             <span>{loading ? 'CONNECTING LIVE NYT / NEWSAPI / NEWSDATA WIRE...' : 'NO LIVE NEWS HEADLINES AVAILABLE — CHECK NEWS API KEYS IN SETT.'}</span>
           </div>
@@ -365,7 +365,7 @@ export default function NewsTicker() {
                 /* Sentiment temporarily disabled until accuracy is improved
                 const sentimentColor = 
                   item.sentiment === 'positive' ? 'text-[#00ff00]' : 
-                  item.sentiment === 'negative' ? 'text-[#ff4444]' : 'text-zinc-400';
+                  item.sentiment === 'negative' ? 'text-[#ff4444]' : 'text-zinc-300';
                 const sentimentSymbol = 
                   item.sentiment === 'positive' ? '▲' : 
                   item.sentiment === 'negative' ? '▼' : '●';
@@ -383,18 +383,18 @@ export default function NewsTicker() {
                     <span className="text-zinc-100 group-hover:text-[#00ff00] transition-colors leading-none font-medium max-w-lg truncate">
                       {item.title}
                     </span>
-                    <span className="text-[9px] text-[#3498db] font-bold uppercase shrink-0">
+                    <span className="text-xs text-[#3498db] font-bold uppercase shrink-0">
                       [{formatSourceLabel(item.source)}]
                     </span>
-                    <span className="text-[9px] text-zinc-500 shrink-0 font-mono">
+                    <span className="text-xs text-zinc-300 shrink-0 font-mono">
                       {item.time}
                     </span>
                     {/* Sentiment temporarily disabled until accuracy is improved
-                    <span className={`inline-flex items-center justify-center leading-none self-center text-[10px] font-bold shrink-0 ${sentimentColor}`} title={`Sentiment: ${item.sentiment}`}>
+                    <span className={`inline-flex items-center justify-center leading-none self-center text-xs font-bold shrink-0 ${sentimentColor}`} title={`Sentiment: ${item.sentiment}`}>
                       {sentimentSymbol}
                     </span>
                     */}
-                    <ExternalLink size={8} className="text-zinc-600 group-hover:text-[#00ff00] opacity-0 group-hover:opacity-100 transition-all ml-0.5" />
+                    <ExternalLink size={8} className="text-zinc-300 group-hover:text-[#00ff00] opacity-0 group-hover:opacity-100 transition-all ml-0.5" />
                   </a>
                 );
               })}
@@ -406,7 +406,7 @@ export default function NewsTicker() {
                 /* Sentiment temporarily disabled until accuracy is improved
                 const sentimentColor = 
                   item.sentiment === 'positive' ? 'text-[#00ff00]' : 
-                  item.sentiment === 'negative' ? 'text-[#ff4444]' : 'text-zinc-400';
+                  item.sentiment === 'negative' ? 'text-[#ff4444]' : 'text-zinc-300';
                 const sentimentSymbol = 
                   item.sentiment === 'positive' ? '▲' : 
                   item.sentiment === 'negative' ? '▼' : '●';
@@ -425,18 +425,18 @@ export default function NewsTicker() {
                     <span className="text-zinc-100 group-hover:text-[#00ff00] transition-colors leading-none font-medium max-w-lg truncate">
                       {item.title}
                     </span>
-                    <span className="text-[9px] text-[#3498db] font-bold uppercase shrink-0">
+                    <span className="text-xs text-[#3498db] font-bold uppercase shrink-0">
                       [{formatSourceLabel(item.source)}]
                     </span>
-                    <span className="text-[9px] text-zinc-500 shrink-0 font-mono">
+                    <span className="text-xs text-zinc-300 shrink-0 font-mono">
                       {item.time}
                     </span>
                     {/* Sentiment temporarily disabled until accuracy is improved
-                    <span className={`inline-flex items-center justify-center leading-none self-center text-[10px] font-bold shrink-0 ${sentimentColor}`} title={`Sentiment: ${item.sentiment}`}>
+                    <span className={`inline-flex items-center justify-center leading-none self-center text-xs font-bold shrink-0 ${sentimentColor}`} title={`Sentiment: ${item.sentiment}`}>
                       {sentimentSymbol}
                     </span>
                     */}
-                    <ExternalLink size={8} className="text-zinc-600 group-hover:text-[#00ff00] opacity-0 group-hover:opacity-100 transition-all ml-0.5" />
+                    <ExternalLink size={8} className="text-zinc-300 group-hover:text-[#00ff00] opacity-0 group-hover:opacity-100 transition-all ml-0.5" />
                   </a>
                 );
               })}
@@ -446,7 +446,7 @@ export default function NewsTicker() {
       </div>
 
       {/* Info indicator */}
-      <div className="hidden lg:flex items-center gap-1.5 px-3 border-l border-[#333] text-zinc-500 text-[9px] shrink-0 h-full">
+      <div className="hidden lg:flex items-center gap-1.5 px-3 border-l border-[#333] text-zinc-300 text-xs shrink-0 h-full">
         <Info size={10} className="text-[#3498db]" />
         <span>HOVER TO PAUSE</span>
       </div>

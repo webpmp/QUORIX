@@ -54,7 +54,7 @@ function getTransactionVisualClass(category: InsiderTransactionCategory): {
     default:
       return {
         labelClass: 'text-zinc-300 font-normal',
-        codeClass: 'text-zinc-400 border-zinc-700 bg-zinc-900',
+        codeClass: 'text-zinc-300 border-zinc-700 bg-zinc-900',
       };
   }
 }
@@ -178,7 +178,7 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
           </h2>
         </div>
 
-        <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+        <div className="flex items-center gap-2 text-xs text-zinc-300">
           {activeResponse?.success && records.length > 0 && (
             <span className="tabular-nums">
               {offset + 1}–{offset + records.length}
@@ -192,7 +192,7 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
               disabled={loading}
               aria-label={`Refresh insider trading records for ${normalizedTicker}`}
               title="Refresh insider trading records"
-              className="text-zinc-500 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
+              className="text-zinc-300 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
             >
               <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
             </button>
@@ -202,16 +202,16 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
 
       {/* Loading State */}
       {loading ? (
-        <div className="flex items-center gap-1.5 py-4 text-[10px] text-zinc-500 font-mono">
+        <div className="flex items-center gap-1.5 py-4 text-xs text-zinc-300 font-mono">
           <RefreshCw size={10} className="animate-spin text-[#ff9900]" />
           <span>RETRIEVING INSIDER TRADING RECORDS FOR {normalizedTicker}...</span>
         </div>
       ) : isMissingKey ? (
         /* Missing API Key State */
-        <div className="bg-black border border-[#ff9900]/35 rounded px-3 py-2.5 text-[11px] text-zinc-400 flex items-start gap-2">
+        <div className="bg-black border border-[#ff9900]/35 rounded px-3 py-2.5 text-xs text-zinc-300 flex items-start gap-2">
           <AlertCircle size={13} className="text-[#ff9900] shrink-0 mt-0.5" />
           <div>
-            <span className="text-[#ff9900] font-bold uppercase block text-[10px] mb-0.5">
+            <span className="text-[#ff9900] font-bold uppercase block text-xs mb-0.5">
               3spread API Configuration Required
             </span>
             <span>
@@ -222,7 +222,7 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
         </div>
       ) : errorMessage ? (
         /* API Error State */
-        <div className="bg-black border border-[#ff4444]/35 rounded px-3 py-2.5 text-[11px] text-[#ff4444] flex items-center justify-between gap-3">
+        <div className="bg-black border border-[#ff4444]/35 rounded px-3 py-2.5 text-xs text-[#ff4444] flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <AlertCircle size={13} className="shrink-0" />
             <span className="truncate">{errorMessage}</span>
@@ -231,7 +231,7 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
             <button
               type="button"
               onClick={handleRefresh}
-              className="px-2 py-0.5 text-[10px] font-bold uppercase border border-[#ff4444]/40 rounded text-zinc-200 hover:bg-[#ff4444]/10 cursor-pointer shrink-0"
+              className="px-2 py-0.5 text-xs font-bold uppercase border border-[#ff4444]/40 rounded text-zinc-200 hover:bg-[#ff4444]/10 cursor-pointer shrink-0"
             >
               RETRY
             </button>
@@ -239,16 +239,16 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
         </div>
       ) : records.length === 0 ? (
         /* Empty State */
-        <div className="text-center py-4 text-zinc-500 text-[11px]">
+        <div className="text-center py-4 text-zinc-300 text-xs">
           No insider trading records available for this ticker.
         </div>
       ) : (
         /* Populated Table State */
         <>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-[11px] text-zinc-300 border-collapse font-mono">
+            <table className="w-full text-left text-xs text-zinc-300 border-collapse font-mono">
               <thead>
-                <tr className="border-b border-[#2a2a2a] text-zinc-500 text-[10px] uppercase font-bold">
+                <tr className="border-b border-[#3a3a3a] text-zinc-300 text-xs uppercase font-bold">
                   <th className="py-2 pr-3 whitespace-nowrap">DATE</th>
                   <th className="py-2 px-2 whitespace-nowrap">INSIDER</th>
                   <th className="py-2 px-2 whitespace-nowrap">TRANSACTION</th>
@@ -272,9 +272,9 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
                   return (
                     <tr
                       key={rec.id}
-                      className="border-b border-[#1c1c1c] hover:bg-[#101010] transition-colors align-middle"
+                      className="border-b border-[#2e2e2e] hover:bg-[#101010] transition-colors align-middle"
                     >
-                      <td className="py-2 pr-3 text-zinc-400 tabular-nums whitespace-nowrap">
+                      <td className="py-2 pr-3 text-zinc-300 tabular-nums whitespace-nowrap">
                         {rec.date || '—'}
                       </td>
                       <td className="py-2 px-2 text-zinc-100 font-semibold max-w-[220px]">
@@ -286,7 +286,7 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
                         <div className="flex items-center gap-1.5">
                           {rec.transactionCode && (
                             <span
-                              className={`inline-block px-1 py-px text-[9px] font-bold uppercase border rounded-xs leading-tight ${visual.codeClass}`}
+                              className={`inline-block px-1 py-px text-xs font-bold uppercase border rounded-xs leading-tight ${visual.codeClass}`}
                               title={`SEC Form 4 Transaction Code ${rec.transactionCode}`}
                             >
                               {rec.transactionCode}
@@ -295,7 +295,7 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
                           <span className={visual.labelClass}>{rec.transactionLabel}</span>
                         </div>
                         {rec.securityTitle && (
-                          <div className="text-[9.5px] text-zinc-500 truncate max-w-[180px]">
+                          <div className="text-xs text-zinc-300 truncate max-w-[180px]">
                             {rec.securityTitle}
                           </div>
                         )}
@@ -327,7 +327,7 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
                             href={rec.sourceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[#3498db] hover:text-[#5dade2] hover:underline text-[10px] tabular-nums"
+                            className="inline-flex items-center gap-1 text-[#3498db] hover:text-[#5dade2] hover:underline text-xs tabular-nums"
                             title={
                               rec.accessionNum
                                 ? `Open SEC filing ${rec.accessionNum} in a new tab`
@@ -338,7 +338,7 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
                             <ExternalLink size={10} className="shrink-0" aria-hidden="true" />
                           </a>
                         ) : (
-                          <span className="text-zinc-500 text-[10px] tabular-nums">
+                          <span className="text-zinc-300 text-xs tabular-nums">
                             {filingLabel}
                           </span>
                         )}
@@ -352,7 +352,7 @@ export const InsiderTradingPanel: React.FC<InsiderTradingPanelProps> = ({
 
           {/* Pagination Controls */}
           {showPagination && (
-            <div className="mt-2.5 pt-2 border-t border-[#1e1e1e] flex items-center justify-between text-[10px] text-zinc-500 select-none">
+            <div className="mt-2.5 pt-2 border-t border-[#1e1e1e] flex items-center justify-between text-xs text-zinc-300 select-none">
               <span className="tabular-nums">
                 SHOWING {offset + 1}–{offset + records.length}
                 {activeResponse?.windowStart && activeResponse?.windowEnd

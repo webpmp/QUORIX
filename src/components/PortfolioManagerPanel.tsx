@@ -459,17 +459,17 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
 
   return (
     <div className="bg-[#080808] border border-[#ff9900]/50 rounded p-4 font-mono space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#2a2a2a] pb-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#3a3a3a] pb-2.5">
         <div className="flex flex-wrap items-center gap-1.5">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => onTabChange(tab.id)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border transition-colors cursor-pointer leading-none ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-bold uppercase tracking-wider border transition-colors cursor-pointer leading-none ${
                 activeTab === tab.id
                   ? 'bg-[#ff9900] text-black border-[#ff9900]'
-                  : 'bg-black text-zinc-400 border-[#333] hover:text-white hover:border-zinc-500'
+                  : 'bg-black text-zinc-300 border-[#333] hover:text-white hover:border-zinc-500'
               }`}
             >
               {tab.icon}
@@ -481,7 +481,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
           type="button"
           onClick={onClose}
           aria-label="Close portfolio data manager"
-          className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[#333] bg-black text-zinc-400 hover:text-white hover:border-zinc-500 text-[10px] uppercase font-bold cursor-pointer leading-none"
+          className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[#333] bg-black text-zinc-300 hover:text-white hover:border-zinc-500 text-xs uppercase font-bold cursor-pointer leading-none"
         >
           <X size={11} />
           <span>CLOSE</span>
@@ -491,13 +491,13 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
       {/* TAB 1: MANUAL ENTRY & CASH */}
       {activeTab === 'manual' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <form onSubmit={handleManualAddSubmit} className="lg:col-span-2 bg-black border border-[#262626] rounded p-3 space-y-3">
+          <form onSubmit={handleManualAddSubmit} className="lg:col-span-2 bg-black border border-[#3a3a3a] rounded p-3 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                 ADD / UPDATE HOLDING
               </span>
               {activePortfolio && (
-                <span className="text-[10px] text-zinc-500">
+                <span className="text-xs text-zinc-300">
                   TARGET: <span className="text-zinc-200 font-bold">{activePortfolio.name}</span>
                 </span>
               )}
@@ -505,11 +505,11 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div ref={searchContainerRef} className="relative">
-                <label className="block text-[10px] text-zinc-400 uppercase font-bold mb-1">
+                <label className="block text-xs text-zinc-300 uppercase font-bold mb-1">
                   Ticker Symbol *
                 </label>
                 <div className="flex items-center bg-[#080808] border border-[#333] focus-within:border-[#3498db] rounded px-2 py-1.5">
-                  <Search size={11} className="text-zinc-500 mr-1.5 shrink-0" />
+                  <Search size={11} className="text-zinc-300 mr-1.5 shrink-0" />
                   <input
                     type="text"
                     value={tickerInput}
@@ -590,7 +590,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                             setSearchHighlightedIndex(-1);
                           }}
                           onMouseEnter={() => setSearchHighlightedIndex(idx)}
-                          className={`w-full text-left px-2.5 py-1.5 border-b border-[#1c1c1c] last:border-b-0 flex items-center justify-between gap-3 text-[10.5px] cursor-pointer transition-colors ${
+                          className={`w-full text-left px-2.5 py-1.5 border-b border-[#2e2e2e] last:border-b-0 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors ${
                             isHighlighted ? 'bg-[#1e293b] text-white' : 'hover:bg-[#1a1a1a]'
                           }`}
                         >
@@ -598,7 +598,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                             <span className="text-[#3498db] font-bold shrink-0">{opt.symbol}</span>
                             <span className="text-zinc-300 truncate">{opt.name}</span>
                           </div>
-                          <span className="text-[9px] text-zinc-500 shrink-0 uppercase">{opt.instrumentType}</span>
+                          <span className="text-xs text-zinc-300 shrink-0 uppercase">{opt.instrumentType}</span>
                         </button>
                       );
                     })}
@@ -607,7 +607,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
               </div>
 
               <div>
-                <label className="block text-[10px] text-zinc-400 uppercase font-bold mb-1">
+                <label className="block text-xs text-zinc-300 uppercase font-bold mb-1">
                   Shares *
                 </label>
                 <input
@@ -622,7 +622,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
               </div>
 
               <div>
-                <label className="block text-[10px] text-zinc-400 uppercase font-bold mb-1">
+                <label className="block text-xs text-zinc-300 uppercase font-bold mb-1">
                   Avg Cost Basis (USD, Opt.)
                 </label>
                 <input
@@ -638,7 +638,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
             </div>
 
             {manualExistingHolding && (
-              <div className="flex flex-wrap items-center justify-between gap-2 bg-[#121212] border border-[#333] rounded px-2.5 py-1.5 text-[10.5px]">
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-[#121212] border border-[#333] rounded px-2.5 py-1.5 text-xs">
                 <span className="text-amber-400">
                   {manualExistingHolding.ticker} already exists ({manualExistingHolding.shares} shares).
                 </span>
@@ -666,13 +666,13 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
             )}
 
             {manualError && (
-              <div className="flex items-center gap-1.5 text-[10.5px] text-[#ff4444]">
+              <div className="flex items-center gap-1.5 text-xs text-[#ff4444]">
                 <AlertCircle size={12} className="shrink-0" />
                 <span>{manualError}</span>
               </div>
             )}
             {manualSuccess && (
-              <div className="flex items-center gap-1.5 text-[10.5px] text-[#00ff00]">
+              <div className="flex items-center gap-1.5 text-xs text-[#00ff00]">
                 <CheckCircle2 size={12} className="shrink-0" />
                 <span>{manualSuccess}</span>
               </div>
@@ -682,7 +682,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
               <button
                 type="submit"
                 disabled={manualValidating}
-                className="px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer disabled:opacity-40"
+                className="px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer disabled:opacity-40"
               >
                 {manualValidating ? <RefreshCw size={11} className="animate-spin" /> : <Plus size={11} />}
                 <span>{manualValidating ? 'VALIDATING...' : manualExistingHolding ? 'UPDATE POSITION' : 'ADD POSITION'}</span>
@@ -691,13 +691,13 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
           </form>
 
           {/* Cash Position Card */}
-          <form onSubmit={handleSaveCash} className="bg-black border border-[#262626] rounded p-3 space-y-3 flex flex-col justify-between">
+          <form onSubmit={handleSaveCash} className="bg-black border border-[#3a3a3a] rounded p-3 space-y-3 flex flex-col justify-between">
             <div className="space-y-2.5">
               <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block">
                 CASH POSITION (USD)
               </span>
               <div className="flex items-center bg-[#080808] border border-[#333] focus-within:border-[#3498db] rounded px-2.5 py-1.5">
-                <DollarSign size={12} className="text-zinc-500 mr-1 shrink-0" />
+                <DollarSign size={12} className="text-zinc-300 mr-1 shrink-0" />
                 <input
                   type="number"
                   step="any"
@@ -708,17 +708,17 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                   placeholder="0.00"
                 />
               </div>
-              <div className="text-[10px] text-zinc-500">
+              <div className="text-xs text-zinc-300">
                 Cash is included in total portfolio value, allocation weights, volatility, beta, and downside stress buffers.
               </div>
               {cashSavedMsg && (
-                <div className="text-[10px] text-[#00ff00]">{cashSavedMsg}</div>
+                <div className="text-xs text-[#00ff00]">{cashSavedMsg}</div>
               )}
             </div>
             <div className="flex justify-end">
               <button
                 type="submit"
-                className="px-3 py-1.5 rounded border border-[#ff9900]/60 bg-[#ff9900]/10 hover:bg-[#ff9900] hover:text-black text-[#ff9900] font-bold text-[10px] uppercase inline-flex items-center justify-center leading-none transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded border border-[#ff9900]/60 bg-[#ff9900]/10 hover:bg-[#ff9900] hover:text-black text-[#ff9900] font-bold text-xs uppercase inline-flex items-center justify-center leading-none transition-colors cursor-pointer"
               >
                 SAVE CASH
               </button>
@@ -731,7 +731,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
       {activeTab === 'csv' && (
         <div className="space-y-3">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <div className="bg-black border border-[#262626] rounded p-3 space-y-2.5">
+            <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   1. UPLOAD OR PASTE BROKERAGE CSV
@@ -746,25 +746,25 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-2.5 py-1 rounded bg-[#141414] border border-[#444] hover:border-[#ff9900] text-zinc-200 hover:text-[#ff9900] text-[10px] font-bold uppercase inline-flex items-center gap-1.5 cursor-pointer leading-none"
+                  className="px-2.5 py-1 rounded bg-[#141414] border border-[#444] hover:border-[#ff9900] text-zinc-200 hover:text-[#ff9900] text-xs font-bold uppercase inline-flex items-center gap-1.5 cursor-pointer leading-none"
                 >
                   <Upload size={11} />
                   <span>UPLOAD .CSV</span>
                 </button>
               </div>
               {csvFileName && (
-                <div className="text-[10px] text-[#00ff00]">Loaded file: {csvFileName}</div>
+                <div className="text-xs text-[#00ff00]">Loaded file: {csvFileName}</div>
               )}
               <textarea
                 rows={4}
                 value={csvRawText}
                 onChange={(e) => handleLoadCsvText(e.target.value, csvFileName)}
                 placeholder={'Ticker,Shares,Average Cost\nAAPL,50,185.00\nMSFT,25,380.50\nCASH,5000,'}
-                className="w-full bg-[#080808] border border-[#333] focus:border-[#3498db] rounded p-2 text-[11px] text-zinc-200 font-mono outline-none placeholder-zinc-600"
+                className="w-full bg-[#080808] border border-[#333] focus:border-[#3498db] rounded p-2 text-[13px] text-zinc-200 font-mono outline-none placeholder-zinc-600"
               />
               {!activePortfolio && (
                 <div>
-                  <label className="block text-[10px] text-zinc-400 uppercase font-bold mb-1">
+                  <label className="block text-xs text-zinc-300 uppercase font-bold mb-1">
                     New Portfolio Name
                   </label>
                   <input
@@ -779,12 +779,12 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
             </div>
 
             {/* Column Mapping */}
-            <div className="bg-black border border-[#262626] rounded p-3 space-y-2.5">
+            <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2.5">
               <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block">
                 2. COLUMN MAPPING & IMPORT RULES
               </span>
               {parsedCsv.headers.length === 0 ? (
-                <div className="text-[11px] text-zinc-500 py-6 text-center">
+                <div className="text-[13px] text-zinc-300 py-6 text-center">
                   Upload or paste a CSV file to detect and map brokerage columns.
                 </div>
               ) : (
@@ -798,7 +798,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                       { key: 'assetTypeCol' as const, label: 'Asset Type (Opt)' },
                     ].map((field) => (
                       <div key={field.key}>
-                        <label className="block text-[9.5px] text-zinc-400 uppercase font-bold mb-1">
+                        <label className="block text-xs text-zinc-300 uppercase font-bold mb-1">
                           {field.label}
                         </label>
                         <select
@@ -808,7 +808,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                             setCsvMapping((prev) => ({ ...prev, [field.key]: val }));
                             setCsvVerificationDone(false);
                           }}
-                          className="w-full bg-[#080808] border border-[#333] rounded px-2 py-1 text-[10.5px] text-zinc-200 outline-none"
+                          className="w-full bg-[#080808] border border-[#333] rounded px-2 py-1 text-xs text-zinc-200 outline-none"
                         >
                           <option value="">— Unmapped —</option>
                           {parsedCsv.headers.map((h, idx) => (
@@ -821,24 +821,24 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                     ))}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-[#1e1e1e] text-[10px] text-zinc-300">
+                  <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-[#1e1e1e] text-xs text-zinc-300">
                     <label className="inline-flex items-center gap-1.5">
-                      <span className="text-zinc-500 uppercase">CSV Duplicates:</span>
+                      <span className="text-zinc-300 uppercase">CSV Duplicates:</span>
                       <select
                         value={csvDupStrategy}
                         onChange={(e) => setCsvDupStrategy(e.target.value as 'merge' | 'skip')}
-                        className="bg-[#080808] border border-[#333] rounded px-1.5 py-0.5 text-[10px] text-zinc-200"
+                        className="bg-[#080808] border border-[#333] rounded px-1.5 py-0.5 text-xs text-zinc-200"
                       >
                         <option value="merge">Merge shares</option>
                         <option value="skip">Skip duplicates</option>
                       </select>
                     </label>
                     <label className="inline-flex items-center gap-1.5">
-                      <span className="text-zinc-500 uppercase">Existing Holdings:</span>
+                      <span className="text-zinc-300 uppercase">Existing Holdings:</span>
                       <select
                         value={csvExistingMode}
                         onChange={(e) => setCsvExistingMode(e.target.value as 'add' | 'replace')}
-                        className="bg-[#080808] border border-[#333] rounded px-1.5 py-0.5 text-[10px] text-zinc-200"
+                        className="bg-[#080808] border border-[#333] rounded px-1.5 py-0.5 text-xs text-zinc-200"
                       >
                         <option value="add">Merge shares</option>
                         <option value="replace">Overwrite</option>
@@ -860,9 +860,9 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
 
           {/* Validation & Preview */}
           {csvValidation && (
-            <div className="bg-black border border-[#262626] rounded p-3 space-y-2.5">
+            <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                     3. VALIDATION &amp; PREVIEW
                   </span>
@@ -891,7 +891,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                     type="button"
                     disabled={csvVerifying || csvValidation.validHoldings.length === 0}
                     onClick={handleVerifyCsvTickers}
-                    className="px-2.5 py-1.5 rounded border border-[#3498db]/60 bg-[#3498db]/10 hover:bg-[#3498db]/20 text-[#3498db] font-bold text-[10px] uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer disabled:opacity-40"
+                    className="px-2.5 py-1.5 rounded border border-[#3498db]/60 bg-[#3498db]/10 hover:bg-[#3498db]/20 text-[#3498db] font-bold text-xs uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer disabled:opacity-40"
                   >
                     <RefreshCw size={10} className={csvVerifying ? 'animate-spin' : ''} />
                     <span>{csvVerifying ? 'VERIFYING...' : 'VERIFY TICKERS'}</span>
@@ -903,7 +903,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                       (csvValidation.validHoldings.length === 0 && csvValidation.detectedCashTotal <= 0)
                     }
                     onClick={handleConfirmCsvImport}
-                    className="px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer disabled:opacity-40"
+                    className="px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer disabled:opacity-40"
                   >
                     <CheckCircle2 size={11} />
                     <span>CONFIRM IMPORT</span>
@@ -912,32 +912,32 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
               </div>
 
               {csvValidation.globalErrors.map((err, i) => (
-                <div key={`ge-${i}`} className="flex items-center gap-1.5 text-[10.5px] text-[#ff4444]">
+                <div key={`ge-${i}`} className="flex items-center gap-1.5 text-xs text-[#ff4444]">
                   <AlertCircle size={12} className="shrink-0" />
                   <span>{err}</span>
                 </div>
               ))}
               {csvValidation.globalWarnings.map((warn, i) => (
-                <div key={`gw-${i}`} className="flex items-center gap-1.5 text-[10.5px] text-amber-400">
+                <div key={`gw-${i}`} className="flex items-center gap-1.5 text-xs text-amber-400">
                   <AlertTriangle size={12} className="shrink-0" />
                   <span>{warn}</span>
                 </div>
               ))}
               {csvNotice && (
-                <div className={`text-[10.5px] ${csvVerifiedInvalid.size > 0 ? 'text-amber-400' : 'text-[#00ff00]'}`}>
+                <div className={`text-xs ${csvVerifiedInvalid.size > 0 ? 'text-amber-400' : 'text-[#00ff00]'}`}>
                   {csvNotice}
                 </div>
               )}
               {!csvVerificationDone && csvValidation.validHoldings.length > 0 && (
-                <div className="text-[10px] text-zinc-500">
+                <div className="text-xs text-zinc-300">
                   Tip: Click VERIFY TICKERS to validate every symbol against live market data before confirming.
                 </div>
               )}
 
-              <div className="overflow-x-auto max-h-56 overflow-y-auto border border-[#1f1f1f] rounded">
-                <table className="w-full text-left text-[10.5px] border-collapse">
+              <div className="overflow-x-auto max-h-56 overflow-y-auto border border-[#3a3a3a] rounded">
+                <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-[#0d0d0d] border-b border-[#2a2a2a] text-zinc-500 text-[9.5px] uppercase">
+                    <tr className="bg-[#0d0d0d] border-b border-[#3a3a3a] text-zinc-300 text-xs uppercase">
                       <th className="py-1.5 px-2">Row</th>
                       <th className="py-1.5 px-2">Status</th>
                       <th className="py-1.5 px-2">Ticker</th>
@@ -949,10 +949,10 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                   <tbody className="divide-y divide-[#181818]">
                     {csvValidation.rows.map((row) => (
                       <tr key={row.rowIndex} className="hover:bg-[#101010]">
-                        <td className="py-1.5 px-2 text-zinc-500 tabular-nums">{row.rowIndex}</td>
+                        <td className="py-1.5 px-2 text-zinc-300 tabular-nums">{row.rowIndex}</td>
                         <td className="py-1.5 px-2">
                           <span
-                            className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${
+                            className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded border ${
                               row.status === 'valid'
                                 ? 'text-[#00ff00] border-[#00ff00]/40 bg-[#00ff00]/10'
                                 : row.status === 'cash'
@@ -976,13 +976,13 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                         <td className="py-1.5 px-2 text-right tabular-nums text-zinc-300">
                           {row.avgCostBasis !== null ? `$${row.avgCostBasis.toFixed(2)}` : '—'}
                         </td>
-                        <td className="py-1.5 px-2 text-[10px]">
+                        <td className="py-1.5 px-2 text-xs">
                           {row.errors.length > 0 ? (
                             <span className="text-[#ff4444]">{row.errors.join(' ')}</span>
                           ) : row.warnings.length > 0 ? (
                             <span className="text-amber-400">{row.warnings.join(' ')}</span>
                           ) : (
-                            <span className="text-zinc-500">Ready</span>
+                            <span className="text-zinc-300">Ready</span>
                           )}
                         </td>
                       </tr>
@@ -997,13 +997,13 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
 
       {/* TAB 3: EXISTING QUORIX TRACKED EQUITIES INTEGRATION */}
       {activeTab === 'watchlist' && (
-        <div className="bg-black border border-[#262626] rounded p-3 space-y-3">
+        <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block">
                 IMPORT FROM QUORIX TRACKED EQUITIES
               </span>
-              <span className="text-[10px] text-zinc-500">
+              <span className="text-xs text-zinc-300">
                 Select equities from your personal Quorix watchlist and enter actual share quantities. Institutional 13F holdings in INST are never imported.
               </span>
             </div>
@@ -1011,7 +1011,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
               <select
                 value={watchlistMergeMode}
                 onChange={(e) => setWatchlistMergeMode(e.target.value as 'add' | 'replace')}
-                className="bg-[#080808] border border-[#333] rounded px-2 py-1 text-[10px] text-zinc-200"
+                className="bg-[#080808] border border-[#333] rounded px-2 py-1 text-xs text-zinc-200"
               >
                 <option value="replace">Overwrite existing</option>
                 <option value="add">Add to existing</option>
@@ -1019,7 +1019,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
               <button
                 type="button"
                 onClick={handleImportWatchlist}
-                className="px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer"
+                className="px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer"
               >
                 <CheckCircle2 size={11} />
                 <span>IMPORT SELECTED</span>
@@ -1028,24 +1028,24 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
           </div>
 
           {watchlistError && (
-            <div className="flex items-center gap-1.5 text-[10.5px] text-[#ff4444]">
+            <div className="flex items-center gap-1.5 text-xs text-[#ff4444]">
               <AlertCircle size={12} className="shrink-0" />
               <span>{watchlistError}</span>
             </div>
           )}
           {watchlistNotice && (
-            <div className="text-[10.5px] text-[#00ff00]">{watchlistNotice}</div>
+            <div className="text-xs text-[#00ff00]">{watchlistNotice}</div>
           )}
 
           {trackedTickers.length === 0 ? (
-            <div className="text-center py-6 text-[11px] text-zinc-500">
+            <div className="text-center py-6 text-[13px] text-zinc-300">
               No tracked equities in your Quorix watchlist.
             </div>
           ) : (
-            <div className="overflow-x-auto max-h-64 overflow-y-auto border border-[#1f1f1f] rounded">
-              <table className="w-full text-left text-[11px] border-collapse">
+            <div className="overflow-x-auto max-h-64 overflow-y-auto border border-[#3a3a3a] rounded">
+              <table className="w-full text-left text-[13px] border-collapse">
                 <thead>
-                  <tr className="bg-[#0d0d0d] border-b border-[#2a2a2a] text-zinc-500 text-[9.5px] uppercase">
+                  <tr className="bg-[#0d0d0d] border-b border-[#3a3a3a] text-zinc-300 text-xs uppercase">
                     <th className="py-1.5 px-2 w-8">Use</th>
                     <th className="py-1.5 px-2">Ticker</th>
                     <th className="py-1.5 px-2">Name</th>
@@ -1097,7 +1097,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                               }));
                             }}
                             placeholder="0"
-                            className="w-24 bg-[#080808] border border-[#333] rounded px-2 py-0.5 text-right text-[11px] text-zinc-100 tabular-nums outline-none focus:border-[#3498db]"
+                            className="w-24 bg-[#080808] border border-[#333] rounded px-2 py-0.5 text-right text-[13px] text-zinc-100 tabular-nums outline-none focus:border-[#3498db]"
                           />
                         </td>
                         <td className="py-1.5 px-2 text-right">
@@ -1113,7 +1113,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                               }))
                             }
                             placeholder="Optional"
-                            className="w-24 bg-[#080808] border border-[#333] rounded px-2 py-0.5 text-right text-[11px] text-zinc-100 tabular-nums outline-none focus:border-[#3498db]"
+                            className="w-24 bg-[#080808] border border-[#333] rounded px-2 py-0.5 text-right text-[13px] text-zinc-100 tabular-nums outline-none focus:border-[#3498db]"
                           />
                         </td>
                       </tr>
@@ -1129,13 +1129,13 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
       {/* TAB 4: MULTIPLE PORTFOLIOS MANAGER */}
       {activeTab === 'portfolios' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <form onSubmit={handleCreatePortfolioSubmit} className="bg-black border border-[#262626] rounded p-3 space-y-3">
+          <form onSubmit={handleCreatePortfolioSubmit} className="bg-black border border-[#3a3a3a] rounded p-3 space-y-3">
             <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block">
               CREATE NEW PORTFOLIO
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-[10px] text-zinc-400 uppercase font-bold mb-1">
+                <label className="block text-xs text-zinc-300 uppercase font-bold mb-1">
                   Portfolio Name *
                 </label>
                 <input
@@ -1147,7 +1147,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-zinc-400 uppercase font-bold mb-1">
+                <label className="block text-xs text-zinc-300 uppercase font-bold mb-1">
                   Starting Cash (USD)
                 </label>
                 <input
@@ -1164,7 +1164,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
               <button
                 type="submit"
                 disabled={!newPortfolioName.trim()}
-                className="px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer disabled:opacity-40"
+                className="px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer disabled:opacity-40"
               >
                 <FolderPlus size={11} />
                 <span>CREATE PORTFOLIO</span>
@@ -1172,12 +1172,12 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
             </div>
           </form>
 
-          <div className="bg-black border border-[#262626] rounded p-3 space-y-2">
+          <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2">
             <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block">
               SAVED PORTFOLIOS ({portfolios.length})
             </span>
             {portfolios.length === 0 ? (
-              <div className="text-[11px] text-zinc-500 py-4">No portfolios created yet.</div>
+              <div className="text-[13px] text-zinc-300 py-4">No portfolios created yet.</div>
             ) : (
               <div className="space-y-1.5 max-h-52 overflow-y-auto">
                 {portfolios.map((pf) => {
@@ -1189,7 +1189,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                       className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded border ${
                         isActive
                           ? 'bg-[#151515] border-[#ff9900]'
-                          : 'bg-[#080808] border-[#222] hover:border-[#444]'
+                          : 'bg-[#080808] border-[#3a3a3a] hover:border-[#444]'
                       }`}
                     >
                       {isRenaming ? (
@@ -1210,14 +1210,14 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                           />
                           <button
                             type="submit"
-                            className="px-2 py-0.5 rounded bg-[#ff9900] text-black text-[9.5px] font-bold uppercase cursor-pointer"
+                            className="px-2 py-0.5 rounded bg-[#ff9900] text-black text-xs font-bold uppercase cursor-pointer"
                           >
                             SAVE
                           </button>
                           <button
                             type="button"
                             onClick={() => setRenameId(null)}
-                            className="px-2 py-0.5 rounded border border-[#333] text-zinc-400 text-[9.5px] uppercase cursor-pointer"
+                            className="px-2 py-0.5 rounded border border-[#333] text-zinc-300 text-xs uppercase cursor-pointer"
                           >
                             CANCEL
                           </button>
@@ -1230,7 +1230,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                             className="text-left flex-1 min-w-0 cursor-pointer"
                           >
                             <div className="text-xs font-bold text-zinc-100 truncate">{pf.name}</div>
-                            <div className="text-[10px] text-zinc-500 tabular-nums">
+                            <div className="text-xs text-zinc-300 tabular-nums">
                               {pf.holdings.length} holding{pf.holdings.length === 1 ? '' : 's'} · Cash $
                               {pf.cashBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })}
                             </div>
@@ -1242,7 +1242,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                                 setRenameId(pf.id);
                                 setRenameDraft(pf.name);
                               }}
-                              className="px-2 py-0.5 rounded border border-[#333] text-[9.5px] text-zinc-400 hover:text-[#ff9900] hover:border-[#ff9900] uppercase cursor-pointer"
+                              className="px-2 py-0.5 rounded border border-[#333] text-xs text-zinc-300 hover:text-[#ff9900] hover:border-[#ff9900] uppercase cursor-pointer"
                             >
                               RENAME
                             </button>
@@ -1251,7 +1251,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                               onClick={() => onDeletePortfolio(pf.id)}
                               title={`Delete ${pf.name}`}
                               aria-label={`Delete portfolio ${pf.name}`}
-                              className="p-1 rounded border border-[#333] text-zinc-500 hover:text-[#ff4444] hover:border-[#ff4444] cursor-pointer"
+                              className="p-1 rounded border border-[#333] text-zinc-300 hover:text-[#ff4444] hover:border-[#ff4444] cursor-pointer"
                             >
                               <Trash2 size={11} />
                             </button>

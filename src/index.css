@@ -4,8 +4,16 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Semantic Typography Tokens (PRM Terminal Standard) */
+  --text-label: 0.75rem;       /* 12px: labels, captions, metadata, table headers */
+  --text-body: 0.8125rem;     /* 13px: body text, table row data, financial numbers */
   --text-prm-label: 0.75rem;
   --text-prm-body: 0.8125rem;
+
+  /* Semantic Border Tokens */
+  --color-border-subtle: #3a3a3a;   /* Cards, panels, input borders */
+  --color-border-divider: #2e2e2e;  /* Row dividers, section separators */
   --color-prm-border: #3a3a3a;
   --color-prm-divider: #2e2e2e;
 }

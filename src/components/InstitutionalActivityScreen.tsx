@@ -85,10 +85,10 @@ function getStatusTextClass(status: InstitutionalPositionStatus): string {
     case 'EXITED':
       return 'text-[#ff4444] border-[#ff4444]/40 bg-[#ff4444]/10';
     case 'UNCHANGED':
-      return 'text-zinc-400 border-zinc-700 bg-zinc-900/40';
+      return 'text-zinc-300 border-zinc-700 bg-zinc-900/40';
     case 'NO_PRIOR_DATA':
     default:
-      return 'text-zinc-500 border-zinc-800 bg-zinc-950';
+      return 'text-zinc-300 border-zinc-800 bg-zinc-950';
   }
 }
 
@@ -757,12 +757,12 @@ export default function InstitutionalActivityScreen({
           <span className="text-white text-md font-bold uppercase tracking-wider">
             INSTITUTIONAL ACTIVITY MONITOR
           </span>
-          <span className="text-[10px] text-zinc-500 block">
+          <span className="text-xs text-zinc-300 block">
             FORM 13F INSTITUTIONAL HOLDINGS, MULTI-MANAGER ACCUMULATION &amp; POSITION CHANGES
           </span>
         </div>
 
-        <div className="flex flex-col items-start md:items-end gap-1 text-[10px] text-zinc-400">
+        <div className="flex flex-col items-start md:items-end gap-1 text-xs text-zinc-300">
           {/* Top-right compact informational indicators */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[#3498db] font-bold">PROVIDER: 3SPREAD</span>
@@ -783,7 +783,7 @@ export default function InstitutionalActivityScreen({
                   openDisclosureTooltip();
                 }
               }}
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#0c0c0c] border border-[#ff9900]/40 hover:border-[#ff9900] focus:border-[#ff9900] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] text-amber-300 hover:text-[#ff9900] focus:text-[#ff9900] font-bold uppercase tracking-wide text-[10px] leading-none transition-colors cursor-help"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#0c0c0c] border border-[#ff9900]/40 hover:border-[#ff9900] focus:border-[#ff9900] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] text-amber-300 hover:text-[#ff9900] focus:text-[#ff9900] font-bold uppercase tracking-wide text-xs leading-none transition-colors cursor-help"
             >
               <Info size={10} className="text-[#ff9900] shrink-0" aria-hidden="true" />
               <span>DELAYED 13F DISCLOSURE</span>
@@ -800,7 +800,7 @@ export default function InstitutionalActivityScreen({
             {freshness?.latestAcceptedTime && (
               <>
                 {activeReportingPeriodDisplay && <span className="text-zinc-700">|</span>}
-                <span className="tabular-nums text-zinc-400">
+                <span className="tabular-nums text-zinc-300">
                   LATEST FILING: {formatIsoDateShort(freshness.latestAcceptedTime)}
                 </span>
               </>
@@ -810,14 +810,14 @@ export default function InstitutionalActivityScreen({
                 {(activeReportingPeriodDisplay || freshness?.latestAcceptedTime) && (
                   <span className="text-zinc-700">|</span>
                 )}
-                <span className="tabular-nums text-zinc-500">SYNC: {lastRefreshedAt}</span>
+                <span className="tabular-nums text-zinc-300">SYNC: {lastRefreshedAt}</span>
               </>
             )}
             <button
               type="button"
               onClick={handleGlobalRefresh}
               disabled={isAnyLoading}
-              className="ml-1 px-2 py-1 rounded bg-black border border-[#333] hover:border-[#ff9900] hover:text-[#ff9900] text-zinc-300 text-[10px] font-bold uppercase transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
+              className="ml-1 px-2 py-1 rounded bg-black border border-[#333] hover:border-[#ff9900] hover:text-[#ff9900] text-zinc-300 text-xs font-bold uppercase transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
             >
               <RefreshCw size={10} className={isAnyLoading ? 'animate-spin' : ''} />
               <span>REFRESH</span>
@@ -843,14 +843,14 @@ export default function InstitutionalActivityScreen({
               width: `${disclosureTooltipPos.width}px`,
               zIndex: 9999,
             }}
-            className="rounded bg-[#0a0a0a] border border-[#ff9900]/60 shadow-2xl px-3 py-2.5 font-mono text-[11px] leading-relaxed text-zinc-200 select-text"
+            className="rounded bg-[#0a0a0a] border border-[#ff9900]/60 shadow-2xl px-3 py-2.5 font-mono text-xs leading-relaxed text-zinc-200 select-text"
           >
             <span
               aria-hidden="true"
               style={{ left: `${disclosureTooltipPos.arrowLeft - 5}px` }}
               className="absolute -top-[5px] w-2.5 h-2.5 rotate-45 bg-[#0a0a0a] border-l border-t border-[#ff9900]/60"
             />
-            <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-[#ff9900] mb-1">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-[#ff9900] mb-1">
               <Info size={11} className="shrink-0" aria-hidden="true" />
               <span>DELAYED 13F DISCLOSURE</span>
             </div>
@@ -860,7 +860,7 @@ export default function InstitutionalActivityScreen({
         )}
 
       {/* 2. PRIMARY SECTION TABS & REPORTING PERIOD SELECTOR */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#222] pb-2.5 mb-3 shrink-0 select-none">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#3a3a3a] pb-2.5 mb-3 shrink-0 select-none">
         <div className="flex items-center gap-1.5 overflow-x-auto">
           {(
             [
@@ -878,10 +878,10 @@ export default function InstitutionalActivityScreen({
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-1.5 rounded text-[10px] font-extrabold uppercase tracking-wider border transition-colors shrink-0 inline-flex items-center gap-1.5 cursor-pointer ${
+                className={`px-3 py-1.5 rounded text-xs font-extrabold uppercase tracking-wider border transition-colors shrink-0 inline-flex items-center gap-1.5 cursor-pointer ${
                   isActive
                     ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                    : 'bg-black border-[#262626] text-zinc-400 hover:border-zinc-500 hover:text-zinc-100'
+                    : 'bg-black border-[#3a3a3a] text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
                 }`}
               >
                 <Icon size={11} />
@@ -893,7 +893,7 @@ export default function InstitutionalActivityScreen({
 
         {availablePeriods.length > 0 && (
           <div className="flex items-center gap-1.5 shrink-0 select-none">
-            <label htmlFor="inst-period-select" className="text-zinc-500 font-bold uppercase text-[9px]">
+            <label htmlFor="inst-period-select" className="text-zinc-300 font-bold uppercase text-xs">
               REPORTING PERIOD:
             </label>
             <select
@@ -904,7 +904,7 @@ export default function InstitutionalActivityScreen({
                 setHoldingsPage(1);
                 setChangesPage(1);
               }}
-              className="bg-black border border-[#333] focus:border-[#ff9900] rounded px-2 py-0.5 text-[10px] text-zinc-200 font-mono outline-none cursor-pointer"
+              className="bg-black border border-[#333] focus:border-[#ff9900] rounded px-2 py-0.5 text-xs text-zinc-200 font-mono outline-none cursor-pointer"
             >
               {availablePeriods.map((p) => (
                 <option key={p} value={p}>
@@ -928,8 +928,8 @@ export default function InstitutionalActivityScreen({
               {globalError ||
                 'THREESPREAD_API_KEY is not configured in the server environment. Institutional Activity connects exclusively to the 3spread Form 13F API and never displays fabricated or placeholder holdings.'}
             </p>
-            <div className="bg-[#0a0a0a] border border-[#222] rounded p-3 text-[11px] text-zinc-400 space-y-1.5">
-              <div className="text-zinc-200 font-bold uppercase text-[10px]">SERVER SETUP INSTRUCTIONS</div>
+            <div className="bg-[#0a0a0a] border border-[#3a3a3a] rounded p-3 text-xs text-zinc-300 space-y-1.5">
+              <div className="text-zinc-200 font-bold uppercase text-xs">SERVER SETUP INSTRUCTIONS</div>
               <div>
                 1. Obtain a free Community tier API key from{' '}
                 <a
@@ -952,7 +952,7 @@ export default function InstitutionalActivityScreen({
               <button
                 type="button"
                 onClick={handleGlobalRefresh}
-                className="px-3 py-1.5 bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] uppercase rounded cursor-pointer transition-colors"
+                className="px-3 py-1.5 bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs uppercase rounded cursor-pointer transition-colors"
               >
                 RETRY CONNECTION
               </button>
@@ -962,12 +962,12 @@ export default function InstitutionalActivityScreen({
       ) : (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {rateLimited && (
-            <div className="mb-2.5 px-3 py-2 rounded bg-amber-950/30 border border-amber-600/40 text-amber-300 text-[11px] flex items-center justify-between gap-2 shrink-0">
+            <div className="mb-2.5 px-3 py-2 rounded bg-amber-950/30 border border-amber-600/40 text-amber-300 text-xs flex items-center justify-between gap-2 shrink-0">
               <span>3spread API rate limit cooldown active. Cached views remain available; retry shortly.</span>
               <button
                 type="button"
                 onClick={handleGlobalRefresh}
-                className="px-2 py-0.5 border border-amber-500/50 rounded text-[10px] font-bold uppercase hover:bg-amber-500/15 cursor-pointer"
+                className="px-2 py-0.5 border border-amber-500/50 rounded text-xs font-bold uppercase hover:bg-amber-500/15 cursor-pointer"
               >
                 RETRY
               </button>
@@ -986,7 +986,7 @@ export default function InstitutionalActivityScreen({
                     onSubmit={handleHoldingsSearchSubmit}
                     className="lg:col-span-4 flex items-center bg-black border border-[#333] focus-within:border-[#ff9900] rounded overflow-hidden p-1"
                   >
-                    <Search size={12} className="text-zinc-500 mx-1.5 shrink-0" />
+                    <Search size={12} className="text-zinc-300 mx-1.5 shrink-0" />
                     <input
                       type="text"
                       value={holdingsTickerInput}
@@ -996,14 +996,14 @@ export default function InstitutionalActivityScreen({
                     />
                     <button
                       type="submit"
-                      className="px-2.5 py-1 bg-[#ff9900] hover:bg-amber-500 text-black text-[10px] font-extrabold uppercase rounded cursor-pointer"
+                      className="px-2.5 py-1 bg-[#ff9900] hover:bg-amber-500 text-black text-xs font-extrabold uppercase rounded cursor-pointer"
                     >
                       LOOKUP
                     </button>
                   </form>
 
                   <div className="lg:col-span-3 flex items-center bg-black border border-[#333] focus-within:border-[#3498db] rounded px-2 py-1">
-                    <Building2 size={12} className="text-zinc-500 mr-1.5 shrink-0" />
+                    <Building2 size={12} className="text-zinc-300 mr-1.5 shrink-0" />
                     <input
                       type="text"
                       value={holdingsManagerFilter}
@@ -1016,7 +1016,7 @@ export default function InstitutionalActivityScreen({
                     />
                   </div>
 
-                  <div className="lg:col-span-5 flex flex-wrap items-center gap-1.5 text-[10px]">
+                  <div className="lg:col-span-5 flex flex-wrap items-center gap-1.5 text-xs">
                     <select
                       aria-label="Filter by position status"
                       value={holdingsStatusFilter}
@@ -1061,9 +1061,9 @@ export default function InstitutionalActivityScreen({
                 </div>
 
                 {/* Quick Ticker Filter Strip */}
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-zinc-500 font-bold uppercase">QUICK TICKER:</span>
+                    <span className="text-zinc-300 font-bold uppercase">QUICK TICKER:</span>
                     {quickTickers.map((sym) => {
                       const active = activeHoldingsQuery.ticker?.toUpperCase() === sym;
                       return (
@@ -1078,7 +1078,7 @@ export default function InstitutionalActivityScreen({
                           className={`px-2 py-0.5 rounded border font-bold cursor-pointer transition-colors ${
                             active
                               ? 'bg-[#3498db]/20 border-[#3498db] text-[#3498db]'
-                              : 'bg-black border-[#262626] text-zinc-400 hover:border-[#3498db] hover:text-white'
+                              : 'bg-black border-[#3a3a3a] text-zinc-300 hover:border-[#3498db] hover:text-white'
                           }`}
                         >
                           {sym}
@@ -1088,7 +1088,7 @@ export default function InstitutionalActivityScreen({
                   </div>
 
                   {holdingsResolved && (holdingsResolved.companyName || holdingsResolved.cusip) && (
-                    <div className="text-zinc-400 flex flex-wrap items-center gap-2">
+                    <div className="text-zinc-300 flex flex-wrap items-center gap-2">
                       <span className="text-zinc-100 font-bold">
                         {holdingsResolved.companyName || holdingsResolved.ticker}
                       </span>
@@ -1103,7 +1103,7 @@ export default function InstitutionalActivityScreen({
                         </button>
                       )}
                       {holdingsResolved.cusip && (
-                        <span className="text-zinc-500">CUSIP: {holdingsResolved.cusip}</span>
+                        <span className="text-zinc-300">CUSIP: {holdingsResolved.cusip}</span>
                       )}
                     </div>
                   )}
@@ -1113,26 +1113,26 @@ export default function InstitutionalActivityScreen({
               {/* KPI Summary Strip */}
               {holdingsSummary && (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-2 shrink-0">
-                  <div className="bg-black border border-[#262626] rounded px-3 py-2">
-                    <div className="text-[9px] text-zinc-500 uppercase font-bold">REPORTED INST VALUE</div>
+                  <div className="bg-black border border-[#3a3a3a] rounded px-3 py-2">
+                    <div className="text-xs text-zinc-300 uppercase font-bold">REPORTED INST VALUE</div>
                     <div className="text-sm font-extrabold text-white tabular-nums mt-0.5">
                       {formatCompactUsd(holdingsSummary.totalReportedValueUsd)}
                     </div>
                   </div>
-                  <div className="bg-black border border-[#262626] rounded px-3 py-2">
-                    <div className="text-[9px] text-zinc-500 uppercase font-bold">REPORTED SHARES</div>
+                  <div className="bg-black border border-[#3a3a3a] rounded px-3 py-2">
+                    <div className="text-xs text-zinc-300 uppercase font-bold">REPORTED SHARES</div>
                     <div className="text-sm font-extrabold text-zinc-100 tabular-nums mt-0.5">
                       {formatCompactShares(holdingsSummary.totalReportedShares)}
                     </div>
                   </div>
-                  <div className="bg-black border border-[#262626] rounded px-3 py-2">
-                    <div className="text-[9px] text-zinc-500 uppercase font-bold">ACTIVE MANAGERS</div>
+                  <div className="bg-black border border-[#3a3a3a] rounded px-3 py-2">
+                    <div className="text-xs text-zinc-300 uppercase font-bold">ACTIVE MANAGERS</div>
                     <div className="text-sm font-extrabold text-[#3498db] tabular-nums mt-0.5">
                       {holdingsSummary.activeInstitutions.toLocaleString()}
                     </div>
                   </div>
-                  <div className="bg-black border border-[#262626] rounded px-3 py-2">
-                    <div className="text-[9px] text-zinc-500 uppercase font-bold">NET SHARE CHANGE</div>
+                  <div className="bg-black border border-[#3a3a3a] rounded px-3 py-2">
+                    <div className="text-xs text-zinc-300 uppercase font-bold">NET SHARE CHANGE</div>
                     <div
                       className={`text-sm font-extrabold tabular-nums mt-0.5 ${
                         holdingsSummary.netShareChange > 0
@@ -1144,15 +1144,15 @@ export default function InstitutionalActivityScreen({
                     >
                       {formatCompactShares(holdingsSummary.netShareChange, true)}
                       {holdingsSummary.netPercentChange !== null && (
-                        <span className="text-[10px] font-bold ml-1.5">
+                        <span className="text-xs font-bold ml-1.5">
                           ({formatSignedPercent(holdingsSummary.netPercentChange, 1)})
                         </span>
                       )}
                     </div>
                   </div>
-                  <div className="bg-black border border-[#262626] rounded px-3 py-2 col-span-2 md:col-span-1">
-                    <div className="text-[9px] text-zinc-500 uppercase font-bold">ACTIVITY SPLIT</div>
-                    <div className="text-[11px] font-bold tabular-nums mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                  <div className="bg-black border border-[#3a3a3a] rounded px-3 py-2 col-span-2 md:col-span-1">
+                    <div className="text-xs text-zinc-300 uppercase font-bold">ACTIVITY SPLIT</div>
+                    <div className="text-xs font-bold tabular-nums mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
                       <span className="text-[#00ff00]">+{holdingsSummary.newPositions} NEW</span>
                       <span className="text-emerald-400">▲{holdingsSummary.institutionsIncreasing}</span>
                       <span className="text-amber-400">▼{holdingsSummary.institutionsDecreasing}</span>
@@ -1163,26 +1163,26 @@ export default function InstitutionalActivityScreen({
               )}
 
               {holdingsNoticeText && (
-                <div className="px-2.5 py-1.5 bg-[#0b0b0b] border border-[#222] rounded text-[10px] text-zinc-400 shrink-0">
+                <div className="px-2.5 py-1.5 bg-[#0b0b0b] border border-[#3a3a3a] rounded text-xs text-zinc-300 shrink-0">
                   {holdingsNoticeText}
                 </div>
               )}
 
               {/* Holdings Table */}
               <div className="flex-1 min-h-[260px] bg-black border border-[#333] rounded flex flex-col overflow-hidden">
-                <div className="bg-[#0c0c0c] border-b border-[#333] px-3 py-1.5 flex items-center justify-between text-[10px] shrink-0 select-none">
+                <div className="bg-[#0c0c0c] border-b border-[#333] px-3 py-1.5 flex items-center justify-between text-xs shrink-0 select-none">
                   <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                     INSTITUTIONAL HOLDERS ({holdingsTotalRows.toLocaleString()})
                   </span>
                   {holdingsPeriodInfo.previous && (
-                    <span className="text-zinc-500 tabular-nums">
+                    <span className="text-zinc-300 tabular-nums">
                       COMPARING {holdingsPeriodInfo.previous} → {holdingsPeriodInfo.current}
                     </span>
                   )}
                 </div>
 
                 {holdingsLoading ? (
-                  <div className="flex-1 flex flex-col items-center justify-center py-12 text-zinc-500 gap-2">
+                  <div className="flex-1 flex flex-col items-center justify-center py-12 text-zinc-300 gap-2">
                     <RefreshCw size={18} className="animate-spin text-[#3498db]" />
                     <span>QUERYING 3SPREAD FORM 13F HOLDINGS...</span>
                   </div>
@@ -1192,13 +1192,13 @@ export default function InstitutionalActivityScreen({
                     <span>{holdingsError}</span>
                   </div>
                 ) : holdingsRows.length === 0 ? (
-                  <div className="flex-1 flex items-center justify-center p-6 text-zinc-500 text-center">
+                  <div className="flex-1 flex items-center justify-center p-6 text-zinc-300 text-center">
                     No Form 13F institutional holdings matched the current security, period, and filter criteria.
                   </div>
                 ) : (
                   <div className="flex-1 min-h-0 overflow-auto">
-                    <table className="w-full text-left border-collapse text-[11px]">
-                      <thead className="sticky top-0 bg-[#0d0d0d] border-b border-[#333] text-[10px] text-zinc-400 uppercase select-none z-10">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="sticky top-0 bg-[#0d0d0d] border-b border-[#333] text-xs text-zinc-300 uppercase select-none z-10">
                         <tr>
                           <th className="py-2 px-2.5 font-bold">Investor / Fund</th>
                           <th className="py-2 px-2.5 font-bold">Issuer / CUSIP</th>
@@ -1226,14 +1226,14 @@ export default function InstitutionalActivityScreen({
                                 >
                                   {row.managerName}
                                 </button>
-                                <span className="text-[9px] text-zinc-500">CIK {row.managerCik}</span>
+                                <span className="text-xs text-zinc-300">CIK {row.managerCik}</span>
                               </td>
                               <td className="py-2 px-2.5 max-w-[180px]">
                                 <div className="text-zinc-200 truncate font-semibold" title={row.issuerName}>
                                   {row.ticker ? `${row.ticker} · ` : ''}
                                   {row.issuerName}
                                 </div>
-                                <div className="text-[9px] text-zinc-500">
+                                <div className="text-xs text-zinc-300">
                                   {row.cusip}
                                   {row.titleOfClass ? ` · ${row.titleOfClass}` : ''}
                                 </div>
@@ -1247,18 +1247,18 @@ export default function InstitutionalActivityScreen({
                               <td className="py-2 px-2.5 text-right text-zinc-300">
                                 {row.portfolioPct !== null ? `${row.portfolioPct.toFixed(2)}%` : '—'}
                               </td>
-                              <td className="py-2 px-2.5 text-right text-zinc-400">
+                              <td className="py-2 px-2.5 text-right text-zinc-300">
                                 {row.previousShares !== null ? row.previousShares.toLocaleString('en-US') : '—'}
                               </td>
                               <td
                                 className={`py-2 px-2.5 text-right font-bold ${
                                   row.shareChange === null
-                                    ? 'text-zinc-500'
+                                    ? 'text-zinc-300'
                                     : row.shareChange > 0
                                     ? 'text-[#00ff00]'
                                     : row.shareChange < 0
                                     ? 'text-[#ff4444]'
-                                    : 'text-zinc-400'
+                                    : 'text-zinc-300'
                                 }`}
                               >
                                 {formatCompactShares(row.shareChange, true)}
@@ -1266,28 +1266,28 @@ export default function InstitutionalActivityScreen({
                               <td
                                 className={`py-2 px-2.5 text-right font-bold ${
                                   row.percentChange === null
-                                    ? 'text-zinc-500'
+                                    ? 'text-zinc-300'
                                     : row.percentChange > 0
                                     ? 'text-[#00ff00]'
                                     : row.percentChange < 0
                                     ? 'text-[#ff4444]'
-                                    : 'text-zinc-400'
+                                    : 'text-zinc-300'
                                 }`}
                               >
                                 {row.status === 'NEW' ? 'NEW' : formatSignedPercent(row.percentChange)}
                               </td>
                               <td className="py-2 px-2.5 text-center">
                                 <span
-                                  className={`inline-block px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase ${getStatusTextClass(
+                                  className={`inline-block px-1.5 py-0.5 rounded border text-xs font-bold uppercase ${getStatusTextClass(
                                     row.status
                                   )}`}
                                 >
                                   {formatStatusLabel(row.status)}
                                 </span>
                               </td>
-                              <td className="py-2 px-2.5 text-right text-[10px] text-zinc-400 whitespace-nowrap">
+                              <td className="py-2 px-2.5 text-right text-xs text-zinc-300 whitespace-nowrap">
                                 <div>{row.reportingPeriod}</div>
-                                <div className="text-[9px] text-zinc-500 inline-flex items-center gap-1 justify-end">
+                                <div className="text-xs text-zinc-300 inline-flex items-center gap-1 justify-end">
                                   <span>{row.filingDate ? formatIsoDateShort(row.filingDate) : '—'}</span>
                                   {safeUrl && (
                                     <a
@@ -1312,7 +1312,7 @@ export default function InstitutionalActivityScreen({
 
                 {/* Pagination */}
                 {holdingsTotalRows > 50 && (
-                  <div className="bg-[#0c0c0c] border-t border-[#222] px-3 py-1.5 flex items-center justify-between text-[10px] text-zinc-400 shrink-0 select-none">
+                  <div className="bg-[#0c0c0c] border-t border-[#3a3a3a] px-3 py-1.5 flex items-center justify-between text-xs text-zinc-300 shrink-0 select-none">
                     <span>
                       PAGE {holdingsPage} OF {holdingsTotalPages} ({holdingsTotalRows.toLocaleString()} ROWS)
                     </span>
@@ -1348,9 +1348,9 @@ export default function InstitutionalActivityScreen({
           {activeTab === 'ACCUMULATION' && (
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden space-y-2.5">
               {/* Screener Controls */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-2 shrink-0 select-none text-[10px]">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-2 shrink-0 select-none text-xs">
                 <div className="md:col-span-3 flex items-center bg-black border border-[#333] focus-within:border-[#ff9900] rounded px-2 py-1">
-                  <Search size={12} className="text-zinc-500 mr-1.5 shrink-0" />
+                  <Search size={12} className="text-zinc-300 mr-1.5 shrink-0" />
                   <input
                     type="text"
                     value={accSearch}
@@ -1362,7 +1362,7 @@ export default function InstitutionalActivityScreen({
 
                 <div className="md:col-span-9 flex flex-wrap items-center gap-2">
                   <label className="flex items-center gap-1.5 bg-black border border-[#333] rounded px-2 py-1">
-                    <span className="text-zinc-500 font-bold uppercase">MIN INCREASING:</span>
+                    <span className="text-zinc-300 font-bold uppercase">MIN INCREASING:</span>
                     <select
                       value={accMinIncreasing}
                       onChange={(e) => setAccMinIncreasing(Math.max(2, Number(e.target.value)))}
@@ -1376,7 +1376,7 @@ export default function InstitutionalActivityScreen({
                   </label>
 
                   <label className="flex items-center gap-1.5 bg-black border border-[#333] rounded px-2 py-1">
-                    <span className="text-zinc-500 font-bold uppercase">MIN % INC:</span>
+                    <span className="text-zinc-300 font-bold uppercase">MIN % INC:</span>
                     <select
                       value={accMinPctIncrease}
                       onChange={(e) => setAccMinPctIncrease(Number(e.target.value))}
@@ -1391,7 +1391,7 @@ export default function InstitutionalActivityScreen({
                   </label>
 
                   <label className="flex items-center gap-1.5 bg-black border border-[#333] rounded px-2 py-1">
-                    <span className="text-zinc-500 font-bold uppercase">MIN NEW POS:</span>
+                    <span className="text-zinc-300 font-bold uppercase">MIN NEW POS:</span>
                     <select
                       value={accMinNewPositions}
                       onChange={(e) => setAccMinNewPositions(Number(e.target.value))}
@@ -1429,26 +1429,26 @@ export default function InstitutionalActivityScreen({
               </div>
 
               {accMeta?.methodologyNote && (
-                <div className="px-2.5 py-1.5 bg-[#0b0b0b] border border-[#222] rounded text-[10px] text-zinc-400 shrink-0">
+                <div className="px-2.5 py-1.5 bg-[#0b0b0b] border border-[#3a3a3a] rounded text-xs text-zinc-300 shrink-0">
                   {accMeta.methodologyNote}
                 </div>
               )}
 
               {/* Accumulation Screener Table */}
               <div className="flex-1 min-h-[260px] bg-black border border-[#333] rounded flex flex-col overflow-hidden">
-                <div className="bg-[#0c0c0c] border-b border-[#333] px-3 py-1.5 flex items-center justify-between text-[10px] shrink-0 select-none">
+                <div className="bg-[#0c0c0c] border-b border-[#333] px-3 py-1.5 flex items-center justify-between text-xs shrink-0 select-none">
                   <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                     MULTI-INSTITUTION ACCUMULATION CANDIDATES ({accRows.length})
                   </span>
                   {accMeta && (
-                    <span className="text-zinc-500 tabular-nums">
+                    <span className="text-zinc-300 tabular-nums">
                       COHORT: {accMeta.managersAnalyzed} MANAGERS · {accMeta.previousPeriod} → {accMeta.reportingPeriod}
                     </span>
                   )}
                 </div>
 
                 {accLoading ? (
-                  <div className="flex-1 flex flex-col items-center justify-center py-12 text-zinc-500 gap-2">
+                  <div className="flex-1 flex flex-col items-center justify-center py-12 text-zinc-300 gap-2">
                     <RefreshCw size={18} className="animate-spin text-[#3498db]" />
                     <span>AGGREGATING COMPARABLE-PERIOD 13F FILINGS FROM 3SPREAD...</span>
                   </div>
@@ -1458,13 +1458,13 @@ export default function InstitutionalActivityScreen({
                     <span>{accError}</span>
                   </div>
                 ) : accRows.length === 0 ? (
-                  <div className="flex-1 flex items-center justify-center p-6 text-zinc-500 text-center">
+                  <div className="flex-1 flex items-center justify-center p-6 text-zinc-300 text-center">
                     No securities met the multi-institution accumulation filters for this reporting period. Try lowering the minimum thresholds.
                   </div>
                 ) : (
                   <div className="flex-1 min-h-0 overflow-auto">
-                    <table className="w-full text-left border-collapse text-[11px]">
-                      <thead className="sticky top-0 bg-[#0d0d0d] border-b border-[#333] text-[10px] text-zinc-400 uppercase select-none z-10">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="sticky top-0 bg-[#0d0d0d] border-b border-[#333] text-xs text-zinc-300 uppercase select-none z-10">
                         <tr>
                           <th className="py-2 px-2.5 font-bold">Issuer / CUSIP</th>
                           <th className="py-2 px-2.5 font-bold text-right">Inst Inc</th>
@@ -1496,7 +1496,7 @@ export default function InstitutionalActivityScreen({
                                 {row.ticker ? `${row.ticker} · ` : ''}
                                 {row.issuerName}
                               </button>
-                              <span className="text-[9px] text-zinc-500">
+                              <span className="text-xs text-zinc-300">
                                 CUSIP {row.cusip}
                                 {row.titleOfClass ? ` · ${row.titleOfClass}` : ''}
                               </span>
@@ -1519,7 +1519,7 @@ export default function InstitutionalActivityScreen({
                                   ? 'text-[#00ff00]'
                                   : row.netShareChange < 0
                                   ? 'text-[#ff4444]'
-                                  : 'text-zinc-400'
+                                  : 'text-zinc-300'
                               }`}
                             >
                               {formatCompactShares(row.netShareChange, true)}
@@ -1527,12 +1527,12 @@ export default function InstitutionalActivityScreen({
                             <td
                               className={`py-2 px-2.5 text-right font-bold ${
                                 row.netPercentChange === null
-                                  ? 'text-zinc-500'
+                                  ? 'text-zinc-300'
                                   : row.netPercentChange > 0
                                   ? 'text-[#00ff00]'
                                   : row.netPercentChange < 0
                                   ? 'text-[#ff4444]'
-                                  : 'text-zinc-400'
+                                  : 'text-zinc-300'
                               }`}
                             >
                               {formatSignedPercent(row.netPercentChange)}
@@ -1542,11 +1542,11 @@ export default function InstitutionalActivityScreen({
                             </td>
                             <td className="py-2 px-2.5 text-center">
                               {row.isAccumulating ? (
-                                <span className="inline-block px-1.5 py-0.5 rounded border border-[#00ff00]/40 bg-[#00ff00]/10 text-[#00ff00] text-[9px] font-bold uppercase">
+                                <span className="inline-block px-1.5 py-0.5 rounded border border-[#00ff00]/40 bg-[#00ff00]/10 text-[#00ff00] text-xs font-bold uppercase">
                                   ACCUMULATING
                                 </span>
                               ) : (
-                                <span className="inline-block px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900/50 text-zinc-400 text-[9px] font-bold uppercase">
+                                <span className="inline-block px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900/50 text-zinc-300 text-xs font-bold uppercase">
                                   MIXED FLOW
                                 </span>
                               )}
@@ -1569,7 +1569,7 @@ export default function InstitutionalActivityScreen({
               {/* Left Column: Manager Directory */}
               <div className="lg:col-span-4 bg-black border border-[#333] rounded flex flex-col min-h-[280px] lg:min-h-0 overflow-hidden">
                 <div className="bg-[#0c0c0c] border-b border-[#333] p-2 space-y-2 shrink-0 select-none">
-                  <div className="flex items-center justify-between text-[10px]">
+                  <div className="flex items-center justify-between text-xs">
                     <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                       INSTITUTIONAL MANAGERS ({managersList.length})
                     </span>
@@ -1581,17 +1581,17 @@ export default function InstitutionalActivityScreen({
                     }}
                     className="flex items-center bg-black border border-[#333] focus-within:border-[#ff9900] rounded overflow-hidden p-0.5"
                   >
-                    <Search size={11} className="text-zinc-500 mx-1.5 shrink-0" />
+                    <Search size={11} className="text-zinc-300 mx-1.5 shrink-0" />
                     <input
                       type="text"
                       value={managerSearch}
                       onChange={(e) => setManagerSearch(e.target.value)}
                       placeholder="Fund name or CIK (e.g. 1067983)..."
-                      className="flex-1 bg-transparent text-[11px] text-zinc-100 outline-none px-1 font-mono"
+                      className="flex-1 bg-transparent text-xs text-zinc-100 outline-none px-1 font-mono"
                     />
                     <button
                       type="submit"
-                      className="px-2 py-0.5 bg-[#ff9900] text-black font-extrabold text-[9px] uppercase rounded cursor-pointer"
+                      className="px-2 py-0.5 bg-[#ff9900] text-black font-extrabold text-xs uppercase rounded cursor-pointer"
                     >
                       FIND
                     </button>
@@ -1599,7 +1599,7 @@ export default function InstitutionalActivityScreen({
                 </div>
 
                 {managersLoading ? (
-                  <div className="flex-1 flex flex-col items-center justify-center py-8 text-zinc-500 gap-2">
+                  <div className="flex-1 flex flex-col items-center justify-center py-8 text-zinc-300 gap-2">
                     <RefreshCw size={16} className="animate-spin text-[#3498db]" />
                     <span>LOADING 13F MANAGERS...</span>
                   </div>
@@ -1609,7 +1609,7 @@ export default function InstitutionalActivityScreen({
                     <span>{managersError}</span>
                   </div>
                 ) : managersList.length === 0 ? (
-                  <div className="flex-1 flex items-center justify-center p-4 text-zinc-500 text-center">
+                  <div className="flex-1 flex items-center justify-center p-4 text-zinc-300 text-center">
                     No institutional managers matched your search. Try searching by SEC CIK number.
                   </div>
                 ) : (
@@ -1633,10 +1633,10 @@ export default function InstitutionalActivityScreen({
                               : 'border-transparent border-b-[#1a1a1a] last:border-b-transparent hover:bg-[#0b0b0b] text-zinc-300'
                           }`}
                         >
-                          <div className="font-bold text-[11px] truncate text-zinc-100">
+                          <div className="font-bold text-xs truncate text-zinc-100">
                             {mgr.name}
                           </div>
-                          <div className="flex items-center justify-between text-[10px] text-zinc-500 mt-1 tabular-nums">
+                          <div className="flex items-center justify-between text-xs text-zinc-300 mt-1 tabular-nums">
                             <span>CIK {mgr.cik}</span>
                             <span className="text-zinc-300 font-semibold">
                               {mgr.tableValueTotalUsd !== null
@@ -1644,7 +1644,7 @@ export default function InstitutionalActivityScreen({
                                 : '—'}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between text-[9px] text-zinc-500 mt-0.5 tabular-nums">
+                          <div className="flex items-center justify-between text-xs text-zinc-300 mt-0.5 tabular-nums">
                             <span>{mgr.tableEntryTotal ?? '—'} positions</span>
                             <span>{mgr.latestPeriod}</span>
                           </div>
@@ -1658,7 +1658,7 @@ export default function InstitutionalActivityScreen({
               {/* Right Column: Selected Investor Profile */}
               <div className="lg:col-span-8 bg-black border border-[#333] rounded flex flex-col min-h-[340px] lg:min-h-0 overflow-hidden">
                 {profileLoading ? (
-                  <div className="flex-1 flex flex-col items-center justify-center py-12 text-zinc-500 gap-2">
+                  <div className="flex-1 flex flex-col items-center justify-center py-12 text-zinc-300 gap-2">
                     <RefreshCw size={18} className="animate-spin text-[#3498db]" />
                     <span>LOADING INVESTOR PORTFOLIO &amp; QUARTER-OVER-QUARTER DIFFS...</span>
                   </div>
@@ -1668,7 +1668,7 @@ export default function InstitutionalActivityScreen({
                     <span>{profileError}</span>
                   </div>
                 ) : !investorProfile ? (
-                  <div className="flex-1 flex items-center justify-center p-6 text-zinc-500 text-center">
+                  <div className="flex-1 flex items-center justify-center p-6 text-zinc-300 text-center">
                     Select an institutional investment manager from the directory to inspect holdings and period-over-period portfolio activity.
                   </div>
                 ) : (
@@ -1680,17 +1680,17 @@ export default function InstitutionalActivityScreen({
                           <h3 className="text-white font-extrabold text-sm">
                             {investorProfile.managerName}
                           </h3>
-                          <div className="text-[10px] text-zinc-400 flex flex-wrap items-center gap-2 mt-0.5">
+                          <div className="text-xs text-zinc-300 flex flex-wrap items-center gap-2 mt-0.5">
                             <span>CIK {investorProfile.managerCik}</span>
                             {investorProfile.location && (
                               <>
-                                <span className="text-zinc-600">·</span>
+                                <span className="text-zinc-300">·</span>
                                 <span>{investorProfile.location}</span>
                               </>
                             )}
                             {investorProfile.filingDate && (
                               <>
-                                <span className="text-zinc-600">·</span>
+                                <span className="text-zinc-300">·</span>
                                 <span>FILED {formatIsoDateShort(investorProfile.filingDate)}</span>
                               </>
                             )}
@@ -1699,7 +1699,7 @@ export default function InstitutionalActivityScreen({
                               if (!url) return null;
                               return (
                                 <>
-                                  <span className="text-zinc-600">·</span>
+                                  <span className="text-zinc-300">·</span>
                                   <a
                                     href={url}
                                     target="_blank"
@@ -1720,7 +1720,7 @@ export default function InstitutionalActivityScreen({
                             aria-label="Manager reporting period"
                             value={selectedManagerPeriod || investorProfile.reportingPeriod}
                             onChange={(e) => setSelectedManagerPeriod(e.target.value)}
-                            className="bg-black border border-[#333] rounded px-2 py-1 text-[10px] text-zinc-200 outline-none cursor-pointer"
+                            className="bg-black border border-[#333] rounded px-2 py-1 text-xs text-zinc-200 outline-none cursor-pointer"
                           >
                             {managerPeriods.map((p) => (
                               <option key={p} value={p}>
@@ -1733,13 +1733,13 @@ export default function InstitutionalActivityScreen({
 
                       {/* Profile KPI Row */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 tabular-nums">
-                        <div className="bg-black border border-[#242424] rounded px-2.5 py-1.5">
-                          <div className="text-[9px] text-zinc-500 uppercase font-bold">TOTAL 13F VALUE</div>
+                        <div className="bg-black border border-[#3a3a3a] rounded px-2.5 py-1.5">
+                          <div className="text-xs text-zinc-300 uppercase font-bold">TOTAL 13F VALUE</div>
                           <div className="text-xs font-extrabold text-white mt-0.5">
                             {formatCompactUsd(investorProfile.totalValueUsd)}
                             {investorProfile.totalValueChangePct !== null && (
                               <span
-                                className={`ml-1.5 text-[10px] ${
+                                className={`ml-1.5 text-xs ${
                                   investorProfile.totalValueChangePct >= 0
                                     ? 'text-[#00ff00]'
                                     : 'text-[#ff4444]'
@@ -1750,37 +1750,37 @@ export default function InstitutionalActivityScreen({
                             )}
                           </div>
                         </div>
-                        <div className="bg-black border border-[#242424] rounded px-2.5 py-1.5">
-                          <div className="text-[9px] text-zinc-500 uppercase font-bold">REPORTED POSITIONS</div>
+                        <div className="bg-black border border-[#3a3a3a] rounded px-2.5 py-1.5">
+                          <div className="text-xs text-zinc-300 uppercase font-bold">REPORTED POSITIONS</div>
                           <div className="text-xs font-extrabold text-[#3498db] mt-0.5">
                             {investorProfile.positionsCount.toLocaleString()}
                             {investorProfile.priorPositionsCount !== null && (
-                              <span className="text-[10px] text-zinc-500 ml-1">
+                              <span className="text-xs text-zinc-300 ml-1">
                                 (prev {investorProfile.priorPositionsCount.toLocaleString()})
                               </span>
                             )}
                           </div>
                         </div>
-                        <div className="bg-black border border-[#242424] rounded px-2.5 py-1.5">
-                          <div className="text-[9px] text-zinc-500 uppercase font-bold">NEW / INCREASED</div>
+                        <div className="bg-black border border-[#3a3a3a] rounded px-2.5 py-1.5">
+                          <div className="text-xs text-zinc-300 uppercase font-bold">NEW / INCREASED</div>
                           <div className="text-xs font-extrabold mt-0.5">
                             <span className="text-[#00ff00]">+{investorProfile.newCount} NEW</span>
-                            <span className="text-zinc-600 mx-1">/</span>
+                            <span className="text-zinc-300 mx-1">/</span>
                             <span className="text-emerald-400">▲{investorProfile.increasedCount} INC</span>
                           </div>
                         </div>
-                        <div className="bg-black border border-[#242424] rounded px-2.5 py-1.5">
-                          <div className="text-[9px] text-zinc-500 uppercase font-bold">REDUCED / EXITED</div>
+                        <div className="bg-black border border-[#3a3a3a] rounded px-2.5 py-1.5">
+                          <div className="text-xs text-zinc-300 uppercase font-bold">REDUCED / EXITED</div>
                           <div className="text-xs font-extrabold mt-0.5">
                             <span className="text-amber-400">▼{investorProfile.decreasedCount} DEC</span>
-                            <span className="text-zinc-600 mx-1">/</span>
+                            <span className="text-zinc-300 mx-1">/</span>
                             <span className="text-[#ff4444]">✕{investorProfile.exitedCount} EXIT</span>
                           </div>
                         </div>
                       </div>
 
                       {(investorProfile.holdingsTruncated || investorProfile.isConfidentialOmitted) && (
-                        <div className="text-[10px] text-amber-300/90">
+                        <div className="text-xs text-amber-300/90">
                           {investorProfile.holdingsTruncated
                             ? 'Note: Displaying the top 1,000 reported equity holdings by USD value for this manager.'
                             : ''}
@@ -1792,19 +1792,19 @@ export default function InstitutionalActivityScreen({
                     </div>
 
                     {/* Searchable Holdings Controls */}
-                    <div className="px-3 py-2 border-b border-[#222] bg-[#070707] flex flex-wrap items-center justify-between gap-2 shrink-0 select-none">
+                    <div className="px-3 py-2 border-b border-[#3a3a3a] bg-[#070707] flex flex-wrap items-center justify-between gap-2 shrink-0 select-none">
                       <div className="flex items-center bg-black border border-[#333] focus-within:border-[#ff9900] rounded px-2 py-1 flex-1 min-w-[180px] max-w-xs">
-                        <Search size={11} className="text-zinc-500 mr-1.5 shrink-0" />
+                        <Search size={11} className="text-zinc-300 mr-1.5 shrink-0" />
                         <input
                           type="text"
                           value={profileHoldingsFilter}
                           onChange={(e) => setProfileHoldingsFilter(e.target.value)}
                           placeholder="Search portfolio holdings..."
-                          className="flex-1 bg-transparent text-[11px] text-zinc-100 outline-none font-mono"
+                          className="flex-1 bg-transparent text-xs text-zinc-100 outline-none font-mono"
                         />
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-1 text-[9px]">
+                      <div className="flex flex-wrap items-center gap-1 text-xs">
                         {(
                           [
                             ['ALL', `ALL (${investorProfile.holdings.length})`],
@@ -1822,7 +1822,7 @@ export default function InstitutionalActivityScreen({
                             className={`px-2 py-1 rounded border font-bold uppercase cursor-pointer transition-colors ${
                               profileStatusFilter === code
                                 ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                                : 'bg-black border-[#262626] text-zinc-400 hover:text-zinc-200'
+                                : 'bg-black border-[#3a3a3a] text-zinc-300 hover:text-zinc-200'
                             }`}
                           >
                             {label}
@@ -1833,8 +1833,8 @@ export default function InstitutionalActivityScreen({
 
                     {/* Investor Holdings Table */}
                     <div className="flex-1 min-h-0 overflow-auto">
-                      <table className="w-full text-left border-collapse text-[11px]">
-                        <thead className="sticky top-0 bg-[#0d0d0d] border-b border-[#333] text-[10px] text-zinc-400 uppercase select-none z-10">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead className="sticky top-0 bg-[#0d0d0d] border-b border-[#333] text-xs text-zinc-300 uppercase select-none z-10">
                           <tr>
                             <th className="py-2 px-2.5 font-bold">Issuer / CUSIP</th>
                             <th className="py-2 px-2.5 font-bold text-right">Shares</th>
@@ -1863,7 +1863,7 @@ export default function InstitutionalActivityScreen({
                                 >
                                   {row.issuerName}
                                 </button>
-                                <span className="text-[9px] text-zinc-500">
+                                <span className="text-xs text-zinc-300">
                                   {row.cusip}
                                   {row.titleOfClass ? ` · ${row.titleOfClass}` : ''}
                                 </span>
@@ -1877,18 +1877,18 @@ export default function InstitutionalActivityScreen({
                               <td className="py-1.5 px-2.5 text-right text-zinc-300">
                                 {row.portfolioPct !== null ? `${row.portfolioPct.toFixed(2)}%` : '—'}
                               </td>
-                              <td className="py-1.5 px-2.5 text-right text-zinc-400">
+                              <td className="py-1.5 px-2.5 text-right text-zinc-300">
                                 {row.previousShares !== null ? row.previousShares.toLocaleString('en-US') : '—'}
                               </td>
                               <td
                                 className={`py-1.5 px-2.5 text-right font-bold ${
                                   row.shareChange === null
-                                    ? 'text-zinc-500'
+                                    ? 'text-zinc-300'
                                     : row.shareChange > 0
                                     ? 'text-[#00ff00]'
                                     : row.shareChange < 0
                                     ? 'text-[#ff4444]'
-                                    : 'text-zinc-400'
+                                    : 'text-zinc-300'
                                 }`}
                               >
                                 {formatCompactShares(row.shareChange, true)}
@@ -1896,19 +1896,19 @@ export default function InstitutionalActivityScreen({
                               <td
                                 className={`py-1.5 px-2.5 text-right font-bold ${
                                   row.percentChange === null
-                                    ? 'text-zinc-500'
+                                    ? 'text-zinc-300'
                                     : row.percentChange > 0
                                     ? 'text-[#00ff00]'
                                     : row.percentChange < 0
                                     ? 'text-[#ff4444]'
-                                    : 'text-zinc-400'
+                                    : 'text-zinc-300'
                                 }`}
                               >
                                 {row.status === 'NEW' ? 'NEW' : formatSignedPercent(row.percentChange)}
                               </td>
                               <td className="py-1.5 px-2.5 text-center">
                                 <span
-                                  className={`inline-block px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase ${getStatusTextClass(
+                                  className={`inline-block px-1.5 py-0.5 rounded border text-xs font-bold uppercase ${getStatusTextClass(
                                     row.status
                                   )}`}
                                 >
@@ -1942,7 +1942,7 @@ export default function InstitutionalActivityScreen({
                     }}
                     className="md:col-span-4 flex items-center bg-black border border-[#333] focus-within:border-[#ff9900] rounded overflow-hidden p-1"
                   >
-                    <Search size={12} className="text-zinc-500 mx-1.5 shrink-0" />
+                    <Search size={12} className="text-zinc-300 mx-1.5 shrink-0" />
                     <input
                       type="text"
                       value={changesTickerInput}
@@ -1958,21 +1958,21 @@ export default function InstitutionalActivityScreen({
                           setChangesAppliedTicker('');
                           setChangesPage(1);
                         }}
-                        className="px-2 py-1 text-[9px] text-zinc-400 hover:text-white cursor-pointer"
+                        className="px-2 py-1 text-xs text-zinc-300 hover:text-white cursor-pointer"
                       >
                         CLEAR
                       </button>
                     )}
                     <button
                       type="submit"
-                      className="px-2.5 py-1 bg-[#ff9900] hover:bg-amber-500 text-black text-[10px] font-extrabold uppercase rounded cursor-pointer"
+                      className="px-2.5 py-1 bg-[#ff9900] hover:bg-amber-500 text-black text-xs font-extrabold uppercase rounded cursor-pointer"
                     >
                       FILTER
                     </button>
                   </form>
 
                   <div className="md:col-span-4 flex items-center bg-black border border-[#333] focus-within:border-[#3498db] rounded px-2 py-1">
-                    <Building2 size={12} className="text-zinc-500 mr-1.5 shrink-0" />
+                    <Building2 size={12} className="text-zinc-300 mr-1.5 shrink-0" />
                     <input
                       type="text"
                       value={changesManagerInput}
@@ -1985,7 +1985,7 @@ export default function InstitutionalActivityScreen({
                     />
                   </div>
 
-                  <div className="md:col-span-4 flex flex-wrap items-center gap-1.5 text-[10px] justify-start md:justify-end">
+                  <div className="md:col-span-4 flex flex-wrap items-center gap-1.5 text-xs justify-start md:justify-end">
                     {(
                       [
                         ['ALL', `ALL (${changesCounts.all})`],
@@ -2005,7 +2005,7 @@ export default function InstitutionalActivityScreen({
                         className={`px-2 py-1 rounded border font-bold uppercase cursor-pointer transition-colors ${
                           changesCategory === cat
                             ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                            : 'bg-black border-[#262626] text-zinc-400 hover:text-zinc-200'
+                            : 'bg-black border-[#3a3a3a] text-zinc-300 hover:text-zinc-200'
                         }`}
                       >
                         {label}
@@ -2017,12 +2017,12 @@ export default function InstitutionalActivityScreen({
 
               {/* Position Changes Table */}
               <div className="flex-1 min-h-[260px] bg-black border border-[#333] rounded flex flex-col overflow-hidden">
-                <div className="bg-[#0c0c0c] border-b border-[#333] px-3 py-1.5 flex items-center justify-between text-[10px] shrink-0 select-none">
+                <div className="bg-[#0c0c0c] border-b border-[#333] px-3 py-1.5 flex items-center justify-between text-xs shrink-0 select-none">
                   <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                     INSTITUTIONAL POSITION CHANGES ({changesTotalRows.toLocaleString()})
                   </span>
                   {changesMeta && (
-                    <span className="text-zinc-500 tabular-nums">
+                    <span className="text-zinc-300 tabular-nums">
                       {changesAppliedTicker
                         ? `SECURITY: ${changesAppliedTicker}`
                         : `COHORT: ${changesMeta.managersAnalyzed ?? 0} MANAGERS`}{' '}
@@ -2032,7 +2032,7 @@ export default function InstitutionalActivityScreen({
                 </div>
 
                 {changesLoading ? (
-                  <div className="flex-1 flex flex-col items-center justify-center py-12 text-zinc-500 gap-2">
+                  <div className="flex-1 flex flex-col items-center justify-center py-12 text-zinc-300 gap-2">
                     <RefreshCw size={18} className="animate-spin text-[#3498db]" />
                     <span>LOADING FORM 13F POSITION CHANGES...</span>
                   </div>
@@ -2042,13 +2042,13 @@ export default function InstitutionalActivityScreen({
                     <span>{changesError}</span>
                   </div>
                 ) : changesRows.length === 0 ? (
-                  <div className="flex-1 flex items-center justify-center p-6 text-zinc-500 text-center">
+                  <div className="flex-1 flex items-center justify-center p-6 text-zinc-300 text-center">
                     No position changes matched the active category and filter criteria for this period.
                   </div>
                 ) : (
                   <div className="flex-1 min-h-0 overflow-auto">
-                    <table className="w-full text-left border-collapse text-[11px]">
-                      <thead className="sticky top-0 bg-[#0d0d0d] border-b border-[#333] text-[10px] text-zinc-400 uppercase select-none z-10">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="sticky top-0 bg-[#0d0d0d] border-b border-[#333] text-xs text-zinc-300 uppercase select-none z-10">
                         <tr>
                           <th className="py-2 px-2.5 font-bold">Category</th>
                           <th className="py-2 px-2.5 font-bold">Security / CUSIP</th>
@@ -2066,7 +2066,7 @@ export default function InstitutionalActivityScreen({
                           <tr key={row.id} className="hover:bg-[#101010] transition-colors">
                             <td className="py-2 px-2.5 whitespace-nowrap">
                               <span
-                                className={`inline-block px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase ${getStatusTextClass(
+                                className={`inline-block px-1.5 py-0.5 rounded border text-xs font-bold uppercase ${getStatusTextClass(
                                   row.category
                                 )}`}
                               >
@@ -2088,7 +2088,7 @@ export default function InstitutionalActivityScreen({
                                 {row.ticker ? `${row.ticker} · ` : ''}
                                 {row.issuerName}
                               </button>
-                              <span className="text-[9px] text-zinc-500">CUSIP {row.cusip}</span>
+                              <span className="text-xs text-zinc-300">CUSIP {row.cusip}</span>
                             </td>
                             <td className="py-2 px-2.5 max-w-[210px]">
                               <button
@@ -2098,9 +2098,9 @@ export default function InstitutionalActivityScreen({
                               >
                                 {row.managerName}
                               </button>
-                              <span className="text-[9px] text-zinc-500">CIK {row.managerCik}</span>
+                              <span className="text-xs text-zinc-300">CIK {row.managerCik}</span>
                             </td>
-                            <td className="py-2 px-2.5 text-right text-zinc-400">
+                            <td className="py-2 px-2.5 text-right text-zinc-300">
                               {row.previousShares.toLocaleString('en-US')}
                             </td>
                             <td className="py-2 px-2.5 text-right text-zinc-100 font-semibold">
@@ -2127,11 +2127,11 @@ export default function InstitutionalActivityScreen({
                             <td className="py-2 px-2.5 text-right text-white font-bold">
                               {formatCompactUsd(row.currentValueUsd || row.previousValueUsd)}
                             </td>
-                            <td className="py-2 px-2.5 text-right text-[10px] text-zinc-400 whitespace-nowrap">
+                            <td className="py-2 px-2.5 text-right text-xs text-zinc-300 whitespace-nowrap">
                               <div>
                                 {row.previousPeriod} → {row.currentPeriod}
                               </div>
-                              <div className="text-[9px] text-zinc-500">
+                              <div className="text-xs text-zinc-300">
                                 {row.filingDate ? `FILED ${formatIsoDateShort(row.filingDate)}` : '—'}
                               </div>
                             </td>
@@ -2143,7 +2143,7 @@ export default function InstitutionalActivityScreen({
                 )}
 
                 {changesTotalRows > 50 && (
-                  <div className="bg-[#0c0c0c] border-t border-[#222] px-3 py-1.5 flex items-center justify-between text-[10px] text-zinc-400 shrink-0 select-none">
+                  <div className="bg-[#0c0c0c] border-t border-[#3a3a3a] px-3 py-1.5 flex items-center justify-between text-xs text-zinc-300 shrink-0 select-none">
                     <span>
                       PAGE {changesPage} OF {changesTotalPages} ({changesTotalRows.toLocaleString()} EVENTS)
                     </span>

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  BookOpen,
   AlertTriangle,
   ArrowDown,
   ArrowUp,
@@ -50,6 +51,7 @@ import {
   type EnrichedPortfolioPosition,
 } from '../utils/portfolioRiskEngine';
 import { PortfolioManagerPanel, type PortfolioManagerTab } from './PortfolioManagerPanel';
+import PortfolioGlossaryModal, { type PrmGlossaryTermId } from './PortfolioGlossaryModal';
 import {
   IndustryAllocationPieChart,
   getIndustryColorMap,
@@ -130,7 +132,7 @@ function formatPct(val: number | null | undefined, digits = 1, showPlus = false)
 
 function getMatrixCellClasses(bandId: CorrelationBandId, isDiagonal: boolean): string {
   if (isDiagonal) {
-    return 'bg-[#141414] text-zinc-400 border-[#2c2c2c]';
+    return 'bg-[#0d0d0d] text-zinc-300 border-[#2e2e2e] opacity-60';
   }
   switch (bandId) {
     case 'strong-positive':
@@ -146,7 +148,7 @@ function getMatrixCellClasses(bandId: CorrelationBandId, isDiagonal: boolean): s
     case 'strong-negative':
       return 'bg-[#072b12] text-[#00ff00] border-[#14532d]';
     default:
-      return 'bg-[#0b0b0b] text-zinc-600 border-[#1f1f1f]';
+      return 'bg-[#0b0b0b] text-zinc-300 border-[#3a3a3a]';
   }
 }
 
@@ -213,6 +215,13 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
   const [managerOpen, setManagerOpen] = useState<boolean>(false);
   const [managerTab, setManagerTab] = useState<PortfolioManagerTab>('manual');
   const [thresholdsOpen, setThresholdsOpen] = useState<boolean>(false);
+  const [glossaryOpen, setGlossaryOpen] = useState<boolean>(false);
+  const [glossaryTermId, setGlossaryTermId] = useState<PrmGlossaryTermId | null>(null);
+
+  const openGlossary = (termId?: PrmGlossaryTermId) => {
+    setGlossaryTermId(termId ?? null);
+    setGlossaryOpen(true);
+  };
 
   // Position table sort & inline edit state
   const [sortKey, setSortKey] = useState<SortKey>('weightPct');
@@ -570,16 +579,16 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
     !activePortfolio || (activePortfolio.holdings.length === 0 && activePortfolio.cashBalance <= 0);
 
   return (
-    <div className="space-y-4 font-mono text-zinc-200 animate-fade-in">
-      {/* Top Workspace Header & Controls */}
-      <div className="bg-[#050505] border border-[#333] rounded p-3.5 space-y-3">
-        <div className="border-b border-[#2a2a2a] pb-2.5">
+    <div className="flex flex-col flex-1 min-h-0 font-mono text-zinc-200 animate-fade-in overflow-hidden">
+      {/* Top Workspace Header & Controls (Fixed / Non-shrinking) */}
+      <div className="shrink-0 bg-[#050505] border border-[#3a3a3a] rounded p-3.5 space-y-3 z-10 shadow-lg">
+        <div className="border-b border-[#3a3a3a] pb-2.5">
           <h1 className="text-white text-md font-bold uppercase tracking-wider">
             PORTFOLIO RISK MONITOR
           </h1>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-[#1f1f1f] pb-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-[#3a3a3a] pb-2.5">
           {activePortfolio && (
             <div className="flex items-center gap-1.5">
               <select
@@ -603,7 +612,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             <button
               type="button"
               onClick={() => openManager('manual')}
-              className="px-2.5 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] uppercase inline-flex items-center justify-center gap-1 leading-none transition-colors cursor-pointer"
+              className="min-h-8 px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
             >
               <Plus size={11} />
               <span>ADD HOLDING</span>
@@ -611,7 +620,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             <button
               type="button"
               onClick={() => openManager('csv')}
-              className="px-2.5 py-1.5 rounded bg-black border border-[#333] hover:border-[#ff9900] text-zinc-200 hover:text-[#ff9900] font-bold text-[10px] uppercase inline-flex items-center justify-center gap-1 leading-none transition-colors cursor-pointer"
+              className="min-h-8 px-3 py-1.5 rounded bg-black border border-[#3a3a3a] hover:border-[#ff9900] text-zinc-200 hover:text-[#ff9900] font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
             >
               <FileSpreadsheet size={11} />
               <span>CSV IMPORT</span>
@@ -619,7 +628,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             <button
               type="button"
               onClick={() => openManager('watchlist')}
-              className="px-2.5 py-1.5 rounded bg-black border border-[#333] hover:border-[#3498db] text-zinc-200 hover:text-[#3498db] font-bold text-[10px] uppercase inline-flex items-center justify-center gap-1 leading-none transition-colors cursor-pointer"
+              className="min-h-8 px-3 py-1.5 rounded bg-black border border-[#3a3a3a] hover:border-[#3498db] text-zinc-200 hover:text-[#3498db] font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
             >
               <Layers size={11} />
               <span>WATCHLIST</span>
@@ -627,7 +636,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             <button
               type="button"
               onClick={() => openManager('portfolios')}
-              className="px-2.5 py-1.5 rounded bg-black border border-[#333] hover:border-zinc-500 text-zinc-300 hover:text-white font-bold text-[10px] uppercase inline-flex items-center justify-center gap-1 leading-none transition-colors cursor-pointer"
+              className="min-h-8 px-3 py-1.5 rounded bg-black border border-[#3a3a3a] hover:border-zinc-500 text-zinc-300 hover:text-white font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
             >
               <FolderPlus size={11} />
               <span>PORTFOLIOS</span>
@@ -635,14 +644,22 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             <button
               type="button"
               onClick={() => setThresholdsOpen((prev) => !prev)}
-              className={`px-2.5 py-1.5 rounded border font-bold text-[10px] uppercase inline-flex items-center justify-center gap-1 leading-none transition-colors cursor-pointer ${
+              className={`min-h-8 px-3 py-1.5 rounded border font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer ${
                 thresholdsOpen
                   ? 'bg-[#1a1a1a] border-[#ff9900] text-[#ff9900]'
-                  : 'bg-black border-[#333] text-zinc-300 hover:border-zinc-500'
+                  : 'bg-black border-[#3a3a3a] text-zinc-300 hover:text-white hover:border-[#ff9900]'
               }`}
             >
-              <SlidersHorizontal size={11} />
+              <SlidersHorizontal size={12} />
               <span>THRESHOLDS</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => openGlossary('risk-assessment')}
+              className="min-h-8 px-3 py-1.5 rounded bg-black border border-[#3a3a3a] hover:border-[#ff9900] text-zinc-300 hover:text-white font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
+            >
+              <BookOpen size={12} />
+              <span>GLOSSARY</span>
             </button>
             <button
               type="button"
@@ -650,7 +667,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
               disabled={isLoadingData || holdingTickers.length === 0}
               aria-label="Refresh portfolio market prices and history"
               title="Refresh market prices & historical returns"
-              className="px-2 py-1.5 rounded bg-black border border-[#333] hover:border-[#00ff00] text-zinc-400 hover:text-[#00ff00] disabled:opacity-40 inline-flex items-center justify-center leading-none transition-colors cursor-pointer"
+              className="min-h-8 px-2.5 py-1.5 rounded bg-black border border-[#3a3a3a] hover:border-[#00ff00] text-zinc-300 hover:text-[#00ff00] disabled:opacity-40 inline-flex items-center justify-center leading-none transition-colors cursor-pointer"
             >
               <RefreshCw size={11} className={isLoadingData ? 'animate-spin' : ''} />
             </button>
@@ -660,23 +677,23 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
         {/* Lookback Selector + Section Anchors */}
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] text-zinc-500 uppercase font-bold mr-1">RISK LOOKBACK:</span>
+            <span className="text-xs text-zinc-300 uppercase font-bold mr-1">RISK LOOKBACK:</span>
             {LOOKBACK_PERIODS.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => setLookback(p.id)}
-                className={`px-2 py-1 rounded text-[10px] font-bold uppercase border transition-colors cursor-pointer leading-none ${
+                className={`min-h-8 px-2.5 py-1 rounded text-xs font-bold uppercase border transition-colors cursor-pointer inline-flex items-center justify-center leading-none ${
                   lookback === p.id
                     ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                    : 'bg-black border-[#2a2a2a] text-zinc-400 hover:text-zinc-200 hover:border-[#444]'
+                    : 'bg-black border-[#3a3a3a] text-zinc-300 hover:text-zinc-200 hover:border-[#444]'
                 }`}
               >
                 {p.shortLabel}
               </button>
             ))}
             {isLoadingData && (
-              <span className="text-[10px] text-[#ff9900] ml-2 inline-flex items-center gap-1">
+              <span className="text-xs text-[#ff9900] ml-2 inline-flex items-center gap-1">
                 <RefreshCw size={10} className="animate-spin" />
                 SYNCING MARKET DATA...
               </span>
@@ -690,7 +707,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                   key={sec.id}
                   type="button"
                   onClick={() => jumpToSection(sec.id)}
-                  className="px-1.5 py-0.5 rounded bg-black border border-[#242424] hover:border-[#ff9900] text-[9.5px] text-zinc-400 hover:text-[#ff9900] uppercase font-bold transition-colors cursor-pointer"
+                  className="min-h-8 px-2.5 py-1 rounded bg-black border border-[#3a3a3a] hover:border-[#ff9900] text-xs text-zinc-300 hover:text-[#ff9900] uppercase font-bold transition-colors cursor-pointer inline-flex items-center justify-center"
                 >
                   {sec.label}
                 </button>
@@ -701,7 +718,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
 
         {/* Configurable Risk Thresholds Bar */}
         {thresholdsOpen && (
-          <div className="border-t border-[#242424] pt-3 grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-[10px]">
+          <div className="border-t border-[#3a3a3a] pt-3 grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
             {[
               {
                 key: 'maxSinglePositionPct' as const,
@@ -739,8 +756,8 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 step: 0.05,
               },
             ].map((item) => (
-              <label key={item.key} className="bg-black border border-[#262626] rounded p-2 space-y-1">
-                <span className="block text-zinc-400 uppercase font-bold">{item.label}</span>
+              <label key={item.key} className="bg-black border border-[#3a3a3a] rounded p-2 space-y-1">
+                <span className="block text-zinc-300 uppercase font-bold">{item.label}</span>
                 <input
                   type="number"
                   min={item.min}
@@ -764,7 +781,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
               <button
                 type="button"
                 onClick={() => setThresholds({ ...DEFAULT_PORTFOLIO_THRESHOLDS })}
-                className="text-[10px] text-zinc-400 hover:text-[#ff9900] uppercase font-bold cursor-pointer"
+                className="text-xs text-zinc-300 hover:text-[#ff9900] uppercase font-bold cursor-pointer"
               >
                 RESET DEFAULTS
               </button>
@@ -773,8 +790,10 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
         )}
       </div>
 
-      {loadError && (
-        <div className="bg-black border border-[#ff4444]/40 rounded px-3 py-2 text-[11px] text-[#ff4444] flex items-center gap-2">
+      {/* Scrollable Content Container */}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pt-4 pr-1">
+        {loadError && (
+        <div className="bg-black border border-[#ff4444]/40 rounded px-3 py-2 text-[13px] text-[#ff4444] flex items-center gap-2">
           <AlertCircle size={13} className="shrink-0" />
           <span>{loadError}</span>
         </div>
@@ -807,14 +826,14 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           <div className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
             {activePortfolio ? `${activePortfolio.name} — NO HOLDINGS CONFIGURED` : 'NO PERSONAL PORTFOLIO CONFIGURED'}
           </div>
-          <div className="text-xs text-zinc-400 max-w-xl mx-auto">
+          <div className="text-xs text-zinc-300 max-w-xl mx-auto">
             Add positions manually, upload a brokerage CSV export, or import equities from your Quorix Tracked Equities watchlist to calculate live portfolio exposure, concentration, covariance volatility, CORR diversification clusters, and downside stress tests.
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
             <button
               type="button"
               onClick={() => openManager('manual')}
-              className="px-3.5 py-2 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10.5px] uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer"
+              className="px-3.5 py-2 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[13px] uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer"
             >
               <Plus size={12} />
               <span>ADD HOLDINGS MANUALLY</span>
@@ -822,7 +841,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             <button
               type="button"
               onClick={() => openManager('csv')}
-              className="px-3.5 py-2 rounded bg-black border border-[#444] hover:border-[#ff9900] text-zinc-200 hover:text-[#ff9900] font-bold text-[10.5px] uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer"
+              className="px-3.5 py-2 rounded bg-black border border-[#444] hover:border-[#ff9900] text-zinc-200 hover:text-[#ff9900] font-bold text-[13px] uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer"
             >
               <FileSpreadsheet size={12} />
               <span>IMPORT BROKERAGE CSV</span>
@@ -830,7 +849,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             <button
               type="button"
               onClick={() => openManager('watchlist')}
-              className="px-3.5 py-2 rounded bg-black border border-[#444] hover:border-[#3498db] text-zinc-200 hover:text-[#3498db] font-bold text-[10.5px] uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer"
+              className="px-3.5 py-2 rounded bg-black border border-[#444] hover:border-[#3498db] text-zinc-200 hover:text-[#3498db] font-bold text-[13px] uppercase inline-flex items-center gap-1.5 leading-none cursor-pointer"
             >
               <Layers size={12} />
               <span>SEED FROM TRACKED EQUITIES</span>
@@ -841,7 +860,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
         <div className="space-y-4">
           {/* Global Data Warnings */}
           {analysis.dataWarnings.length > 0 && (
-            <div className="bg-black border border-amber-500/40 rounded px-3 py-2 space-y-1 text-[10.5px] text-amber-400">
+            <div className="bg-black border border-amber-500/40 rounded px-3 py-2 space-y-1 text-[13px] text-amber-400">
               {analysis.dataWarnings.map((w, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <AlertTriangle size={12} className="shrink-0" />
@@ -855,7 +874,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           {/* SECTION 1: PORTFOLIO OVERVIEW                                    */}
           {/* ================================================================ */}
           <section id="prm-overview" className="bg-[#050505] border border-[#333] rounded p-3.5 space-y-3">
-            <div className="border-b border-[#2a2a2a] pb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="border-b border-[#3a3a3a] pb-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   PORTFOLIO OVERVIEW
@@ -863,6 +882,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 <InfoTooltipIcon
                   label="Portfolio Overview info"
                   title="Portfolio Overview"
+                  onOpenGlossary={() => openGlossary('risk-assessment')}
                   content="Consolidated market valuation, exposure, historical volatility, beta vs SPY, concentration, and transparent rule-based risk assessment."
                 />
               </div>
@@ -881,41 +901,40 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold">Total Market Value</div>
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">Total Market Value</div>
                 <div className="text-base font-bold text-white tabular-nums mt-0.5">
                   {formatUsd(analysis.totalPortfolioValue)}
                 </div>
-                <div className="text-[10px] text-zinc-500 tabular-nums mt-0.5">
+                <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
                   Equities {formatUsd(analysis.totalEquityValue, true)}
                 </div>
               </div>
 
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold">Holdings</div>
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">Holdings</div>
                 <div className="text-base font-bold text-white tabular-nums mt-0.5">
                   {analysis.holdingCount}
                 </div>
-                <div className="text-[10px] text-zinc-500 tabular-nums mt-0.5">
-                  {analysis.pricedHoldingCount} priced
-                  {analysis.unpricedHoldings.length > 0
-                    ? ` · ${analysis.unpricedHoldings.length} unpriced`
-                    : ''}
-                </div>
+                {analysis.unpricedHoldings.length > 0 && (
+                  <div className="text-xs text-amber-400 tabular-nums mt-0.5">
+                    {analysis.unpricedHoldings.length} unpriced
+                  </div>
+                )}
               </div>
 
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold">Cash Allocation</div>
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">Cash Allocation</div>
                 <div className="text-base font-bold text-[#3498db] tabular-nums mt-0.5">
                   {formatPct(analysis.cashWeightPct)}
                 </div>
-                <div className="text-[10px] text-zinc-500 tabular-nums mt-0.5">
+                <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
                   {formatUsd(analysis.cashBalance)}
                 </div>
               </div>
 
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold">Largest Position</div>
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">Largest Position</div>
                 <div className="text-base font-bold text-white tabular-nums mt-0.5">
                   {analysis.concentration.largestPosition ? (
                     <>
@@ -937,25 +956,27 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                     '—'
                   )}
                 </div>
-                <div className="text-[10px] text-zinc-500 tabular-nums mt-0.5 truncate">
+                <div className="text-xs text-zinc-300 tabular-nums mt-0.5 truncate">
                   {analysis.concentration.largestPosition
                     ? formatUsd(analysis.concentration.largestPosition.marketValue)
                     : 'No priced holdings'}
                 </div>
               </div>
 
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold flex items-center gap-1">
-                  <span>Portfolio Beta (SPY)</span>
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold flex items-center gap-1">
+                  <span>Portfolio Beta</span>
                   <InfoTooltipIcon
                     label="Portfolio Beta info"
+                    title="Portfolio Beta"
+                    onOpenGlossary={() => openGlossary('beta')}
                     content={`Historical covariance-based beta of weighted portfolio returns (including cash at 0%) against SPY over ${analysis.volatilityRisk.lookbackLabel}.`}
                   />
                 </div>
                 <div
                   className={`text-base font-bold tabular-nums mt-0.5 ${
                     analysis.volatilityRisk.portfolioBetaVsSpy === null
-                      ? 'text-zinc-500'
+                      ? 'text-zinc-300'
                       : analysis.volatilityRisk.portfolioBetaVsSpy >= 1.3
                       ? 'text-[#ff4444]'
                       : analysis.volatilityRisk.portfolioBetaVsSpy >= 1.1
@@ -967,25 +988,27 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                     ? analysis.volatilityRisk.portfolioBetaVsSpy.toFixed(2)
                     : '—'}
                 </div>
-                <div className="text-[10px] text-zinc-500 tabular-nums mt-0.5">
+                <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
                   {analysis.volatilityRisk.betaObservationCount > 0
                     ? `${analysis.volatilityRisk.betaObservationCount} sessions (${lookback})`
                     : 'Insufficient history'}
                 </div>
               </div>
 
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold flex items-center gap-1">
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold flex items-center gap-1">
                   <span>Portfolio Volatility</span>
                   <InfoTooltipIcon
                     label="Portfolio Volatility info"
+                    title="Portfolio Volatility"
+                    onOpenGlossary={() => openGlossary('volatility')}
                     content="Annualized portfolio standard deviation computed via full weight-covariance matrix (√(wᵀΣw × 252)), not a simple average of holding volatilities."
                   />
                 </div>
                 <div
                   className={`text-base font-bold tabular-nums mt-0.5 ${
                     analysis.volatilityRisk.portfolioVolatilityPct === null
-                      ? 'text-zinc-500'
+                      ? 'text-zinc-300'
                       : analysis.volatilityRisk.portfolioVolatilityPct >= 25
                       ? 'text-[#ff4444]'
                       : analysis.volatilityRisk.portfolioVolatilityPct >= 16
@@ -997,15 +1020,15 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                     ? `${analysis.volatilityRisk.portfolioVolatilityPct.toFixed(1)}%`
                     : '—'}
                 </div>
-                <div className="text-[10px] text-zinc-500 tabular-nums mt-0.5">
+                <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
                   {analysis.volatilityRisk.alignedSessionCount > 0
                     ? `Annualized · ${analysis.volatilityRisk.alignedSessionCount}d`
                     : 'Unavailable'}
                 </div>
               </div>
 
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold">Concentration</div>
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">Concentration</div>
                 <div
                   className={`text-base font-bold mt-0.5 ${
                     analysis.concentration.concentrationLabel === 'Very High'
@@ -1016,12 +1039,12 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                       ? 'text-zinc-100'
                       : analysis.concentration.concentrationLabel === 'Low'
                       ? 'text-[#00ff00]'
-                      : 'text-zinc-500'
+                      : 'text-zinc-300'
                   }`}
                 >
                   {analysis.concentration.concentrationLabel}
                 </div>
-                <div className="text-[10px] text-zinc-500 tabular-nums mt-0.5">
+                <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
                   Top 5: {formatPct(analysis.concentration.top5WeightPct)}
                   {analysis.concentration.hhi !== null
                     ? ` · HHI ${Math.round(analysis.concentration.hhi)}`
@@ -1029,8 +1052,8 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 </div>
               </div>
 
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold">
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">
                   {analysis.totalUnrealizedGain !== null ? 'Unrealized P&L' : 'Max Drawdown'}
                 </div>
                 {analysis.totalUnrealizedGain !== null ? (
@@ -1043,8 +1066,8 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                       {analysis.totalUnrealizedGain >= 0 ? '+' : ''}
                       {formatUsd(analysis.totalUnrealizedGain, true)}
                     </div>
-                    <div className="text-[10px] text-zinc-500 tabular-nums mt-0.5">
-                      {formatPct(analysis.totalUnrealizedGainPct, 2, true)} ({analysis.costBasisCoverageCount}/{analysis.holdingCount} costed)
+                    <div className="text-xs text-zinc-300 tabular-nums mt-0.5">
+                      {formatPct(analysis.totalUnrealizedGainPct, 2, true)}
                     </div>
                   </>
                 ) : (
@@ -1054,7 +1077,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         ? `${analysis.volatilityRisk.maxDrawdownPct.toFixed(1)}%`
                         : '—'}
                     </div>
-                    <div className="text-[10px] text-zinc-500 mt-0.5">
+                    <div className="text-xs text-zinc-300 mt-0.5">
                       {analysis.volatilityRisk.maxDrawdownPeakDate &&
                       analysis.volatilityRisk.maxDrawdownTroughDate
                         ? `${analysis.volatilityRisk.maxDrawdownPeakDate} → ${analysis.volatilityRisk.maxDrawdownTroughDate}`
@@ -1066,11 +1089,11 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             </div>
 
             {/* Transparent Rule-Based Risk Drivers */}
-            <div className="bg-black border border-[#222] rounded px-3 py-2.5 space-y-1.5">
-              <div className="text-zinc-500 uppercase font-bold text-[9.5px] tracking-wider">
+            <div className="bg-black border border-[#3a3a3a] rounded px-3 py-2.5 space-y-1.5">
+              <div className="text-zinc-300 uppercase font-bold text-xs tracking-wider">
                 RULE DRIVERS:
               </div>
-              <ul className="list-disc pl-4 space-y-1 text-[11px] leading-relaxed text-zinc-300 marker:text-zinc-500">
+              <ul className="list-disc pl-4 space-y-1 text-[13px] leading-relaxed text-zinc-300 marker:text-zinc-300">
                 {analysis.overallRisk.drivers.map((drv, idx) => (
                   <li key={idx}>{drv}</li>
                 ))}
@@ -1082,7 +1105,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           {/* SECTION 2: PORTFOLIO CONCENTRATION                               */}
           {/* ================================================================ */}
           <section id="prm-concentration" className="bg-[#050505] border border-[#333] rounded p-3.5 space-y-3">
-            <div className="border-b border-[#2a2a2a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="border-b border-[#3a3a3a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   PORTFOLIO CONCENTRATION
@@ -1090,17 +1113,18 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 <InfoTooltipIcon
                   label="Concentration info"
                   title="Concentration Analysis"
+                  onOpenGlossary={() => openGlossary('hhi')}
                   content="Evaluates single-name weight, Top 5 / Top 10 concentration, Herfindahl-Hirschman Index (HHI), effective equal-weight positions (1/Σw²), and configurable threshold breaches."
                 />
               </div>
-              <span className="text-[10px] text-zinc-500 tabular-nums">
+              <span className="text-xs text-zinc-300 tabular-nums">
                 THRESHOLDS: SINGLE &gt;{thresholds.maxSinglePositionPct}% · TOP 5 &gt;{thresholds.maxTop5Pct}% · SECTOR &gt;{thresholds.maxSectorPct}%
               </span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold">Top 5 Weight</div>
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">Top 5 Weight</div>
                 <div
                   className={`text-sm font-bold tabular-nums mt-0.5 ${
                     analysis.concentration.top5WeightPct > thresholds.maxTop5Pct
@@ -1111,47 +1135,47 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                   {formatPct(analysis.concentration.top5WeightPct)}
                 </div>
               </div>
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold">Top 10 Weight</div>
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">Top 10 Weight</div>
                 <div className="text-sm font-bold text-white tabular-nums mt-0.5">
                   {formatPct(analysis.concentration.top10WeightPct)}
                 </div>
               </div>
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold">Single-Stock Exp.</div>
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">Single-Stock Exposure</div>
                 <div className="text-sm font-bold text-zinc-100 tabular-nums mt-0.5">
                   {formatPct(analysis.concentration.singleStockWeightPct)}
                 </div>
-                <div className="text-[9.5px] text-zinc-500 tabular-nums">
+                <div className="text-xs text-zinc-300 tabular-nums">
                   ETFs/Funds: {formatPct(analysis.concentration.etfFundWeightPct)}
                 </div>
               </div>
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold">HHI Index</div>
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">HHI Index</div>
                 <div className="text-sm font-bold text-white tabular-nums mt-0.5">
                   {analysis.concentration.hhi !== null
                     ? Math.round(analysis.concentration.hhi).toLocaleString('en-US')
                     : '—'}
                 </div>
-                <div className="text-[9.5px] text-zinc-500">0–10,000 scale</div>
+                
               </div>
-              <div className="bg-black border border-[#242424] rounded p-2.5">
-                <div className="text-[9.5px] text-zinc-500 uppercase font-bold">Effective Holdings</div>
+              <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">Effective Holdings</div>
                 <div className="text-sm font-bold text-[#3498db] tabular-nums mt-0.5">
                   {analysis.concentration.effectivePositions !== null
                     ? analysis.concentration.effectivePositions.toFixed(1)
                     : '—'}
                 </div>
-                <div className="text-[9.5px] text-zinc-500">1 / Σw² equivalent</div>
+                
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {/* Largest Holdings Weight Chart */}
-              <div className="bg-black border border-[#242424] rounded p-3 space-y-2">
-                <div className="text-[10px] text-zinc-400 uppercase font-bold flex items-center justify-between">
+              <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2">
+                <div className="text-xs text-zinc-300 uppercase font-bold flex items-center justify-between">
                   <span>LARGEST HOLDINGS BY PORTFOLIO WEIGHT</span>
-                  <span className="text-zinc-500">LIMIT: {thresholds.maxSinglePositionPct}%</span>
+                  <span className="text-zinc-300">LIMIT: {thresholds.maxSinglePositionPct}%</span>
                 </div>
                 <div className="space-y-1.5">
                   {analysis.positions
@@ -1166,7 +1190,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         ? '#71717a'
                         : '#ff9900';
                       return (
-                        <div key={pos.id} className="grid grid-cols-12 items-center gap-2 text-[10.5px]">
+                        <div key={pos.id} className="grid grid-cols-12 items-center gap-2 text-[13px]">
                           <div className="col-span-2 truncate">
                             <button
                               type="button"
@@ -1213,15 +1237,15 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
               </div>
 
               {/* Concentration Warnings & Distribution Assessment */}
-              <div className="bg-black border border-[#242424] rounded p-3 space-y-2.5">
-                <div className="text-[10px] text-zinc-400 uppercase font-bold">
+              <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2.5">
+                <div className="text-xs text-zinc-300 uppercase font-bold">
                   CONCENTRATION WARNINGS &amp; BALANCE
                 </div>
-                <div className="text-[11px] text-zinc-300 border-b border-[#1c1c1c] pb-2">
+                <div className="text-[13px] text-zinc-300 border-b border-[#2e2e2e] pb-2">
                   {analysis.concentration.distributionAssessment}
                 </div>
                 {analysis.concentration.warnings.length === 0 ? (
-                  <div className="text-[11px] text-[#00ff00] py-2">
+                  <div className="text-[13px] text-[#00ff00] py-2">
                     No positions or sectors currently exceed your configured concentration thresholds.
                   </div>
                 ) : (
@@ -1229,13 +1253,13 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                     {analysis.concentration.warnings.map((warn) => (
                       <div
                         key={warn.id}
-                        className={`rounded border px-2.5 py-2 text-[10.5px] ${
+                        className={`rounded border px-2.5 py-2 text-[13px] ${
                           warn.severity === 'high'
                             ? 'border-[#ff4444]/40 bg-[#ff4444]/10 text-[#ff8888]'
                             : 'border-[#ff9900]/40 bg-[#ff9900]/10 text-amber-300'
                         }`}
                       >
-                        <div className="font-bold uppercase text-[10px]">{warn.title}</div>
+                        <div className="font-bold uppercase text-xs">{warn.title}</div>
                         <div className="text-zinc-300 mt-0.5">{warn.detail}</div>
                       </div>
                     ))}
@@ -1249,7 +1273,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           {/* SECTION 3: SECTOR & INDUSTRY EXPOSURE                            */}
           {/* ================================================================ */}
           <section id="prm-sectors" className="bg-[#050505] border border-[#333] rounded p-3.5 space-y-3">
-            <div className="border-b border-[#2a2a2a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="border-b border-[#3a3a3a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   SECTOR &amp; INDUSTRY EXPOSURE
@@ -1257,27 +1281,19 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 <InfoTooltipIcon
                   label="Sector Exposure info"
                   title="Sector & Industry Classifications"
+                  onOpenGlossary={() => openGlossary('unclassified')}
                   content="Classifications come from verified security metadata (Yahoo Finance Search and single-sector ETF mapping). Broad ETFs and securities lacking verified classifications remain explicitly Unclassified."
                 />
               </div>
-              <div className="text-[10px] text-zinc-500 tabular-nums">
-                CLASSIFIED EQUITY: {formatPct(analysis.sectorExposure.classifiedEquityPct)} · UNCLASSIFIED:{' '}
-                {formatPct(analysis.sectorExposure.unclassifiedEquityPct)} · CASH: {formatPct(analysis.cashWeightPct)}
-              </div>
+
             </div>
 
-            {!analysis.sectorExposure.benchmarkAvailable &&
-              analysis.sectorExposure.benchmarkUnavailableReason && (
-                <div className="bg-black border border-[#2a2a2a] rounded px-3 py-1.5 text-[10px] text-zinc-400">
-                  <span className="text-[#ff9900] font-bold uppercase mr-1.5">S&amp;P 500 BENCHMARK NOTE:</span>
-                  {analysis.sectorExposure.benchmarkUnavailableReason}
-                </div>
-              )}
+
 
             <div className="space-y-3">
               {/* Sector Allocation Visual Chart & Table */}
-              <div className="bg-black border border-[#242424] rounded p-3 space-y-3">
-                <div className="text-[10px] text-zinc-400 uppercase font-bold">
+              <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-3">
+                <div className="text-xs text-zinc-300 uppercase font-bold">
                   SECTOR ALLOCATION BREAKDOWN
                 </div>
 
@@ -1323,9 +1339,9 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 )}
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[10.5px] border-collapse">
+                  <table className="w-full text-left text-[13px] border-collapse">
                     <thead>
-                      <tr className="border-b border-[#2a2a2a] text-zinc-500 text-[9.5px] uppercase">
+<tr className="border-b border-[#3a3a3a] text-zinc-300 text-xs uppercase">
                         <th className="py-1.5 pr-3 whitespace-nowrap">Sector</th>
                         <th className="py-1.5 px-3 text-right whitespace-nowrap">Port %</th>
                         <th className="py-1.5 px-3 text-right whitespace-nowrap">Value</th>
@@ -1363,20 +1379,20 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                           <td className="py-1.5 px-3 text-right tabular-nums text-zinc-300 whitespace-nowrap">
                             {formatUsd(sec.marketValue, true)}
                           </td>
-                          <td className="py-1.5 px-3 text-zinc-400">
+                          <td className="py-1.5 px-3 text-zinc-300">
                             {sec.largestHoldings
                               .map((h) => `${h.ticker} (${h.weightPct.toFixed(1)}%)`)
                               .join(', ')}
                           </td>
                           <td className="py-1.5 pl-3 text-right whitespace-nowrap">
                             <span
-                              className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${
+                              className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded border ${
                                 sec.status === 'overweight'
                                   ? 'text-[#ff4444] border-[#ff4444]/40 bg-[#ff4444]/10'
                                   : sec.status === 'underweight'
-                                  ? 'text-zinc-400 border-zinc-700 bg-zinc-900'
+                                  ? 'text-zinc-300 border-zinc-700 bg-zinc-900'
                                   : sec.status === 'unclassified'
-                                  ? 'text-zinc-400 border-zinc-700 bg-zinc-900'
+                                  ? 'text-zinc-300 border-zinc-700 bg-zinc-900'
                                   : 'text-[#00ff00] border-[#00ff00]/30 bg-[#00ff00]/10'
                               }`}
                             >
@@ -1396,8 +1412,8 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                           <td className="py-1.5 px-3 text-right tabular-nums text-zinc-300 whitespace-nowrap">
                             {formatUsd(analysis.cashBalance, true)}
                           </td>
-                          <td className="py-1.5 px-3 text-zinc-500">Liquid Reserve</td>
-                          <td className="py-1.5 pl-3 text-right text-[9px] text-zinc-500 uppercase whitespace-nowrap">
+                          <td className="py-1.5 px-3 text-zinc-300">Liquid Reserve</td>
+                          <td className="py-1.5 pl-3 text-right text-xs text-zinc-300 uppercase whitespace-nowrap">
                             CASH
                           </td>
                         </tr>
@@ -1408,8 +1424,8 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
               </div>
 
               {/* Industry Breakdown Pie Chart & Table */}
-              <div className="bg-black border border-[#242424] rounded p-3 space-y-3">
-                <div className="text-[10px] text-zinc-400 uppercase font-bold">
+              <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-3">
+                <div className="text-xs text-zinc-300 uppercase font-bold">
                   INDUSTRY ALLOCATION BREAKDOWN ({analysis.sectorExposure.industries.length})
                 </div>
 
@@ -1426,9 +1442,9 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                       : 'overflow-x-auto'
                   }
                 >
-                  <table className="w-full text-left text-[10.5px] border-collapse">
+                  <table className="w-full text-left text-[13px] border-collapse">
                     <thead>
-                      <tr className="border-b border-[#2a2a2a] text-zinc-500 text-[9.5px] uppercase">
+<tr className="border-b border-[#3a3a3a] text-zinc-300 text-xs uppercase">
                         <th className="py-1.5 pr-3">Industry</th>
                         <th className="py-1.5 px-3 whitespace-nowrap">Sector</th>
                         <th className="py-1.5 px-3 text-right whitespace-nowrap">Weight</th>
@@ -1456,7 +1472,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                               </svg>
                               {ind.industry}
                             </td>
-                            <td className="py-1.5 px-3 text-zinc-500 whitespace-nowrap">
+                            <td className="py-1.5 px-3 text-zinc-300 whitespace-nowrap">
                               {ind.sector}
                             </td>
                             <td className="py-1.5 px-3 text-right tabular-nums font-bold text-white whitespace-nowrap">
@@ -1479,31 +1495,31 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           {/* SECTION 4: POSITION SIZING & ALLOCATION                          */}
           {/* ================================================================ */}
           <section id="prm-positions" className="bg-[#050505] border border-[#333] rounded p-3.5 space-y-3">
-            <div className="border-b border-[#2a2a2a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="border-b border-[#3a3a3a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                 POSITION SIZING &amp; ALLOCATION ({analysis.holdingCount})
               </h2>
-              <div className="flex items-center gap-3 text-[10px]">
+              <div className="flex items-center gap-3 text-xs">
                 <span className="text-[#ff4444]">
                   OVERSIZED (&gt;{thresholds.maxSinglePositionPct}%): {analysis.concentration.oversizedPositions.length}
                 </span>
-                <span className="text-zinc-400">
+                <span className="text-zinc-300">
                   UNDERALLOCATED (&lt;{thresholds.minPositionPct}%): {analysis.concentration.underallocatedPositions.length}
                 </span>
               </div>
             </div>
 
-            <div className="overflow-x-auto bg-black border border-[#242424] rounded">
-              <table className="w-full text-left text-[11px] border-collapse">
+            <div className="overflow-x-auto bg-black border border-[#3a3a3a] rounded">
+              <table className="w-full text-left text-[13px] border-collapse">
                 <thead>
-                  <tr className="bg-[#0b0b0b] border-b border-[#2a2a2a] text-zinc-500 text-[9.5px] uppercase select-none">
+<tr className="bg-[#0b0b0b] border-b border-[#3a3a3a] text-zinc-300 text-xs uppercase select-none">
                     {[
                       { key: 'positionRank' as SortKey, label: '#', align: 'left' },
                       { key: 'ticker' as SortKey, label: 'Ticker / Company', align: 'left' },
                       { key: 'shares' as SortKey, label: 'Shares', align: 'right' },
                       { key: 'currentPrice' as SortKey, label: 'Price', align: 'right' },
                       { key: 'marketValue' as SortKey, label: 'Market Value', align: 'right' },
-                      { key: 'weightPct' as SortKey, label: 'Alloc %', align: 'right' },
+                      { key: 'weightPct' as SortKey, label: 'Allocation %', align: 'right' },
                     ].map((col) => (
                       <th
                         key={col.key}
@@ -1541,7 +1557,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                     const isEditing = editingId === pos.id;
                     return (
                       <tr key={pos.id} className="hover:bg-[#101010] transition-colors">
-                        <td className="py-2 px-2.5 text-zinc-500 tabular-nums">
+                        <td className="py-2 px-2.5 text-zinc-300 tabular-nums">
                           {pos.positionRank ?? '—'}
                         </td>
                         <td className="py-2 px-2.5 min-w-[160px]">
@@ -1554,9 +1570,9 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                             >
                               {pos.ticker}
                             </button>
-                            <span className="text-[9px] text-zinc-500 uppercase">{pos.instrumentType}</span>
+                            <span className="text-xs text-zinc-300 uppercase">{pos.instrumentType}</span>
                           </div>
-                          <div className="text-[10px] text-zinc-400 truncate max-w-[200px]">
+                          <div className="text-xs text-zinc-300 truncate max-w-[200px]">
                             {pos.name}
                           </div>
                         </td>
@@ -1589,7 +1605,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                             pos.isOversized
                               ? 'text-[#ff4444]'
                               : pos.isUnderallocated
-                              ? 'text-zinc-500'
+                              ? 'text-zinc-300'
                               : 'text-zinc-100'
                           }`}
                         >
@@ -1623,28 +1639,28 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                               {formatUsd(pos.unrealizedGain)} ({formatPct(pos.unrealizedGainPct, 1, true)})
                             </span>
                           ) : (
-                            <span className="text-zinc-600">—</span>
+                            <span className="text-zinc-300">—</span>
                           )}
                         </td>
                         <td className="py-2 px-2.5 text-center whitespace-nowrap">
                           <div className="inline-flex items-center gap-1">
                             {pos.isOversized && (
-                              <span className="text-[8.5px] font-bold uppercase px-1.5 py-0.5 rounded border border-[#ff4444]/40 bg-[#ff4444]/10 text-[#ff4444]">
+                              <span className="text-xs font-bold uppercase px-1.5 py-0.5 rounded border border-[#ff4444]/40 bg-[#ff4444]/10 text-[#ff4444]">
                                 OVERSIZED
                               </span>
                             )}
                             {pos.isUnderallocated && (
-                              <span className="text-[8.5px] font-bold uppercase px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-400">
+                              <span className="text-xs font-bold uppercase px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300">
                                 SMALL
                               </span>
                             )}
                             {pos.priceUnavailable && (
-                              <span className="text-[8.5px] font-bold uppercase px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-400">
+                              <span className="text-xs font-bold uppercase px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-400">
                                 NO PRICE
                               </span>
                             )}
                             {!pos.isOversized && !pos.isUnderallocated && !pos.priceUnavailable && (
-                              <span className="text-[9px] text-zinc-600">OK</span>
+                              <span className="text-xs text-zinc-300">OK</span>
                             )}
                           </div>
                         </td>
@@ -1663,7 +1679,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                                 type="button"
                                 onClick={() => setEditingId(null)}
                                 aria-label="Cancel edit"
-                                className="p-1 rounded border border-[#333] text-zinc-400 hover:text-white cursor-pointer"
+                                className="p-1 rounded border border-[#333] text-zinc-300 hover:text-white cursor-pointer"
                               >
                                 <X size={11} />
                               </button>
@@ -1681,7 +1697,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                                 }}
                                 title={`Edit ${pos.ticker}`}
                                 aria-label={`Edit ${pos.ticker}`}
-                                className="p-1 rounded border border-[#2a2a2a] text-zinc-400 hover:text-[#ff9900] hover:border-[#ff9900] cursor-pointer"
+                                className="p-1 rounded border border-[#3a3a3a] text-zinc-300 hover:text-[#ff9900] hover:border-[#ff9900] cursor-pointer"
                               >
                                 <Edit3 size={11} />
                               </button>
@@ -1690,7 +1706,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                                 onClick={() => handleRemovePosition(pos.id)}
                                 title={`Remove ${pos.ticker}`}
                                 aria-label={`Remove ${pos.ticker}`}
-                                className="p-1 rounded border border-[#2a2a2a] text-zinc-500 hover:text-[#ff4444] hover:border-[#ff4444] cursor-pointer"
+                                className="p-1 rounded border border-[#3a3a3a] text-zinc-300 hover:text-[#ff4444] hover:border-[#ff4444] cursor-pointer"
                               >
                                 <Trash2 size={11} />
                               </button>
@@ -1704,29 +1720,29 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                   {/* Cash Row */}
                   {analysis.cashBalance > 0 && (
                     <tr className="bg-[#090d12]">
-                      <td className="py-2 px-2.5 text-zinc-600">—</td>
+                      <td className="py-2 px-2.5 text-zinc-300">—</td>
                       <td className="py-2 px-2.5">
                         <span className="text-[#3498db] font-bold">CASH</span>
-                        <div className="text-[10px] text-zinc-500">US Dollar Cash Position</div>
+                        <div className="text-xs text-zinc-300">US Dollar Cash Position</div>
                       </td>
-                      <td className="py-2 px-2.5 text-right text-zinc-500">—</td>
-                      <td className="py-2 px-2.5 text-right tabular-nums text-zinc-400">$1.00</td>
+                      <td className="py-2 px-2.5 text-right text-zinc-300">—</td>
+                      <td className="py-2 px-2.5 text-right tabular-nums text-zinc-300">$1.00</td>
                       <td className="py-2 px-2.5 text-right tabular-nums font-bold text-[#3498db]">
                         {formatUsd(analysis.cashBalance)}
                       </td>
                       <td className="py-2 px-2.5 text-right tabular-nums font-bold text-[#3498db]">
                         {formatPct(analysis.cashWeightPct)}
                       </td>
-                      <td className="py-2 px-2.5 text-right text-zinc-600">—</td>
-                      <td className="py-2 px-2.5 text-right text-zinc-600">—</td>
-                      <td className="py-2 px-2.5 text-center text-[9px] text-[#3498db] uppercase font-bold">
+                      <td className="py-2 px-2.5 text-right text-zinc-300">—</td>
+                      <td className="py-2 px-2.5 text-right text-zinc-300">—</td>
+                      <td className="py-2 px-2.5 text-center text-xs text-[#3498db] uppercase font-bold">
                         LIQUID
                       </td>
                       <td className="py-2 px-2.5 text-right">
                         <button
                           type="button"
                           onClick={() => openManager('manual')}
-                          className="text-[10px] text-[#3498db] hover:text-[#ff9900] uppercase font-bold cursor-pointer"
+                          className="text-xs text-[#3498db] hover:text-[#ff9900] uppercase font-bold cursor-pointer"
                         >
                           EDIT
                         </button>
@@ -1742,7 +1758,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           {/* SECTION 5: VOLATILITY & PORTFOLIO RISK                           */}
           {/* ================================================================ */}
           <section id="prm-volatility" className="bg-[#050505] border border-[#333] rounded p-3.5 space-y-3">
-            <div className="border-b border-[#2a2a2a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="border-b border-[#3a3a3a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   VOLATILITY &amp; PORTFOLIO RISK
@@ -1750,42 +1766,40 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 <InfoTooltipIcon
                   label="Volatility methodology info"
                   title="Covariance Volatility Methodology"
+                  onOpenGlossary={() => openGlossary('volatility')}
                   content={analysis.volatilityRisk.methodologySummary}
                   maxWidth={320}
                 />
               </div>
-              <span className="text-[10px] text-zinc-500 tabular-nums">
+              <span className="text-xs text-zinc-300 tabular-nums">
                 {analysis.volatilityRisk.startDate && analysis.volatilityRisk.endDate
                   ? `${analysis.volatilityRisk.lookbackLabel} (${analysis.volatilityRisk.startDate} → ${analysis.volatilityRisk.endDate} · ${analysis.volatilityRisk.alignedSessionCount} sessions)`
                   : `Lookback: ${analysis.volatilityRisk.lookbackLabel}`}
               </span>
             </div>
 
-            <div className="text-[10px] text-zinc-400 bg-black border border-[#222] rounded px-3 py-1.5">
-              <span className="text-zinc-500 uppercase font-bold mr-1.5">METHODOLOGY:</span>
-              {analysis.volatilityRisk.methodologySummary}
-            </div>
+
 
             {analysis.volatilityRisk.unavailableReason ? (
-              <div className="bg-black border border-[#2a2a2a] rounded p-4 text-xs text-zinc-400">
+              <div className="bg-black border border-[#3a3a3a] rounded p-4 text-xs text-zinc-300">
                 {analysis.volatilityRisk.unavailableReason}
               </div>
             ) : (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <div className="bg-black border border-[#242424] rounded p-2.5">
-                    <div className="text-[9.5px] text-zinc-500 uppercase font-bold">
+                  <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                    <div className="text-xs text-zinc-300 uppercase font-bold">
                       Portfolio Volatility (Cov)
                     </div>
                     <div className="text-base font-bold text-white tabular-nums mt-0.5">
                       {formatPct(analysis.volatilityRisk.portfolioVolatilityPct)}
                     </div>
-                    <div className="text-[9.5px] text-zinc-500 tabular-nums">
+                    <div className="text-xs text-zinc-300 tabular-nums">
                       Weighted Avg Vol: {formatPct(analysis.volatilityRisk.weightedAvgHoldingVolPct)}
                     </div>
                   </div>
-                  <div className="bg-black border border-[#242424] rounded p-2.5">
-                    <div className="text-[9.5px] text-zinc-500 uppercase font-bold">
+                  <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                    <div className="text-xs text-zinc-300 uppercase font-bold">
                       Portfolio Beta vs SPY
                     </div>
                     <div className="text-base font-bold text-white tabular-nums mt-0.5">
@@ -1793,26 +1807,24 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         ? analysis.volatilityRisk.portfolioBetaVsSpy.toFixed(2)
                         : '—'}
                     </div>
-                    <div className="text-[9.5px] text-zinc-500 tabular-nums">
-                      {analysis.volatilityRisk.betaObservationCount} aligned SPY days
-                    </div>
+                    
                   </div>
-                  <div className="bg-black border border-[#242424] rounded p-2.5">
-                    <div className="text-[9.5px] text-zinc-500 uppercase font-bold">
+                  <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                    <div className="text-xs text-zinc-300 uppercase font-bold">
                       Historical Max Drawdown
                     </div>
                     <div className="text-base font-bold text-[#ff4444] tabular-nums mt-0.5">
                       {formatPct(analysis.volatilityRisk.maxDrawdownPct)}
                     </div>
-                    <div className="text-[9.5px] text-zinc-500 tabular-nums">
+                    <div className="text-xs text-zinc-300 tabular-nums">
                       {analysis.volatilityRisk.maxDrawdownPeakDate &&
                       analysis.volatilityRisk.maxDrawdownTroughDate
                         ? `${analysis.volatilityRisk.maxDrawdownPeakDate} → ${analysis.volatilityRisk.maxDrawdownTroughDate}`
                         : '—'}
                     </div>
                   </div>
-                  <div className="bg-black border border-[#242424] rounded p-2.5">
-                    <div className="text-[9.5px] text-zinc-500 uppercase font-bold">
+                  <div className="bg-black border border-[#3a3a3a] rounded p-2.5">
+                    <div className="text-xs text-zinc-300 uppercase font-bold">
                       Diversification Ratio
                     </div>
                     <div className="text-base font-bold text-[#00ff00] tabular-nums mt-0.5">
@@ -1820,19 +1832,17 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         ? `${analysis.volatilityRisk.diversificationRatio.toFixed(2)}x`
                         : '—'}
                     </div>
-                    <div className="text-[9.5px] text-zinc-500">
-                      Coverage: {formatPct(analysis.volatilityRisk.coveredTotalWeightPct)}
-                    </div>
+                    
                   </div>
                 </div>
 
                 {/* Historical Drawdown SVG Chart */}
                 {analysis.volatilityRisk.drawdownCurve.length >= 2 && (
-                  <div className="bg-black border border-[#242424] rounded p-3 space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px] text-zinc-400 uppercase font-bold">
+                  <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs text-zinc-300 uppercase font-bold">
                       <span>HISTORICAL CONSTANT-WEIGHT PORTFOLIO DRAWDOWN CURVE</span>
                       <span className="text-[#ff4444] tabular-nums">
-                        MAX DD: {formatPct(analysis.volatilityRisk.maxDrawdownPct)}
+                        MAX DRAWDOWN: {formatPct(analysis.volatilityRisk.maxDrawdownPct)}
                       </span>
                     </div>
                     <svg className="w-full h-28 block" viewBox="0 0 600 96" preserveAspectRatio="none">
@@ -1861,20 +1871,20 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                   {/* Risk Contribution by Holding */}
-                  <div className="lg:col-span-2 bg-black border border-[#242424] rounded p-3 space-y-2">
-                    <div className="text-[10px] text-zinc-400 uppercase font-bold">
+                  <div className="lg:col-span-2 bg-black border border-[#3a3a3a] rounded p-3 space-y-2">
+                    <div className="text-xs text-zinc-300 uppercase font-bold">
                       RISK CONTRIBUTION &amp; VOLATILITY BY HOLDING
                     </div>
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-[10.5px] border-collapse">
+                      <table className="w-full text-left text-[13px] border-collapse">
                         <thead>
-                          <tr className="border-b border-[#2a2a2a] text-zinc-500 text-[9.5px] uppercase">
+<tr className="border-b border-[#3a3a3a] text-zinc-300 text-xs uppercase">
                             <th className="py-1.5 pr-2">Ticker</th>
                             <th className="py-1.5 px-2 text-right">Weight</th>
                             <th className="py-1.5 px-2 text-right">Risk Share</th>
-                            <th className="py-1.5 px-2 text-right">Ann. Vol</th>
-                            <th className="py-1.5 px-2 text-right">Beta (SPY)</th>
-                            <th className="py-1.5 pl-2 text-right">Max DD</th>
+                            <th className="py-1.5 px-2 text-right whitespace-nowrap">Volatility (annual)</th>
+                            <th className="py-1.5 px-2 text-right whitespace-nowrap">Beta</th>
+                            <th className="py-1.5 pl-2 text-right whitespace-nowrap">Max Drawdown</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#181818]">
@@ -1913,20 +1923,20 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                   </div>
 
                   {/* Risk Concentration by Sector */}
-                  <div className="bg-black border border-[#242424] rounded p-3 space-y-2">
-                    <div className="text-[10px] text-zinc-400 uppercase font-bold">
+                  <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2">
+                    <div className="text-xs text-zinc-300 uppercase font-bold">
                       RISK CONCENTRATION BY SECTOR
                     </div>
                     <div className="space-y-2">
                       {analysis.volatilityRisk.riskBySector.map((sec) => (
-                        <div key={sec.sector} className="space-y-0.5 text-[10.5px]">
+                        <div key={sec.sector} className="space-y-0.5 text-[13px]">
                           <div className="flex items-center justify-between">
                             <span className="text-zinc-200 truncate">{sec.sector}</span>
                             <span className="tabular-nums font-bold text-[#ff9900]">
                               {sec.riskContributionPct.toFixed(1)}% risk
                             </span>
                           </div>
-                          <div className="flex items-center justify-between text-[9.5px] text-zinc-500">
+                          <div className="flex items-center justify-between text-xs text-zinc-300">
                             <span>Capital weight: {sec.portfolioWeightPct.toFixed(1)}%</span>
                             <span>
                               Ratio:{' '}
@@ -1955,7 +1965,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             )}
 
             {analysis.volatilityRisk.excludedFromRiskModel.length > 0 && (
-              <div className="text-[10px] text-amber-400 bg-black border border-amber-500/30 rounded px-3 py-1.5">
+              <div className="text-xs text-amber-400 bg-black border border-amber-500/30 rounded px-3 py-1.5">
                 Excluded from covariance model:{' '}
                 {analysis.volatilityRisk.excludedFromRiskModel
                   .map((e) => `${e.ticker} (${e.reason})`)
@@ -1968,7 +1978,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           {/* SECTION 6: PORTFOLIO DIVERSIFICATION (CORR INTEGRATION)          */}
           {/* ================================================================ */}
           <section id="prm-diversification" className="bg-[#050505] border border-[#333] rounded p-3.5 space-y-3">
-            <div className="border-b border-[#2a2a2a] pb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="border-b border-[#3a3a3a] pb-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
                 <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   PORTFOLIO DIVERSIFICATION &amp; CORRELATION RISK
@@ -1976,6 +1986,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 <InfoTooltipIcon
                   label="Diversification CORR info"
                   title="Powered by CORR Engine"
+                  onOpenGlossary={() => openGlossary('correlation')}
                   content="Reuses Quorix's CORR Pearson daily-return correlation engine directly to identify correlated clusters, sector overlap, and holdings offering limited diversification."
                 />
               </div>
@@ -2002,13 +2013,13 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
               <div className="flex flex-col items-start sm:items-end gap-2.5 shrink-0">
                 <div className="flex items-center gap-4 text-left sm:text-right tabular-nums">
                   <div>
-                    <div className="text-[9.5px] text-zinc-500 uppercase">Weighted Avg r</div>
+                    <div className="text-xs text-zinc-300 uppercase">Avg Correlation</div>
                     <div className="text-sm font-bold text-white">
                       {formatCorrelationValue(analysis.diversification.weightedAvgPairwiseCorrelation)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[9.5px] text-zinc-500 uppercase">Clustered Weight</div>
+                    <div className="text-xs text-zinc-300 uppercase">Clustered Weight</div>
                     <div
                       className={`text-sm font-bold ${
                         analysis.diversification.concentratedCorrelatedWeightPct >= 50
@@ -2030,7 +2041,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         onExecuteCommand('CORR');
                       }
                     }}
-                    className="text-[10px] text-[#3498db] hover:text-[#ff9900] font-bold uppercase tracking-wider cursor-pointer transition-colors"
+                    className="text-xs text-[#3498db] hover:text-[#ff9900] font-bold uppercase tracking-wider cursor-pointer transition-colors"
                   >
                     OPEN IN CORR →
                   </button>
@@ -2040,26 +2051,28 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
 
             {/* Portfolio Correlation Matrix (Direct CORR Engine Output) */}
             {analysis.diversification.matrix.symbols.length >= 2 ? (
-              <div className="bg-black border border-[#242424] rounded p-3 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
-                  <span className="text-zinc-400 uppercase font-bold">
+              <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="text-zinc-300 uppercase font-bold">
                     PORTFOLIO CORRELATION MATRIX ({lookback} DAILY RETURNS · CORR ENGINE)
                   </span>
-                  <span className="text-zinc-500">
-                    RED = HIGH POSITIVE CO-MOVEMENT (LIMITED DIVERSIFICATION) · GREEN = LOW / NEGATIVE
-                  </span>
+                  <div className="flex items-center gap-2 text-xs text-zinc-300">
+                    <span className="text-[#00ff00] font-bold">Low (-1.0)</span>
+                    <div className="h-2 w-20 rounded-xs bg-gradient-to-r from-[#00ff00] via-[#52525b] to-[#ff4444]" />
+                    <span className="text-[#ff4444] font-bold">High (+1.0)</span>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="border-collapse text-[10px] font-mono">
+                  <table className="border-collapse text-xs font-mono">
                     <thead>
                       <tr>
-                        <th className="p-1.5 text-left text-zinc-500 border border-[#1f1f1f] bg-[#0a0a0a]">
+                        <th className="p-1.5 text-left text-zinc-300 border border-[#3a3a3a] bg-[#0a0a0a]">
                           TICKER
                         </th>
                         {analysis.diversification.matrix.symbols.map((sym) => (
                           <th
                             key={`col-${sym}`}
-                            className="p-1.5 text-center text-[#3498db] font-bold border border-[#1f1f1f] bg-[#0a0a0a] min-w-[54px]"
+                            className="p-1.5 text-center text-[#3498db] font-bold border border-[#3a3a3a] bg-[#0a0a0a] min-w-[54px]"
                           >
                             {sym}
                           </th>
@@ -2071,7 +2084,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         const rowSym = analysis.diversification.matrix.symbols[rIdx];
                         return (
                           <tr key={`row-${rowSym}`}>
-                            <td className="p-1.5 font-bold text-[#3498db] border border-[#1f1f1f] bg-[#0a0a0a]">
+                            <td className="p-1.5 font-bold text-[#3498db] border border-[#3a3a3a] bg-[#0a0a0a]">
                               {rowSym}
                             </td>
                             {row.map((cell) => (
@@ -2093,7 +2106,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                                       cell.isDiagonal
                                     )}`}
                                   >
-                                    {cell.isDiagonal ? '1.00' : formatCorrelationValue(cell.correlation)}
+                                    {cell.isDiagonal ? '—' : formatCorrelationValue(cell.correlation)}
                                   </div>
                                 </TerminalTooltip>
                               </td>
@@ -2106,7 +2119,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 </div>
               </div>
             ) : (
-              <div className="bg-black border border-[#242424] rounded p-3 text-xs text-zinc-500">
+              <div className="bg-black border border-[#3a3a3a] rounded p-3 text-xs text-zinc-300">
                 Add at least 2 priced holdings with daily historical data to populate the portfolio correlation matrix.
               </div>
             )}
@@ -2114,12 +2127,12 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             {/* Clusters, Highly Correlated Pairs & Limited Diversification Holdings */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               {/* Correlation Clusters */}
-              <div className="bg-black border border-[#242424] rounded p-3 space-y-2">
-                <div className="text-[10px] text-zinc-400 uppercase font-bold">
+              <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2">
+                <div className="text-xs text-zinc-300 uppercase font-bold">
                   CORRELATION CLUSTERS (r ≥ {thresholds.highCorrelationThreshold.toFixed(2)})
                 </div>
                 {analysis.diversification.clusters.length === 0 ? (
-                  <div className="text-[11px] text-zinc-500 py-2">
+                  <div className="text-[13px] text-zinc-300 py-2">
                     No tightly correlated clusters detected above {thresholds.highCorrelationThreshold.toFixed(2)}.
                   </div>
                 ) : (
@@ -2127,19 +2140,19 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                     {analysis.diversification.clusters.map((cl) => (
                       <div
                         key={cl.id}
-                        className="border border-[#ff9900]/35 bg-[#ff9900]/5 rounded p-2 text-[10.5px] space-y-1"
+                        className="border border-[#ff9900]/35 bg-[#ff9900]/5 rounded p-2 text-[13px] space-y-1"
                       >
                         <div className="flex items-center justify-between font-bold">
                           <span className="text-[#3498db]">{cl.tickers.join(' · ')}</span>
                           <span className="text-[#ff9900] tabular-nums">
-                            {cl.combinedWeightPct.toFixed(1)}% wt
+                            {cl.combinedWeightPct.toFixed(1)}% weight
                           </span>
                         </div>
-                        <div className="text-[10px] text-zinc-400">
-                          Avg r: {formatCorrelationValue(cl.avgCorrelation)} · Sectors: {cl.sectors.join(', ')}
+                        <div className="text-xs text-zinc-300">
+                          Avg Correlation: {formatCorrelationValue(cl.avgCorrelation)} · Sectors: {cl.sectors.join(', ')}
                         </div>
                         {cl.isSameSectorCluster && (
-                          <div className="text-[9.5px] text-[#ff4444] font-bold uppercase">
+                          <div className="text-xs text-[#ff4444] font-bold uppercase">
                             Same-sector overlap cluster
                           </div>
                         )}
@@ -2150,12 +2163,12 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
               </div>
 
               {/* Highly Correlated Pairs */}
-              <div className="bg-black border border-[#242424] rounded p-3 space-y-2">
-                <div className="text-[10px] text-zinc-400 uppercase font-bold">
+              <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2">
+                <div className="text-xs text-zinc-300 uppercase font-bold">
                   HIGHLY CORRELATED PAIRS ({analysis.diversification.highlyCorrelatedPairs.length})
                 </div>
                 {analysis.diversification.highlyCorrelatedPairs.length === 0 ? (
-                  <div className="text-[11px] text-zinc-500 py-2">
+                  <div className="text-[13px] text-zinc-300 py-2">
                     No pairs exceed r ≥ {thresholds.highCorrelationThreshold.toFixed(2)}.
                   </div>
                 ) : (
@@ -2163,13 +2176,13 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                     {analysis.diversification.highlyCorrelatedPairs.slice(0, 8).map((pair) => (
                       <div
                         key={`${pair.symbolA}-${pair.symbolB}`}
-                        className="flex items-center justify-between border-b border-[#1c1c1c] pb-1.5 last:border-b-0 text-[10.5px]"
+                        className="flex items-center justify-between border-b border-[#2e2e2e] pb-1.5 last:border-b-0 text-[13px]"
                       >
                         <div>
                           <span className="font-bold text-zinc-100">
                             {pair.symbolA} / {pair.symbolB}
                           </span>
-                          <div className="text-[9.5px] text-zinc-500">
+                          <div className="text-xs text-zinc-300">
                             Combined {pair.combinedWeightPct.toFixed(1)}%
                             {pair.sameSector && pair.sharedSector ? ` · ${pair.sharedSector} overlap` : ''}
                           </div>
@@ -2184,38 +2197,34 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
               </div>
 
               {/* Limited Diversification Benefit Holdings */}
-              <div className="bg-black border border-[#242424] rounded p-3 space-y-2">
-                <div className="text-[10px] text-zinc-400 uppercase font-bold">
-                  LIMITED DIVERSIFICATION BENEFIT
-                </div>
-                {analysis.diversification.limitedDiversificationHoldings.length === 0 ? (
-                  <div className="text-[11px] text-[#00ff00] py-2">
-                    No individual holdings currently exhibit redundant portfolio co-movement above threshold.
+              {analysis.diversification.limitedDiversificationHoldings.length > 0 && (
+                <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2">
+                  <div className="text-xs text-zinc-300 uppercase font-bold">
+                    LIMITED DIVERSIFICATION BENEFIT
                   </div>
-                ) : (
                   <div className="space-y-1.5 max-h-48 overflow-y-auto">
                     {analysis.diversification.limitedDiversificationHoldings.map((pos) => (
                       <div
                         key={pos.id}
-                        className="flex items-center justify-between border-b border-[#1c1c1c] pb-1.5 last:border-b-0 text-[10.5px]"
+                        className="flex items-center justify-between border-b border-[#2e2e2e] pb-1.5 last:border-b-0 text-xs"
                       >
                         <div>
                           <span className="font-bold text-[#3498db]">{pos.ticker}</span>
-                          <span className="text-[9.5px] text-zinc-500 ml-1.5">{pos.sector}</span>
-                          <div className="text-[9.5px] text-zinc-400 tabular-nums">
+                          <span className="text-xs text-zinc-300 ml-1.5">{pos.sector}</span>
+                          <div className="text-xs text-zinc-300 tabular-nums">
                             Weight {formatPct(pos.weightPct)} · Risk {formatPct(pos.riskContributionPct)}
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="text-[#ff9900] font-bold tabular-nums">
-                            avg r {formatCorrelationValue(pos.weightedAvgCorrWithPortfolio)}
+                            Avg Correlation {formatCorrelationValue(pos.weightedAvgCorrWithPortfolio)}
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </section>
 
@@ -2223,7 +2232,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           {/* SECTION 7: DOWNSIDE RISK SCENARIOS                               */}
           {/* ================================================================ */}
           <section id="prm-scenarios" className="bg-[#050505] border border-[#333] rounded p-3.5 space-y-3">
-            <div className="border-b border-[#2a2a2a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="border-b border-[#3a3a3a] pb-1.5 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   DOWNSIDE RISK SCENARIOS &amp; STRESS TESTS
@@ -2231,11 +2240,12 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                 <InfoTooltipIcon
                   label="Downside scenarios info"
                   title="Hypothetical Stress Testing"
+                  onOpenGlossary={() => openGlossary('stress-test')}
                   content="Market-wide scenarios scale each holding by its historical beta vs SPY (cash = 0%). Sector and custom position shocks apply user-defined declines directly to current portfolio weights. These are hypothetical stress tests, not statistical forecasts."
                   maxWidth={310}
                 />
               </div>
-              <span className="text-[9.5px] text-amber-400 uppercase font-bold">
+              <span className="text-xs text-amber-400 uppercase font-bold">
                 HYPOTHETICAL STRESS ANALYSIS — NOT A FORECAST
               </span>
             </div>
@@ -2252,19 +2262,19 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                     className={`text-left p-3 rounded border transition-colors cursor-pointer ${
                       isSelected
                         ? 'bg-[#17120a] border-[#ff9900]'
-                        : 'bg-black border-[#262626] hover:border-zinc-500'
+                        : 'bg-black border-[#3a3a3a] hover:border-zinc-500'
                     }`}
                   >
-                    <div className="text-[10px] font-bold uppercase text-zinc-400">{sc.name}</div>
+                    <div className="text-xs font-bold uppercase text-zinc-300">{sc.name}</div>
                     <div className="text-base font-bold text-[#ff4444] tabular-nums mt-1">
                       {formatUsd(sc.estimatedLossDollars)}
                     </div>
-                    <div className="flex items-center justify-between text-[10px] tabular-nums mt-1">
+                    <div className="flex items-center justify-between text-xs tabular-nums mt-1">
                       <span className="text-[#ff6666] font-bold">
                         {formatPct(sc.estimatedLossPct)}
                       </span>
-                      <span className="text-zinc-400">
-                        Rem: {formatUsd(sc.remainingPortfolioValue, true)}
+                      <span className="text-zinc-300">
+                        Remaining: {formatUsd(sc.remainingPortfolioValue, true)}
                       </span>
                     </div>
                   </button>
@@ -2275,7 +2285,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
             {/* Concentrated Exposure Stress Presets */}
             {analysis.concentratedStressScenarios.length > 0 && (
               <div className="space-y-1.5">
-                <div className="text-[10px] text-zinc-400 uppercase font-bold">
+                <div className="text-xs text-zinc-300 uppercase font-bold">
                   CONCENTRATED EXPOSURE STRESS TESTS
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
@@ -2289,13 +2299,13 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         className={`text-left p-2.5 rounded border transition-colors cursor-pointer ${
                           isSelected
                             ? 'bg-[#17120a] border-[#ff9900]'
-                            : 'bg-black border-[#262626] hover:border-zinc-500'
+                            : 'bg-black border-[#3a3a3a] hover:border-zinc-500'
                         }`}
                       >
-                        <div className="text-[10px] font-bold text-zinc-200 truncate" title={sc.name}>
+                        <div className="text-xs font-bold text-zinc-200 truncate" title={sc.name}>
                           {sc.name}
                         </div>
-                        <div className="flex items-center justify-between text-[11px] tabular-nums mt-1">
+                        <div className="flex items-center justify-between text-[13px] tabular-nums mt-1">
                           <span className="text-[#ff4444] font-bold">
                             {formatUsd(sc.estimatedLossDollars, true)}
                           </span>
@@ -2310,9 +2320,9 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
 
             {/* Interactive Custom Sector / Multi-Position Shock Builder */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              <div className="bg-black border border-[#242424] rounded p-3 space-y-2.5">
+              <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] text-[#ff9900] uppercase font-bold">
+                  <span className="text-xs text-[#ff9900] uppercase font-bold">
                     CUSTOM HYPOTHETICAL SHOCK BUILDER
                   </span>
                   <div className="flex items-center gap-1">
@@ -2322,10 +2332,10 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         setCustomScenarioMode('sector');
                         setSelectedScenarioId('custom-sector');
                       }}
-                      className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase border cursor-pointer ${
+                      className={`px-2 py-0.5 rounded text-xs font-bold uppercase border cursor-pointer ${
                         customScenarioMode === 'sector'
                           ? 'bg-[#ff9900] text-black border-[#ff9900]'
-                          : 'bg-[#0a0a0a] text-zinc-400 border-[#333]'
+                          : 'bg-[#0a0a0a] text-zinc-300 border-[#333]'
                       }`}
                     >
                       SECTOR SHOCK
@@ -2338,10 +2348,10 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                           setSelectedScenarioId('custom-positions');
                         }
                       }}
-                      className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase border cursor-pointer ${
+                      className={`px-2 py-0.5 rounded text-xs font-bold uppercase border cursor-pointer ${
                         customScenarioMode === 'positions'
                           ? 'bg-[#ff9900] text-black border-[#ff9900]'
-                          : 'bg-[#0a0a0a] text-zinc-400 border-[#333]'
+                          : 'bg-[#0a0a0a] text-zinc-300 border-[#333]'
                       }`}
                     >
                       POSITION SHOCKS
@@ -2353,7 +2363,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                   <div className="space-y-2.5">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[9.5px] text-zinc-400 uppercase mb-1">
+                        <label className="block text-xs text-zinc-300 uppercase mb-1">
                           Target Sector
                         </label>
                         <select
@@ -2372,7 +2382,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[9.5px] text-zinc-400 uppercase mb-1">
+                        <label className="block text-xs text-zinc-300 uppercase mb-1">
                           Decline (%)
                         </label>
                         <input
@@ -2401,10 +2411,10 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                             setCustomSectorShockPct(val);
                             setSelectedScenarioId('custom-sector');
                           }}
-                          className={`px-2 py-0.5 rounded border text-[10px] font-bold tabular-nums cursor-pointer ${
+                          className={`px-2 py-0.5 rounded border text-xs font-bold tabular-nums cursor-pointer ${
                             customSectorShockPct === val
                               ? 'border-[#ff9900] text-[#ff9900] bg-[#ff9900]/10'
-                              : 'border-[#333] text-zinc-400 hover:text-white'
+                              : 'border-[#333] text-zinc-300 hover:text-white'
                           }`}
                         >
                           {val}%
@@ -2416,7 +2426,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                   <div className="space-y-2.5">
                     <div className="flex items-end gap-2">
                       <div className="flex-1">
-                        <label className="block text-[9.5px] text-zinc-400 uppercase mb-1">
+                        <label className="block text-xs text-zinc-300 uppercase mb-1">
                           Holding
                         </label>
                         <select
@@ -2434,7 +2444,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         </select>
                       </div>
                       <div className="w-24">
-                        <label className="block text-[9.5px] text-zinc-400 uppercase mb-1">
+                        <label className="block text-xs text-zinc-300 uppercase mb-1">
                           Shock (%)
                         </label>
                         <input
@@ -2456,7 +2466,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                           setCustomPosShocks((prev) => ({ ...prev, [newShockTicker]: clamped }));
                           setSelectedScenarioId('custom-positions');
                         }}
-                        className="px-2.5 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] uppercase inline-flex items-center justify-center leading-none cursor-pointer h-[30px]"
+                        className="px-2.5 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs uppercase inline-flex items-center justify-center leading-none cursor-pointer h-[30px]"
                       >
                         APPLY
                       </button>
@@ -2467,7 +2477,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         {Object.entries(customPosShocks).map(([sym, pct]) => (
                           <span
                             key={sym}
-                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#141414] border border-[#ff4444]/40 text-[10px] text-zinc-200 tabular-nums"
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#141414] border border-[#ff4444]/40 text-xs text-zinc-200 tabular-nums"
                           >
                             <span className="font-bold text-[#3498db]">{sym}</span>
                             <span className="text-[#ff4444] font-bold">{pct}%</span>
@@ -2480,7 +2490,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                                   return next;
                                 });
                               }}
-                              className="text-zinc-500 hover:text-white cursor-pointer"
+                              className="text-zinc-300 hover:text-white cursor-pointer"
                             >
                               <X size={10} />
                             </button>
@@ -2488,7 +2498,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         ))}
                       </div>
                     ) : (
-                      <div className="text-[10px] text-zinc-500">
+                      <div className="text-xs text-zinc-300">
                         Add one or multiple holdings above to model simultaneous idiosyncratic declines.
                       </div>
                     )}
@@ -2498,12 +2508,12 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
 
               {/* Selected Scenario Breakdown & Largest Loss Contributors */}
               {activeScenarioDetail && (
-                <div className="bg-black border border-[#242424] rounded p-3 space-y-2.5">
-                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#1c1c1c] pb-2">
+                <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2.5">
+                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#2e2e2e] pb-2">
                     <div>
                       <div className="text-xs font-bold text-white">{activeScenarioDetail.name}</div>
-                      <div className="text-[10px] text-zinc-400 mt-0.5">
-                        {activeScenarioDetail.methodologyNote}
+                      <div className="text-xs text-zinc-300 mt-0.5">
+                        {activeScenarioDetail.description}
                       </div>
                     </div>
                     <div className="text-right tabular-nums shrink-0">
@@ -2511,27 +2521,27 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         {formatUsd(activeScenarioDetail.estimatedLossDollars)} (
                         {formatPct(activeScenarioDetail.estimatedLossPct)})
                       </div>
-                      <div className="text-[10px] text-zinc-400">
+                      <div className="text-xs text-zinc-300">
                         Remaining: {formatUsd(activeScenarioDetail.remainingPortfolioValue)}
                       </div>
                     </div>
                   </div>
 
                   {activeScenarioDetail.usedFallbackBetaTickers.length > 0 && (
-                    <div className="text-[9.5px] text-amber-400">
+                    <div className="text-xs text-amber-400">
                       Beta unavailable for {activeScenarioDetail.usedFallbackBetaTickers.join(', ')} — applied 1.0x market shock fallback.
                     </div>
                   )}
 
                   <div className="overflow-x-auto max-h-48 overflow-y-auto">
-                    <table className="w-full text-left text-[10.5px] border-collapse">
+                    <table className="w-full text-left text-[13px] border-collapse">
                       <thead>
-                        <tr className="border-b border-[#2a2a2a] text-zinc-500 text-[9.5px] uppercase">
+<tr className="border-b border-[#3a3a3a] text-zinc-300 text-xs uppercase">
                           <th className="py-1 pr-2">Holding</th>
                           <th className="py-1 px-2 text-right">Weight</th>
                           <th className="py-1 px-2 text-right">Applied Shock</th>
                           <th className="py-1 px-2 text-right">Est. Loss ($)</th>
-                          <th className="py-1 pl-2 text-right">Port. Impact</th>
+                          <th className="py-1 pl-2 text-right whitespace-nowrap">Portfolio Impact</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#181818]">
@@ -2540,7 +2550,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                             <td className="py-1.5 pr-2 font-bold text-[#3498db]">
                               {c.ticker}
                               {c.usedFallbackBeta && (
-                                <span className="text-[8.5px] text-amber-400 ml-1">(1.0x)</span>
+                                <span className="text-xs text-amber-400 ml-1">(1.0x)</span>
                               )}
                             </td>
                             <td className="py-1.5 px-2 text-right tabular-nums text-zinc-300">
@@ -2549,7 +2559,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                             <td className="py-1.5 px-2 text-right tabular-nums text-[#ff9900]">
                               {c.appliedShockPct.toFixed(1)}%
                               {c.betaUsed !== null && !c.usedFallbackBeta
-                                ? ` (β ${c.betaUsed.toFixed(2)})`
+                                ? ` (Beta ${c.betaUsed.toFixed(2)})`
                                 : ''}
                             </td>
                             <td className="py-1.5 px-2 text-right tabular-nums font-bold text-[#ff4444]">
@@ -2569,6 +2579,13 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           </section>
         </div>
       )}
+      </div>
+
+      <PortfolioGlossaryModal
+        isOpen={glossaryOpen}
+        onClose={() => setGlossaryOpen(false)}
+        initialTermId={glossaryTermId}
+      />
     </div>
   );
 };

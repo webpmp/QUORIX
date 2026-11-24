@@ -86,7 +86,7 @@ function formatReturnCell(val: number | null | undefined): string {
 }
 
 function getReturnColorClass(val: number | null | undefined): string {
-  if (val === null || val === undefined || !Number.isFinite(val)) return 'text-zinc-500';
+  if (val === null || val === undefined || !Number.isFinite(val)) return 'text-zinc-300';
   if (val > 0.005) return 'text-[#00ff00]';
   if (val < -0.005) return 'text-[#ff4444]';
   return 'text-zinc-300';
@@ -122,7 +122,7 @@ function getRotationBadgeMeta(status: SectorRotationStatus): { label: string; cl
     default:
       return {
         label: 'N/A',
-        cls: 'text-zinc-500 border-zinc-800 bg-zinc-950',
+        cls: 'text-zinc-300 border-zinc-800 bg-zinc-950',
         rank: 0,
       };
   }
@@ -152,7 +152,7 @@ function getInstitutionalBadgeMeta(trend: SectorInstitutionalTrend): { label: st
     default:
       return {
         label: 'UNAVAILABLE',
-        cls: 'text-zinc-500 border-zinc-800 bg-zinc-950',
+        cls: 'text-zinc-300 border-zinc-800 bg-zinc-950',
         rank: 0,
       };
   }
@@ -182,7 +182,7 @@ function getInsiderBadgeMeta(sentiment: SectorInsiderSentimentStatus): { label: 
     default:
       return {
         label: 'UNAVAILABLE',
-        cls: 'text-zinc-500 border-zinc-800 bg-zinc-950',
+        cls: 'text-zinc-300 border-zinc-800 bg-zinc-950',
         rank: 0,
       };
   }
@@ -257,7 +257,7 @@ const SectorComparisonChart: React.FC<{
 
   if (series.length < 2) {
     return (
-      <div className="h-[220px] flex items-center justify-center bg-[#060606] border border-[#222] rounded text-zinc-500 text-[11px]">
+      <div className="h-[220px] flex items-center justify-center bg-[#060606] border border-[#3a3a3a] rounded text-zinc-300 text-xs">
         Insufficient historical daily bars for {sectorTicker} vs SPY ({period}).
       </div>
     );
@@ -312,8 +312,8 @@ const SectorComparisonChart: React.FC<{
   const yTicks = [yMax, (yMax + yMin) / 2, yMin];
 
   return (
-    <div className="bg-[#060606] border border-[#222] rounded p-3 flex flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
+    <div className="bg-[#060606] border border-[#3a3a3a] rounded p-3 flex flex-col gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center gap-1.5 font-bold text-[#ff9900]">
             <span className="w-2.5 h-0.5 bg-[#ff9900] inline-block" />
@@ -329,7 +329,7 @@ const SectorComparisonChart: React.FC<{
             </span>
           )}
         </div>
-        <span className="text-zinc-500 tabular-nums">
+        <span className="text-zinc-300 tabular-nums">
           {activePoint.date} • {period} NORMALIZED (%)
         </span>
       </div>
@@ -556,10 +556,10 @@ export default function SectorRotationPanel({
 
   if (loading && !data) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center bg-black border border-[#222] rounded p-8">
-        <div className="flex flex-col items-center gap-2 text-zinc-400">
+      <div className="flex-1 min-h-0 flex items-center justify-center bg-black border border-[#3a3a3a] rounded p-8">
+        <div className="flex flex-col items-center gap-2 text-zinc-300">
           <RefreshCw size={18} className="animate-spin text-[#ff9900]" />
-          <span className="text-[11px] uppercase tracking-wider font-bold">
+          <span className="text-xs uppercase tracking-wider font-bold">
             LOADING SECTOR ROTATION (SPDR ETFS, FORM 13F COHORT &amp; FORM 4 INSIDERS)...
           </span>
         </div>
@@ -569,17 +569,17 @@ export default function SectorRotationPanel({
 
   if (error && !data) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center bg-black border border-[#222] rounded p-6">
+      <div className="flex-1 min-h-0 flex items-center justify-center bg-black border border-[#3a3a3a] rounded p-6">
         <div className="max-w-lg w-full bg-[#0a0a0a] border border-red-900/50 rounded p-4 space-y-2.5">
           <div className="flex items-center gap-2 text-[#ff4444] font-bold text-xs uppercase">
             <AlertCircle size={14} />
             <span>SECTOR ROTATION DATA UNAVAILABLE</span>
           </div>
-          <p className="text-zinc-300 text-[11px] leading-relaxed">{error}</p>
+          <p className="text-zinc-300 text-xs leading-relaxed">{error}</p>
           <button
             type="button"
             onClick={onRefresh}
-            className="px-3 py-1 bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] uppercase rounded cursor-pointer"
+            className="px-3 py-1 bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs uppercase rounded cursor-pointer"
           >
             RETRY
           </button>
@@ -619,12 +619,12 @@ export default function SectorRotationPanel({
     return (
       <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
         {/* Detail Header Bar */}
-        <div className="bg-black border border-[#2a2a2a] rounded p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+        <div className="bg-black border border-[#3a3a3a] rounded p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
               onClick={() => setSelectedSectorId(null)}
-              className="px-2.5 py-1 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] hover:text-[#ff9900] text-zinc-200 text-[10px] font-extrabold uppercase tracking-wider inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+              className="px-2.5 py-1 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] hover:text-[#ff9900] text-zinc-200 text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               <ArrowLeft size={11} />
               <span>BACK TO SECTOR ROTATION</span>
@@ -635,19 +635,19 @@ export default function SectorRotationPanel({
                 <span className="text-sm font-extrabold text-white uppercase tracking-wide">
                   {selectedSector.name}
                 </span>
-                <span className="px-1.5 py-0.5 rounded bg-[#ff9900]/15 border border-[#ff9900]/50 text-[#ff9900] text-[10px] font-extrabold">
+                <span className="px-1.5 py-0.5 rounded bg-[#ff9900]/15 border border-[#ff9900]/50 text-[#ff9900] text-xs font-extrabold">
                   {selectedSector.etfTicker}
                 </span>
-                <span className={`px-1.5 py-0.5 rounded border text-[10px] font-extrabold ${rotMeta.cls}`}>
+                <span className={`px-1.5 py-0.5 rounded border text-xs font-extrabold ${rotMeta.cls}`}>
                   {rotMeta.label}
                 </span>
                 {selectedSector.market.relativeStrengthRank[selectedPeriod] !== null && (
-                  <span className="text-[10px] text-zinc-400 font-bold">
+                  <span className="text-xs text-zinc-300 font-bold">
                     RS RANK #{selectedSector.market.relativeStrengthRank[selectedPeriod]}/11
                   </span>
                 )}
               </div>
-              <div className="text-[10px] text-zinc-500 mt-0.5">
+              <div className="text-xs text-zinc-300 mt-0.5">
                 {selectedSector.etfName} • LAST: {formatPrice(selectedSector.market.latestPrice)}
                 {selectedSector.market.latestDate ? ` (${selectedSector.market.latestDate})` : ''}
               </div>
@@ -656,16 +656,16 @@ export default function SectorRotationPanel({
 
           {/* Period Switcher in Detail View */}
           <div className="flex items-center gap-1.5 shrink-0 select-none">
-            <span className="text-[9px] text-zinc-500 font-bold uppercase">LOOKBACK:</span>
+            <span className="text-xs text-zinc-300 font-bold uppercase">LOOKBACK:</span>
             {PERIODS.map((p) => (
               <button
                 key={p}
                 type="button"
                 onClick={() => setSelectedPeriod(p)}
-                className={`px-2 py-0.5 rounded text-[10px] font-extrabold border transition-colors cursor-pointer ${
+                className={`px-2 py-0.5 rounded text-xs font-extrabold border transition-colors cursor-pointer ${
                   selectedPeriod === p
                     ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                    : 'bg-[#0a0a0a] border-[#2a2a2a] text-zinc-400 hover:border-zinc-500 hover:text-zinc-100'
+                    : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
                 }`}
               >
                 {p}
@@ -686,18 +686,18 @@ export default function SectorRotationPanel({
             />
           </div>
 
-          <div className="xl:col-span-5 bg-black border border-[#222] rounded p-3 flex flex-col justify-between">
+          <div className="xl:col-span-5 bg-black border border-[#3a3a3a] rounded p-3 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   RELATIVE PERFORMANCE VS SPY
                 </span>
-                <span className="text-[9px] text-zinc-500 uppercase">DAILY CLOSING PRICES</span>
+                <span className="text-xs text-zinc-300 uppercase">DAILY CLOSING PRICES</span>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-[11px] tabular-nums">
+                <table className="w-full text-left border-collapse text-xs tabular-nums">
                   <thead>
-                    <tr className="border-b border-[#222] text-[9px] text-zinc-500 uppercase">
+                    <tr className="border-b border-[#3a3a3a] text-xs text-zinc-300 uppercase">
                       <th className="py-1.5 pr-2">PERIOD</th>
                       <th className="py-1.5 px-2 text-right">{selectedSector.etfTicker}</th>
                       <th className="py-1.5 px-2 text-right">SPY</th>
@@ -736,7 +736,7 @@ export default function SectorRotationPanel({
                             {rank !== null ? `#${rank}` : '—'}
                           </td>
                           <td className="py-2 pl-2 text-right">
-                            <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold ${pStatus.cls}`}>
+                            <span className={`px-1.5 py-0.5 rounded border text-xs font-bold ${pStatus.cls}`}>
                               {pStatus.label}
                             </span>
                           </td>
@@ -749,7 +749,7 @@ export default function SectorRotationPanel({
             </div>
 
             {activePeriodPoint?.startDate && activePeriodPoint?.endDate && (
-              <div className="mt-2 pt-2 border-t border-[#1c1c1c] text-[10px] text-zinc-500 flex items-center justify-between">
+              <div className="mt-2 pt-2 border-t border-[#2e2e2e] text-xs text-zinc-300 flex items-center justify-between">
                 <span>
                   {selectedPeriod} WINDOW: {activePeriodPoint.startDate} → {activePeriodPoint.endDate}
                 </span>
@@ -764,14 +764,14 @@ export default function SectorRotationPanel({
         {/* Row 2: Institutional Positioning (13F) & Insider Activity (Form 4) — Strictly Separated */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {/* Institutional 13F Card */}
-          <div className="bg-black border border-[#222] rounded p-3 space-y-2.5">
-            <div className="flex items-start justify-between gap-2 border-b border-[#1c1c1c] pb-2">
+          <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2.5">
+            <div className="flex items-start justify-between gap-2 border-b border-[#2e2e2e] pb-2">
               <div>
                 <div className="flex items-center gap-1.5 text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   <Building2 size={12} />
                   <span>INSTITUTIONAL POSITIONING (FORM 13F)</span>
                 </div>
-                <div className="text-[9px] text-zinc-500 mt-0.5">
+                <div className="text-xs text-zinc-300 mt-0.5">
                   DELAYED QUARTERLY 13F FILINGS • NOT REAL-TIME FLOWS
                   {selectedSector.institutional.previousPeriod && selectedSector.institutional.reportingPeriod
                     ? ` • ${formatQuarterLabel(selectedSector.institutional.previousPeriod)} → ${formatQuarterLabel(
@@ -780,37 +780,37 @@ export default function SectorRotationPanel({
                     : ''}
                 </div>
               </div>
-              <span className={`px-2 py-0.5 rounded border text-[10px] font-extrabold shrink-0 ${instMeta.cls}`}>
+              <span className={`px-2 py-0.5 rounded border text-xs font-extrabold shrink-0 ${instMeta.cls}`}>
                 {instMeta.label}
               </span>
             </div>
 
             {!selectedSector.institutional.available ? (
-              <div className="py-4 text-[11px] text-zinc-400">
+              <div className="py-4 text-xs text-zinc-300">
                 {data.institutionalMeta.error ||
                   'Institutional Form 13F positioning data is currently unavailable.'}
               </div>
             ) : selectedSector.institutional.classifiedSecuritiesCount === 0 ? (
-              <div className="py-4 text-[11px] text-zinc-400">
+              <div className="py-4 text-xs text-zinc-300">
                 No classified securities in the current comparable 13F manager cohort mapped to {selectedSector.name}.
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 tabular-nums">
                 <div className="bg-[#080808] border border-[#1d1d1d] rounded p-2">
-                  <div className="text-[9px] text-zinc-500 uppercase">MANAGERS INC / DEC</div>
+                  <div className="text-xs text-zinc-300 uppercase">MANAGERS INC / DEC</div>
                   <div className="text-xs font-bold mt-0.5">
                     <span className="text-[#00ff00]">↑{selectedSector.institutional.managersIncreasing}</span>
-                    <span className="text-zinc-600 mx-1">/</span>
+                    <span className="text-zinc-300 mx-1">/</span>
                     <span className="text-[#ff4444]">↓{selectedSector.institutional.managersDecreasing}</span>
                   </div>
-                  <div className="text-[9px] text-zinc-500">
+                  <div className="text-xs text-zinc-300">
                     {selectedSector.institutional.activeManagersCount} active of{' '}
                     {selectedSector.institutional.comparableManagersTotal} cohort
                   </div>
                 </div>
 
                 <div className="bg-[#080808] border border-[#1d1d1d] rounded p-2">
-                  <div className="text-[9px] text-zinc-500 uppercase">NET SHARE CHANGE</div>
+                  <div className="text-xs text-zinc-300 uppercase">NET SHARE CHANGE</div>
                   <div
                     className={`text-xs font-bold mt-0.5 ${
                       selectedSector.institutional.netShareChange > 0
@@ -822,37 +822,37 @@ export default function SectorRotationPanel({
                   >
                     {formatCompactShares(selectedSector.institutional.netShareChange, true)}
                   </div>
-                  <div className="text-[9px] text-zinc-500">
+                  <div className="text-xs text-zinc-300">
                     {formatSignedPercent(selectedSector.institutional.netPercentChange)} vs prior qtr
                   </div>
                 </div>
 
                 <div className="bg-[#080808] border border-[#1d1d1d] rounded p-2">
-                  <div className="text-[9px] text-zinc-500 uppercase">REPORTED VALUE</div>
+                  <div className="text-xs text-zinc-300 uppercase">REPORTED VALUE</div>
                   <div className="text-xs font-bold text-white mt-0.5">
                     {formatCompactUsd(selectedSector.institutional.aggregateValueUsd)}
                   </div>
-                  <div className="text-[9px] text-zinc-500">
+                  <div className="text-xs text-zinc-300">
                     {selectedSector.institutional.classifiedSecuritiesCount} classified securities
                   </div>
                 </div>
 
                 <div className="bg-[#080808] border border-[#1d1d1d] rounded p-2">
-                  <div className="text-[9px] text-zinc-500 uppercase">NEW POSITIONS</div>
+                  <div className="text-xs text-zinc-300 uppercase">NEW POSITIONS</div>
                   <div className="text-xs font-bold text-[#00ff00] mt-0.5">
                     {selectedSector.institutional.newPositions}
                   </div>
                 </div>
 
                 <div className="bg-[#080808] border border-[#1d1d1d] rounded p-2">
-                  <div className="text-[9px] text-zinc-500 uppercase">EXITED POSITIONS</div>
+                  <div className="text-xs text-zinc-300 uppercase">EXITED POSITIONS</div>
                   <div className="text-xs font-bold text-[#ff4444] mt-0.5">
                     {selectedSector.institutional.exitedPositions}
                   </div>
                 </div>
 
                 <div className="bg-[#080808] border border-[#1d1d1d] rounded p-2">
-                  <div className="text-[9px] text-zinc-500 uppercase">VALUE CHANGE</div>
+                  <div className="text-xs text-zinc-300 uppercase">VALUE CHANGE</div>
                   <div className={`text-xs font-bold mt-0.5 ${getReturnColorClass(selectedSector.institutional.valueChangePct)}`}>
                     {formatSignedPercent(selectedSector.institutional.valueChangePct)}
                   </div>
@@ -862,27 +862,27 @@ export default function SectorRotationPanel({
           </div>
 
           {/* Insider Form 4 Card (Strictly Separate) */}
-          <div className="bg-black border border-[#222] rounded p-3 space-y-2.5">
-            <div className="flex items-start justify-between gap-2 border-b border-[#1c1c1c] pb-2">
+          <div className="bg-black border border-[#3a3a3a] rounded p-3 space-y-2.5">
+            <div className="flex items-start justify-between gap-2 border-b border-[#2e2e2e] pb-2">
               <div>
                 <div className="flex items-center gap-1.5 text-[#3498db] text-xs font-bold uppercase tracking-wider">
                   <Users size={12} />
                   <span>INSIDER SENTIMENT (FORM 4 — SEPARATE FROM 13F)</span>
                 </div>
-                <div className="text-[9px] text-zinc-500 mt-0.5">
+                <div className="text-xs text-zinc-300 mt-0.5">
                   TRAILING {selectedSector.insider.windowDays}D OPEN-MARKET FORM 4 FILINGS
                   {selectedSector.insider.since && selectedSector.insider.until
                     ? ` • ${selectedSector.insider.since} → ${selectedSector.insider.until}`
                     : ''}
                 </div>
               </div>
-              <span className={`px-2 py-0.5 rounded border text-[10px] font-extrabold shrink-0 ${insMeta.cls}`}>
+              <span className={`px-2 py-0.5 rounded border text-xs font-extrabold shrink-0 ${insMeta.cls}`}>
                 {insMeta.label}
               </span>
             </div>
 
             {!selectedSector.insider.available ? (
-              <div className="py-4 text-[11px] text-zinc-400 leading-relaxed">
+              <div className="py-4 text-xs text-zinc-300 leading-relaxed">
                 {selectedSector.insider.unavailableReason ||
                   'No qualifying Form 4 open-market insider transactions available for this sector.'}
               </div>
@@ -890,29 +890,29 @@ export default function SectorRotationPanel({
               <div className="space-y-2.5">
                 <div className="grid grid-cols-3 gap-2 tabular-nums">
                   <div className="bg-[#080808] border border-[#1d1d1d] rounded p-2">
-                    <div className="text-[9px] text-zinc-500 uppercase">INSIDER BUYING</div>
+                    <div className="text-xs text-zinc-300 uppercase">INSIDER BUYING</div>
                     <div className="text-xs font-bold text-[#00ff00] mt-0.5">
                       {formatCompactUsd(selectedSector.insider.buysDollars)}
                     </div>
-                    <div className="text-[9px] text-zinc-500 whitespace-nowrap">
+                    <div className="text-xs text-zinc-300 whitespace-nowrap">
                       {selectedSector.insider.buysCount ?? 0} tx
                     </div>
                   </div>
                   <div className="bg-[#080808] border border-[#1d1d1d] rounded p-2">
-                    <div className="text-[9px] text-zinc-500 uppercase">INSIDER SELLING</div>
+                    <div className="text-xs text-zinc-300 uppercase">INSIDER SELLING</div>
                     <div className="text-xs font-bold text-[#ff4444] mt-0.5">
                       {formatCompactUsd(selectedSector.insider.sellsDollars)}
                     </div>
-                    <div className="text-[9px] text-zinc-500 whitespace-nowrap">
+                    <div className="text-xs text-zinc-300 whitespace-nowrap">
                       {selectedSector.insider.sellsCount ?? 0} tx
                     </div>
                   </div>
                   <div className="bg-[#080808] border border-[#1d1d1d] rounded p-2">
-                    <div className="text-[9px] text-zinc-500 uppercase">BUY $ SHARE</div>
+                    <div className="text-xs text-zinc-300 uppercase">BUY $ SHARE</div>
                     <div className="text-xs font-bold text-white mt-0.5">
                       {insiderBuyPct !== null ? `${insiderBuyPct.toFixed(1)}%` : '—'}
                     </div>
-                    <div className="text-[9px] text-zinc-500">
+                    <div className="text-xs text-zinc-300">
                       {selectedSector.insider.sicCodesWithActivity}/{selectedSector.insider.sicCodesQueried.length} SICs active
                     </div>
                   </div>
@@ -926,7 +926,7 @@ export default function SectorRotationPanel({
                         style={{ width: `${insiderBuyPct.toFixed(1)}%` }}
                       />
                     </div>
-                    <div className="text-[9px] text-zinc-500 leading-relaxed">
+                    <div className="text-xs text-zinc-300 leading-relaxed">
                       {selectedSector.insider.unavailableReason ||
                         `Aggregated from 3spread Form 4 filings across ${selectedSector.insider.sicCodesWithActivity}/${selectedSector.insider.sicCodesQueried.length} representative SIC codes (${selectedSector.insider.sicCodesQueried.join(
                           ', '
@@ -940,8 +940,8 @@ export default function SectorRotationPanel({
         </div>
 
         {/* Row 3: Sector Institutional Activity Drill-Down */}
-        <div className="bg-black border border-[#222] rounded overflow-hidden">
-          <div className="px-3 py-2 bg-[#0a0a0a] border-b border-[#222] flex flex-wrap items-center justify-between gap-2">
+        <div className="bg-black border border-[#3a3a3a] rounded overflow-hidden">
+          <div className="px-3 py-2 bg-[#0a0a0a] border-b border-[#3a3a3a] flex flex-wrap items-center justify-between gap-2">
             <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
               {selectedSector.name.toUpperCase()} — INSTITUTIONAL 13F ACTIVITY DRILL-DOWN
             </span>
@@ -974,10 +974,10 @@ export default function SectorRotationPanel({
                   key={tab.id}
                   type="button"
                   onClick={() => setDetailActivityTab(tab.id)}
-                  className={`px-2 py-1 rounded text-[9px] font-extrabold uppercase border transition-colors cursor-pointer ${
+                  className={`px-2 py-1 rounded text-xs font-extrabold uppercase border transition-colors cursor-pointer ${
                     detailActivityTab === tab.id
                       ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                      : 'bg-black border-[#262626] text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                      : 'bg-black border-[#3a3a3a] text-zinc-300 hover:border-zinc-500 hover:text-zinc-200'
                   }`}
                 >
                   {tab.label}
@@ -988,14 +988,14 @@ export default function SectorRotationPanel({
 
           {detailActivityTab === 'HOLDINGS' ? (
             selectedSector.institutional.topSecurities.length === 0 ? (
-              <div className="p-6 text-center text-zinc-500 text-[11px]">
+              <div className="p-6 text-center text-zinc-300 text-xs">
                 No classified securities available in this sector for the current 13F cohort.
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-[11px] tabular-nums">
+                <table className="w-full text-left border-collapse text-xs tabular-nums">
                   <thead>
-                    <tr className="bg-[#080808] border-b border-[#222] text-[9px] text-zinc-500 uppercase">
+                    <tr className="bg-[#080808] border-b border-[#3a3a3a] text-xs text-zinc-300 uppercase">
                       <th className="py-2 px-3">SECURITY</th>
                       <th className="py-2 px-2.5 text-right">INC / NEW</th>
                       <th className="py-2 px-2.5 text-right">DEC / EXIT</th>
@@ -1023,7 +1023,7 @@ export default function SectorRotationPanel({
                               {sec.ticker ? `${sec.ticker} — ` : ''}
                               {sec.issuerName}
                             </span>
-                            <span className="block text-[9px] text-zinc-500">CUSIP: {sec.cusip}</span>
+                            <span className="block text-xs text-zinc-300">CUSIP: {sec.cusip}</span>
                           </button>
                         </td>
                         <td className="py-2 px-2.5 text-right text-[#00ff00] font-bold">
@@ -1056,14 +1056,14 @@ export default function SectorRotationPanel({
               </div>
             )
           ) : activeChangesRows.length === 0 ? (
-            <div className="p-6 text-center text-zinc-500 text-[11px]">
+            <div className="p-6 text-center text-zinc-300 text-xs">
               No {detailActivityTab.toLowerCase()} recorded in {selectedSector.name} for the current comparable 13F period.
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[11px] tabular-nums">
+              <table className="w-full text-left border-collapse text-xs tabular-nums">
                 <thead>
-                  <tr className="bg-[#080808] border-b border-[#222] text-[9px] text-zinc-500 uppercase">
+                  <tr className="bg-[#080808] border-b border-[#3a3a3a] text-xs text-zinc-300 uppercase">
                     <th className="py-2 px-3">INSTITUTIONAL MANAGER</th>
                     <th className="py-2 px-2.5">SECURITY</th>
                     <th className="py-2 px-2.5 text-right">SHARE CHANGE</th>
@@ -1085,14 +1085,14 @@ export default function SectorRotationPanel({
                           >
                             {row.managerName}
                           </button>
-                          <div className="text-[9px] text-zinc-500 flex items-center gap-1.5">
+                          <div className="text-xs text-zinc-300 flex items-center gap-1.5">
                             <span>CIK {row.managerCik}</span>
                             {safeUrl && (
                               <a
                                 href={safeUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-zinc-400 hover:text-[#ff9900] inline-flex items-center gap-0.5"
+                                className="text-zinc-300 hover:text-[#ff9900] inline-flex items-center gap-0.5"
                               >
                                 <span>EDGAR</span>
                                 <ExternalLink size={8} />
@@ -1116,7 +1116,7 @@ export default function SectorRotationPanel({
                               {row.ticker ? `${row.ticker} — ` : ''}
                               {row.issuerName}
                             </span>
-                            <span className="block text-[9px] text-zinc-500">CUSIP: {row.cusip}</span>
+                            <span className="block text-xs text-zinc-300">CUSIP: {row.cusip}</span>
                           </button>
                         </td>
                         <td
@@ -1138,11 +1138,11 @@ export default function SectorRotationPanel({
                         <td className="py-2 px-2.5 text-right text-white font-bold">
                           {formatCompactUsd(row.currentValueUsd || row.previousValueUsd)}
                         </td>
-                        <td className="py-2 px-3 text-right text-[10px] text-zinc-400 whitespace-nowrap">
+                        <td className="py-2 px-3 text-right text-xs text-zinc-300 whitespace-nowrap">
                           <div>
                             {row.previousPeriod} → {row.currentPeriod}
                           </div>
-                          <div className="text-[9px] text-zinc-500">
+                          <div className="text-xs text-zinc-300">
                             {row.filingDate ? `FILED ${formatIsoDateShort(row.filingDate)}` : '—'}
                           </div>
                         </td>
@@ -1166,20 +1166,20 @@ export default function SectorRotationPanel({
   return (
     <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
       {/* Controls & Benchmark Status Bar */}
-      <div className="bg-black border border-[#222] rounded px-3 py-2 flex flex-wrap items-center justify-between gap-2.5 select-none">
+      <div className="bg-black border border-[#3a3a3a] rounded px-3 py-2 flex flex-wrap items-center justify-between gap-2.5 select-none">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5">
-            <span className="text-[9px] text-zinc-500 font-bold uppercase">RETURN PERIOD:</span>
+            <span className="text-xs text-zinc-300 font-bold uppercase">RETURN PERIOD:</span>
             <div className="flex items-center gap-1">
               {PERIODS.map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setSelectedPeriod(p)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-extrabold border transition-colors cursor-pointer ${
+                  className={`px-2 py-0.5 rounded text-xs font-extrabold border transition-colors cursor-pointer ${
                     selectedPeriod === p
                       ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                      : 'bg-[#0a0a0a] border-[#262626] text-zinc-400 hover:border-zinc-500 hover:text-zinc-100'
+                      : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
                   }`}
                 >
                   {p}
@@ -1191,17 +1191,17 @@ export default function SectorRotationPanel({
           <span className="text-zinc-800 hidden sm:inline">|</span>
 
           <div className="flex items-center gap-1.5">
-            <span className="text-[9px] text-zinc-500 font-bold uppercase">INSIDER WINDOW:</span>
+            <span className="text-xs text-zinc-300 font-bold uppercase">INSIDER WINDOW:</span>
             <div className="flex items-center gap-1">
               {INSIDER_WINDOWS.map((d) => (
                 <button
                   key={d}
                   type="button"
                   onClick={() => onWindowDaysChange(d)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
+                  className={`px-2 py-0.5 rounded text-xs font-bold border transition-colors cursor-pointer ${
                     windowDays === d
                       ? 'bg-[#3498db]/15 border-[#3498db] text-[#3498db]'
-                      : 'bg-[#0a0a0a] border-[#262626] text-zinc-400 hover:border-zinc-500 hover:text-zinc-100'
+                      : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
                   }`}
                 >
                   {d}D
@@ -1212,22 +1212,22 @@ export default function SectorRotationPanel({
         </div>
 
         {/* Benchmark Readout */}
-        <div className="flex flex-wrap items-center gap-2 text-[10px] tabular-nums">
-          <span className="text-zinc-500 uppercase font-bold">BENCHMARK:</span>
+        <div className="flex flex-wrap items-center gap-2 text-xs tabular-nums">
+          <span className="text-zinc-300 uppercase font-bold">BENCHMARK:</span>
           <span className="text-white font-extrabold">{data.benchmark.ticker}</span>
           <span className="text-zinc-300">{formatPrice(data.benchmark.latestPrice)}</span>
           <span className={`font-bold ${getReturnColorClass(benchmarkReturn)}`}>
             ({selectedPeriod}: {formatReturnCell(benchmarkReturn)})
           </span>
           {data.benchmark.latestDate && (
-            <span className="text-zinc-500">AS OF {data.benchmark.latestDate}</span>
+            <span className="text-zinc-300">AS OF {data.benchmark.latestDate}</span>
           )}
         </div>
       </div>
 
       {/* Partial Availability Banner (when 3spread is unconfigured or rate-limited) */}
       {!data.institutionalMeta.available && data.institutionalMeta.error && (
-        <div className="px-3 py-2 rounded bg-amber-950/25 border border-amber-600/40 text-amber-200 text-[11px] flex flex-wrap items-center justify-between gap-2">
+        <div className="px-3 py-2 rounded bg-amber-950/25 border border-amber-600/40 text-amber-200 text-xs flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <ShieldAlert size={13} className="text-amber-400 shrink-0" />
             <span>
@@ -1238,7 +1238,7 @@ export default function SectorRotationPanel({
           <button
             type="button"
             onClick={onRefresh}
-            className="px-2 py-0.5 rounded border border-amber-500/50 text-amber-300 hover:bg-amber-500/15 text-[10px] font-bold uppercase cursor-pointer"
+            className="px-2 py-0.5 rounded border border-amber-500/50 text-amber-300 hover:bg-amber-500/15 text-xs font-bold uppercase cursor-pointer"
           >
             RETRY
           </button>
@@ -1249,8 +1249,8 @@ export default function SectorRotationPanel({
       {activeOverview && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2.5">
           {/* Strongest Sector */}
-          <div className="bg-black border border-[#222] rounded p-2.5 flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[9px] font-bold uppercase text-zinc-500">
+          <div className="bg-black border border-[#3a3a3a] rounded p-2.5 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-xs font-bold uppercase text-zinc-300">
               <span>STRONGEST ({selectedPeriod})</span>
               <TrendingUp size={11} className="text-[#00ff00]" />
             </div>
@@ -1264,23 +1264,23 @@ export default function SectorRotationPanel({
                   {activeOverview.strongestSector.name}{' '}
                   <span className="text-[#ff9900]">({activeOverview.strongestSector.etfTicker})</span>
                 </div>
-                <div className="text-[10px] tabular-nums mt-0.5 flex items-center gap-2">
+                <div className="text-xs tabular-nums mt-0.5 flex items-center gap-2">
                   <span className={`font-bold ${getReturnColorClass(activeOverview.strongestSector.returnPct)}`}>
                     {formatReturnCell(activeOverview.strongestSector.returnPct)}
                   </span>
-                  <span className="text-zinc-500">
+                  <span className="text-zinc-300">
                     RS {formatReturnCell(activeOverview.strongestSector.relativeStrengthPct)}
                   </span>
                 </div>
               </button>
             ) : (
-              <div className="text-xs text-zinc-500 mt-1">Unavailable</div>
+              <div className="text-xs text-zinc-300 mt-1">Unavailable</div>
             )}
           </div>
 
           {/* Weakest Sector */}
-          <div className="bg-black border border-[#222] rounded p-2.5 flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[9px] font-bold uppercase text-zinc-500">
+          <div className="bg-black border border-[#3a3a3a] rounded p-2.5 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-xs font-bold uppercase text-zinc-300">
               <span>WEAKEST ({selectedPeriod})</span>
               <TrendingDown size={11} className="text-[#ff4444]" />
             </div>
@@ -1294,23 +1294,23 @@ export default function SectorRotationPanel({
                   {activeOverview.weakestSector.name}{' '}
                   <span className="text-[#ff9900]">({activeOverview.weakestSector.etfTicker})</span>
                 </div>
-                <div className="text-[10px] tabular-nums mt-0.5 flex items-center gap-2">
+                <div className="text-xs tabular-nums mt-0.5 flex items-center gap-2">
                   <span className={`font-bold ${getReturnColorClass(activeOverview.weakestSector.returnPct)}`}>
                     {formatReturnCell(activeOverview.weakestSector.returnPct)}
                   </span>
-                  <span className="text-zinc-500">
+                  <span className="text-zinc-300">
                     RS {formatReturnCell(activeOverview.weakestSector.relativeStrengthPct)}
                   </span>
                 </div>
               </button>
             ) : (
-              <div className="text-xs text-zinc-500 mt-1">Unavailable</div>
+              <div className="text-xs text-zinc-300 mt-1">Unavailable</div>
             )}
           </div>
 
           {/* Breadth vs SPY */}
-          <div className="bg-black border border-[#222] rounded p-2.5 flex flex-col justify-between">
-            <div className="text-[9px] font-bold uppercase text-zinc-500">
+          <div className="bg-black border border-[#3a3a3a] rounded p-2.5 flex flex-col justify-between">
+            <div className="text-xs font-bold uppercase text-zinc-300">
               VS SPY BREADTH ({selectedPeriod})
             </div>
             <div className="mt-1 space-y-1.5">
@@ -1336,27 +1336,27 @@ export default function SectorRotationPanel({
           </div>
 
           {/* Improving Momentum */}
-          <div className="bg-black border border-[#222] rounded p-2.5 flex flex-col justify-between">
-            <div className="text-[9px] font-bold uppercase text-[#3498db]">
+          <div className="bg-black border border-[#3a3a3a] rounded p-2.5 flex flex-col justify-between">
+            <div className="text-xs font-bold uppercase text-[#3498db]">
               IMPROVING MOMENTUM ({activeOverview.improvingSectors.length})
             </div>
             <div className="mt-1 flex flex-wrap gap-1">
               {activeOverview.improvingSectors.length === 0 ? (
-                <span className="text-[10px] text-zinc-500">None in {selectedPeriod} window</span>
+                <span className="text-xs text-zinc-300">None in {selectedPeriod} window</span>
               ) : (
                 activeOverview.improvingSectors.slice(0, 4).map((s) => (
                   <button
                     key={s.id}
                     type="button"
                     onClick={() => openSectorDetail(s.id)}
-                    className="px-1.5 py-0.5 rounded bg-[#3498db]/15 border border-[#3498db]/40 text-[#3498db] hover:border-[#3498db] text-[9px] font-bold cursor-pointer"
+                    className="px-1.5 py-0.5 rounded bg-[#3498db]/15 border border-[#3498db]/40 text-[#3498db] hover:border-[#3498db] text-xs font-bold cursor-pointer"
                   >
                     {s.etfTicker}
                   </button>
                 ))
               )}
               {activeOverview.improvingSectors.length > 4 && (
-                <span className="text-[9px] text-zinc-500 self-center">
+                <span className="text-xs text-zinc-300 self-center">
                   +{activeOverview.improvingSectors.length - 4}
                 </span>
               )}
@@ -1364,27 +1364,27 @@ export default function SectorRotationPanel({
           </div>
 
           {/* Weakening Momentum */}
-          <div className="bg-black border border-[#222] rounded p-2.5 flex flex-col justify-between">
-            <div className="text-[9px] font-bold uppercase text-amber-400">
+          <div className="bg-black border border-[#3a3a3a] rounded p-2.5 flex flex-col justify-between">
+            <div className="text-xs font-bold uppercase text-amber-400">
               WEAKENING MOMENTUM ({activeOverview.weakeningSectors.length})
             </div>
             <div className="mt-1 flex flex-wrap gap-1">
               {activeOverview.weakeningSectors.length === 0 ? (
-                <span className="text-[10px] text-zinc-500">None in {selectedPeriod} window</span>
+                <span className="text-xs text-zinc-300">None in {selectedPeriod} window</span>
               ) : (
                 activeOverview.weakeningSectors.slice(0, 4).map((s) => (
                   <button
                     key={s.id}
                     type="button"
                     onClick={() => openSectorDetail(s.id)}
-                    className="px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-500/40 text-amber-300 hover:border-amber-400 text-[9px] font-bold cursor-pointer"
+                    className="px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-500/40 text-amber-300 hover:border-amber-400 text-xs font-bold cursor-pointer"
                   >
                     {s.etfTicker}
                   </button>
                 ))
               )}
               {activeOverview.weakeningSectors.length > 4 && (
-                <span className="text-[9px] text-zinc-500 self-center">
+                <span className="text-xs text-zinc-300 self-center">
                   +{activeOverview.weakeningSectors.length - 4}
                 </span>
               )}
@@ -1394,12 +1394,12 @@ export default function SectorRotationPanel({
       )}
 
       {/* Primary Sector Rotation Comparison Table */}
-      <div className="bg-black border border-[#222] rounded overflow-hidden">
-        <div className="px-3 py-2 bg-[#0a0a0a] border-b border-[#222] flex flex-wrap items-center justify-between gap-2 text-[10px]">
+      <div className="bg-black border border-[#3a3a3a] rounded overflow-hidden">
+        <div className="px-3 py-2 bg-[#0a0a0a] border-b border-[#3a3a3a] flex flex-wrap items-center justify-between gap-2 text-xs">
           <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
             US EQUITY SECTOR ROTATION MATRIX
           </span>
-          <span className="text-zinc-500">
+          <span className="text-zinc-300">
             13F COHORT: {data.institutionalMeta.available
               ? `${data.institutionalMeta.managersAnalyzed} MANAGERS (${formatQuarterLabel(
                   data.institutionalMeta.previousPeriod || ''
@@ -1409,9 +1409,9 @@ export default function SectorRotationPanel({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-[11px] tabular-nums">
+          <table className="w-full text-left border-collapse text-xs tabular-nums">
             <thead>
-              <tr className="bg-[#080808] border-b border-[#222] text-[10px] text-zinc-400 uppercase select-none">
+              <tr className="bg-[#080808] border-b border-[#3a3a3a] text-xs text-zinc-300 uppercase select-none">
                 {(
                   [
                     { field: 'name', label: 'SECTOR', align: 'left' },
@@ -1469,7 +1469,7 @@ export default function SectorRotationPanel({
                       <div className="font-bold text-white group-hover:text-[#ff9900] transition-colors whitespace-nowrap">
                         {sector.name}
                       </div>
-                      <div className="text-[9px] text-zinc-500 truncate max-w-[180px]">
+                      <div className="text-xs text-zinc-300 truncate max-w-[180px]">
                         {sector.institutional.classifiedSecuritiesCount > 0
                           ? `${sector.institutional.classifiedSecuritiesCount} 13F sec • ${formatCompactUsd(
                               sector.institutional.aggregateValueUsd
@@ -1512,16 +1512,16 @@ export default function SectorRotationPanel({
                       <div className={`font-bold ${getReturnColorClass(rsVal)}`}>
                         {formatReturnCell(rsVal)}
                       </div>
-                      <div className="text-[9px] text-zinc-500">
+                      <div className="text-xs text-zinc-300">
                         {rsRank !== null ? `RANK #${rsRank}` : '—'}
                       </div>
                     </td>
                     <td className="py-2.5 px-2.5 whitespace-nowrap">
-                      <span className={`inline-block px-1.5 py-0.5 rounded border text-[9px] font-extrabold ${inst.cls}`}>
+                      <span className={`inline-block px-1.5 py-0.5 rounded border text-xs font-extrabold ${inst.cls}`}>
                         {inst.label}
                       </span>
                       {sector.institutional.available && sector.institutional.activeManagersCount > 0 ? (
-                        <div className="text-[9px] text-zinc-400 mt-0.5">
+                        <div className="text-xs text-zinc-300 mt-0.5">
                           <span className="text-[#00ff00]">↑{sector.institutional.managersIncreasing}</span>
                           {' / '}
                           <span className="text-[#ff4444]">↓{sector.institutional.managersDecreasing}</span>
@@ -1530,24 +1530,24 @@ export default function SectorRotationPanel({
                             : ''}
                         </div>
                       ) : (
-                        <div className="text-[9px] text-zinc-600 mt-0.5">No cohort coverage</div>
+                        <div className="text-xs text-zinc-300 mt-0.5">No cohort coverage</div>
                       )}
                     </td>
                     <td className="py-2.5 px-2.5 whitespace-nowrap">
-                      <span className={`inline-block px-1.5 py-0.5 rounded border text-[9px] font-extrabold ${ins.cls}`}>
+                      <span className={`inline-block px-1.5 py-0.5 rounded border text-xs font-extrabold ${ins.cls}`}>
                         {ins.label}
                       </span>
                       {sector.insider.available && sector.insider.buySellRatio !== null ? (
-                        <div className="text-[9px] text-zinc-400 mt-0.5 whitespace-nowrap">
+                        <div className="text-xs text-zinc-300 mt-0.5 whitespace-nowrap">
                           {(sector.insider.buySellRatio * 100).toFixed(0)}% buy (
                           {(sector.insider.buysCount ?? 0) + (sector.insider.sellsCount ?? 0)} tx)
                         </div>
                       ) : (
-                        <div className="text-[9px] text-zinc-600 mt-0.5">Form 4 n/a</div>
+                        <div className="text-xs text-zinc-300 mt-0.5">Form 4 n/a</div>
                       )}
                     </td>
                     <td className="py-2.5 px-2.5 text-right whitespace-nowrap">
-                      <span className={`inline-block px-2 py-0.5 rounded border text-[9px] font-extrabold ${rot.cls}`}>
+                      <span className={`inline-block px-2 py-0.5 rounded border text-xs font-extrabold ${rot.cls}`}>
                         {rot.label}
                       </span>
                     </td>
@@ -1560,14 +1560,14 @@ export default function SectorRotationPanel({
       </div>
 
       {/* Classification Coverage & Methodology Footer */}
-      <div className="bg-[#080808] border border-[#222] rounded p-3 space-y-2 text-[10px] text-zinc-400">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1c1c1c] pb-2">
+      <div className="bg-[#080808] border border-[#3a3a3a] rounded p-3 space-y-2 text-xs text-zinc-300">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#2e2e2e] pb-2">
           <div className="flex items-center gap-1.5 text-[#ff9900] text-xs font-bold uppercase tracking-wider">
             <Info size={11} className="text-[#ff9900]" />
             <span>METHODOLOGY, DATA SEPARATION &amp; 13F CLASSIFICATION COVERAGE</span>
           </div>
           {data.institutionalMeta.available && cov.totalSecuritiesInCohort > 0 && (
-            <div className="tabular-nums text-[10px] text-zinc-300">
+            <div className="tabular-nums text-xs text-zinc-300">
               CLASSIFIED: <span className="text-[#00ff00] font-bold">{cov.classifiedSecuritiesCount}</span> /{' '}
               {cov.totalSecuritiesInCohort} SECURITIES (
               {cov.classifiedValuePct !== null ? `${cov.classifiedValuePct.toFixed(1)}%` : '—'} OF COHORT USD) •
@@ -1576,7 +1576,7 @@ export default function SectorRotationPanel({
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-[10px] leading-relaxed">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-xs leading-relaxed">
           <div>
             <span className="text-zinc-200 font-bold">Market Rotation: </span>
             {data.methodology.rotationClassification}

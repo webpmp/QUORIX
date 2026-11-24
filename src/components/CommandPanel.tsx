@@ -114,9 +114,9 @@ export default function CommandPanel({
           className="flex flex-col min-h-0"
           style={{ height: `${100 - equitiesHeightPct}%` }}
         >
-          <div className="px-3 pt-3 pb-2 shrink-0 text-[10px] text-zinc-500 font-bold tracking-widest uppercase flex items-center justify-between">
+          <div className="px-3 pt-3 pb-2 shrink-0 text-xs text-zinc-300 font-bold tracking-widest uppercase flex items-center justify-between">
             <span>Terminal Commands</span>
-            <span className="text-zinc-600 font-mono text-[9px]">{commands.length} ACTIVE</span>
+            <span className="text-zinc-300 font-mono text-xs">{commands.length} ACTIVE</span>
           </div>
           
           <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 space-y-1.5">
@@ -129,19 +129,19 @@ export default function CommandPanel({
                   className={`w-full text-left p-1.5 rounded transition-all flex items-start space-x-2 ${
                     isSelected
                       ? 'bg-[#1a1a1a] border border-[#ff9900] text-white'
-                      : 'bg-[#010101] hover:bg-[#111] border border-transparent text-zinc-400'
+                      : 'bg-[#010101] hover:bg-[#111] border border-transparent text-zinc-300'
                   }`}
                   id={`cmd-shortcut-${cmd.code}`}
                 >
-                  <div className="bg-black border border-[#333] px-1 py-0.5 rounded text-[10px] text-[#ff9900] font-bold min-w-[42px] text-center shrink-0">
+                  <div className="bg-black border border-[#333] px-1 py-0.5 rounded text-xs text-[#ff9900] font-bold min-w-[42px] text-center shrink-0">
                     {cmd.code}
                   </div>
                   
                   <div className="min-w-0 flex-1">
-                    <div className="font-bold text-zinc-200 text-[11px] truncate flex items-center gap-1">
+                    <div className="font-bold text-zinc-200 text-xs truncate flex items-center gap-1">
                       {cmd.name}
                     </div>
-                    <div className="text-[9px] text-zinc-500 line-clamp-1 truncate">
+                    <div className="text-xs text-zinc-300 line-clamp-1 truncate">
                       {cmd.desc}
                     </div>
                   </div>
@@ -170,7 +170,7 @@ export default function CommandPanel({
         >
           <GripHorizontal
             size={12}
-            className={isDragging ? 'text-[#ff9900]' : 'text-zinc-600 group-hover:text-[#ff9900]'}
+            className={isDragging ? 'text-[#ff9900]' : 'text-zinc-300 group-hover:text-[#ff9900]'}
           />
         </div>
 
@@ -179,7 +179,7 @@ export default function CommandPanel({
           className="flex flex-col min-h-0 border-b border-[#333]"
           style={{ height: `${equitiesHeightPct}%` }}
         >
-          <div className="px-3 pt-3 pb-2 shrink-0 flex items-center justify-between text-[10px] text-zinc-500 font-bold tracking-widest uppercase">
+          <div className="px-3 pt-3 pb-2 shrink-0 flex items-center justify-between text-xs text-zinc-300 font-bold tracking-widest uppercase">
             <span>Tracked Equities</span>
             <div className="flex items-center gap-1.5">
               {isEditingEquities && (
@@ -187,7 +187,7 @@ export default function CommandPanel({
                   type="button"
                   onClick={onResetTrackedTickers}
                   title="Restore default watchlist"
-                  className="text-[9px] text-zinc-400 hover:text-[#ff9900] border border-[#333] hover:border-[#ff9900] px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors cursor-pointer"
+                  className="text-xs text-zinc-300 hover:text-[#ff9900] border border-[#333] hover:border-[#ff9900] px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <RotateCcw size={9} />
                   <span>RESET</span>
@@ -197,16 +197,16 @@ export default function CommandPanel({
                 type="button"
                 onClick={() => setIsEditingEquities((prev) => !prev)}
                 title={isEditingEquities ? 'Finish editing watchlist' : 'Rearrange or remove tracked equities'}
-                className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
                   isEditingEquities
                     ? 'border-[#ff9900] bg-[#ff9900]/15 text-[#ff9900]'
-                    : 'border-[#333] text-zinc-400 hover:border-[#3498db] hover:text-[#3498db]'
+                    : 'border-[#333] text-zinc-300 hover:border-[#3498db] hover:text-[#3498db]'
                 }`}
               >
                 {isEditingEquities ? 'DONE' : 'EDIT'}
               </button>
               {!isEditingEquities && (
-                <span className="text-[#3498db] font-mono text-[9px]">
+                <span className="text-[#3498db] font-mono text-xs">
                   {trackedTickers.length} TICKERS
                 </span>
               )}
@@ -215,7 +215,7 @@ export default function CommandPanel({
 
           <div className="flex-1 min-h-0 overflow-y-auto px-3 space-y-1">
             {trackedTickers.length === 0 ? (
-              <div className="text-center py-6 px-2 border border-dashed border-[#222] rounded text-[10px] text-zinc-500 space-y-2">
+              <div className="text-center py-6 px-2 border border-dashed border-[#3a3a3a] rounded text-xs text-zinc-300 space-y-2">
                 <div>NO TRACKED EQUITIES IN LIST.</div>
                 <button
                   type="button"
@@ -294,7 +294,7 @@ export default function CommandPanel({
                       <GripVertical
                         size={11}
                         className={`shrink-0 cursor-grab active:cursor-grabbing ${
-                          isEditingEquities ? 'text-zinc-400' : 'text-zinc-700 group-hover:text-zinc-400'
+                          isEditingEquities ? 'text-zinc-300' : 'text-zinc-700 group-hover:text-zinc-300'
                         }`}
                       />
                       <div className="min-w-0 flex-1">
@@ -302,11 +302,11 @@ export default function CommandPanel({
                           <span className={isSelected ? 'text-[#3498db]' : 'text-zinc-200'}>
                             {stock.symbol}
                           </span>
-                          <span className="text-[9px] text-zinc-500 truncate">
+                          <span className="text-xs text-zinc-300 truncate">
                             {stock.name}
                           </span>
                         </div>
-                        <div className="text-[10px] text-zinc-500 mt-0.5">
+                        <div className="text-xs text-zinc-300 mt-0.5">
                           Vol: {stock.volume > 0 ? `${(stock.volume / 1000000).toFixed(1)}M` : '--'}
                         </div>
                       </div>
@@ -323,7 +323,7 @@ export default function CommandPanel({
                               </span>
                             )}
                           </div>
-                          <div className={`text-[10px] font-semibold ${!hasPrice ? 'text-zinc-600' : isPositive ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
+                          <div className={`text-xs font-semibold ${!hasPrice ? 'text-zinc-300' : isPositive ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
                             {hasPrice ? `${isPositive ? '▲' : '▼'} ${Math.abs(stock.changePercent).toFixed(2)}%` : '--'}
                           </div>
                         </div>
@@ -340,7 +340,7 @@ export default function CommandPanel({
                             disabled={idx === 0}
                             title={`Move ${stock.symbol} up`}
                             aria-label={`Move ${stock.symbol} up`}
-                            className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-25 disabled:hover:text-zinc-400 disabled:hover:border-[#333] cursor-pointer disabled:cursor-not-allowed"
+                            className="p-0.5 rounded border border-[#333] bg-black text-zinc-300 hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-25 disabled:hover:text-zinc-300 disabled:hover:border-[#333] cursor-pointer disabled:cursor-not-allowed"
                           >
                             <ChevronUp size={11} />
                           </button>
@@ -353,7 +353,7 @@ export default function CommandPanel({
                             disabled={idx === trackedTickers.length - 1}
                             title={`Move ${stock.symbol} down`}
                             aria-label={`Move ${stock.symbol} down`}
-                            className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-25 disabled:hover:text-zinc-400 disabled:hover:border-[#333] cursor-pointer disabled:cursor-not-allowed"
+                            className="p-0.5 rounded border border-[#333] bg-black text-zinc-300 hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-25 disabled:hover:text-zinc-300 disabled:hover:border-[#333] cursor-pointer disabled:cursor-not-allowed"
                           >
                             <ChevronDown size={11} />
                           </button>
@@ -365,7 +365,7 @@ export default function CommandPanel({
                             }}
                             title={`Remove ${stock.symbol} from list`}
                             aria-label={`Remove ${stock.symbol} from list`}
-                            className="p-0.5 rounded border border-[#333] bg-black text-zinc-400 hover:text-[#ff4444] hover:border-[#ff4444] cursor-pointer"
+                            className="p-0.5 rounded border border-[#333] bg-black text-zinc-300 hover:text-[#ff4444] hover:border-[#ff4444] cursor-pointer"
                           >
                             <X size={11} />
                           </button>
@@ -381,7 +381,7 @@ export default function CommandPanel({
           {/* Ticker status */}
           <div className="px-3 pt-2 pb-3 shrink-0">
             <div
-              className="text-[8px] text-zinc-500 font-mono text-center border border-[#1a1a1a] bg-[#050505] p-1.5 rounded uppercase select-none"
+              className="text-xs text-zinc-300 font-mono text-center border border-[#1a1a1a] bg-[#050505] p-1.5 rounded uppercase select-none"
               title="Equity prices poll via HTTP every 60 seconds (1 min). There is no live WebSocket tick stream."
             >
               QUOTES MODE: <span className="text-[#00ff00] font-extrabold">DELAYED 1 MIN</span>

@@ -236,11 +236,11 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
           <span className="text-white text-md font-bold uppercase tracking-wider block">
             POLYMARKET SCREENER
           </span>
-          <span className="text-[10px] text-zinc-500 block">
+          <span className="text-xs text-zinc-300 block">
             LIVE INDIVIDUAL STOCK TARGETS, EARNINGS BEATS &amp; CORPORATE CATALYSTS
           </span>
         </div>
-        <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono">
+        <div className="flex items-center gap-2 text-xs text-zinc-300 font-mono">
           <Database size={10} className="text-[#3498db] self-center align-middle shrink-0" />
           <span className="relative group/gamma-tip inline-flex items-center">
             <span
@@ -253,9 +253,9 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
             <div
               id="polymarket-gamma-tooltip"
               role="tooltip"
-              className="hidden group-hover/gamma-tip:block group-focus-within/gamma-tip:block absolute left-0 md:left-auto md:right-0 top-full mt-2 w-[260px] md:w-[360px] max-w-[calc(100vw-2.5rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-[11px] leading-relaxed text-zinc-300 select-text text-left"
+              className="hidden group-hover/gamma-tip:block group-focus-within/gamma-tip:block absolute left-0 md:left-auto md:right-0 top-full mt-2 w-[260px] md:w-[360px] max-w-[calc(100vw-2.5rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-xs leading-relaxed text-zinc-300 select-text text-left"
             >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-[#3498db] border-b border-[#222] pb-1 mb-2">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#3498db] border-b border-[#3a3a3a] pb-1 mb-2">
                 Gamma Equities Feed
               </div>
               <div className="space-y-1.5">
@@ -271,7 +271,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
               </div>
             </div>
           </span>
-          <span className="text-zinc-600 font-bold">|</span>
+          <span className="text-zinc-300 font-bold">|</span>
           <ShieldCheck size={10} className="text-[#00ff00] self-center align-middle shrink-0" />
           <span className="relative group/clob-tip inline-flex items-center">
             <span
@@ -284,9 +284,9 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
             <div
               id="polymarket-clob-tooltip"
               role="tooltip"
-              className="hidden group-hover/clob-tip:block group-focus-within/clob-tip:block absolute right-0 top-full mt-2 w-[250px] md:w-[360px] max-w-[calc(100vw-2.5rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-[11px] leading-relaxed text-zinc-300 select-text text-left"
+              className="hidden group-hover/clob-tip:block group-focus-within/clob-tip:block absolute right-0 top-full mt-2 w-[250px] md:w-[360px] max-w-[calc(100vw-2.5rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-xs leading-relaxed text-zinc-300 select-text text-left"
             >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-[#00ff00] border-b border-[#222] pb-1 mb-2">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#00ff00] border-b border-[#3a3a3a] pb-1 mb-2">
                 CLOB Live Odds (Central Limit Order Book)
               </div>
               <div className="space-y-1.5">
@@ -310,7 +310,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
             onSubmit={handleSearchSubmit}
             className="lg:col-span-5 flex items-center bg-black border border-[#333] focus-within:border-[#ff9900] rounded overflow-hidden p-1 transition-colors"
           >
-            <Search size={12} className="text-zinc-500 mx-2 shrink-0" />
+            <Search size={12} className="text-zinc-300 mx-2 shrink-0" />
             <input
               type="text"
               value={searchTerm}
@@ -320,15 +320,15 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
             />
             <button
               type="submit"
-              className="px-2.5 py-1 bg-[#ff9900] hover:bg-amber-500 text-black text-[10px] uppercase font-extrabold rounded cursor-pointer transition-colors"
+              className="px-2.5 py-1 bg-[#ff9900] hover:bg-amber-500 text-black text-xs uppercase font-extrabold rounded cursor-pointer transition-colors"
             >
               SEARCH
             </button>
           </form>
 
           {/* Categories toggler */}
-          <div className="lg:col-span-7 flex items-center gap-1.5 overflow-x-auto pb-1 text-[10px] scrollbar-none">
-            <span className="text-zinc-500 font-bold uppercase shrink-0">FOCUS:</span>
+          <div className="lg:col-span-7 flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none">
+            <span className="text-zinc-300 font-bold uppercase shrink-0">FOCUS:</span>
             {POLYMARKET_DEPARTMENTS.map((cat) => (
               <button
                 key={cat}
@@ -337,7 +337,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                 className={`px-2.5 py-1 rounded font-bold uppercase transition-all shrink-0 border cursor-pointer ${
                   selectedCategory === cat && !searchTerm
                     ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                    : 'bg-black border-[#222] text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                    : 'bg-black border-[#3a3a3a] text-zinc-300 hover:border-zinc-600 hover:text-zinc-200'
                 }`}
               >
                 {cat}
@@ -351,7 +351,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                 setSelectedCategory('Stocks');
                 fetchActivePolymarketEvents('', 'Stocks');
               }}
-              className="ml-auto px-2 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600 transition-colors shrink-0 cursor-pointer"
+              className="ml-auto px-2 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-600 transition-colors shrink-0 cursor-pointer"
             >
               <RefreshCw size={10} className={`inline mr-1 ${loading ? 'animate-spin' : ''}`} />
               RESET
@@ -360,8 +360,8 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
         </div>
 
         {/* Quick Stock Filter Bar */}
-        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
-          <span className="text-zinc-500 font-bold uppercase mr-1">TICKER FILTER:</span>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
+          <span className="text-zinc-300 font-bold uppercase mr-1">TICKER FILTER:</span>
           {quickTickers.map((sym) => {
             const isActiveTicker = searchTerm.toUpperCase() === sym;
             return (
@@ -372,7 +372,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                 className={`px-2 py-0.5 rounded border font-bold transition-colors cursor-pointer ${
                   isActiveTicker
                     ? 'bg-[#3498db]/20 border-[#3498db] text-[#3498db]'
-                    : 'bg-black border-[#262626] text-zinc-400 hover:border-[#3498db] hover:text-white'
+                    : 'bg-black border-[#3a3a3a] text-zinc-300 hover:border-[#3498db] hover:text-white'
                 }`}
               >
                 {sym}
@@ -392,11 +392,11 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                 ? `QUERY "${searchTerm.toUpperCase()}" (${events.length})`
                 : `${selectedCategory.toUpperCase()} MARKETS (${events.length})`}
             </span>
-            {lastUpdated && <span className="text-zinc-500 text-[9px] tabular-nums">TICK: {lastUpdated}</span>}
+            {lastUpdated && <span className="text-zinc-300 text-xs tabular-nums">TICK: {lastUpdated}</span>}
           </div>
 
           {loading ? (
-            <div className="flex-1 flex flex-col items-center justify-center space-y-2 text-zinc-500 text-xs py-10 font-mono">
+            <div className="flex-1 flex flex-col items-center justify-center space-y-2 text-zinc-300 text-xs py-10 font-mono">
               <RefreshCw className="animate-spin text-[#3498db]" size={18} />
               <span>LOADING STOCK PREDICTION MARKETS...</span>
             </div>
@@ -406,7 +406,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
               <span>{error}</span>
             </div>
           ) : events.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center p-6 text-zinc-500 text-center text-xs py-10">
+            <div className="flex-1 flex items-center justify-center p-6 text-zinc-300 text-center text-xs py-10">
               No active stock markets matched &ldquo;{searchTerm || selectedCategory}&rdquo;. Click RESET or try another ticker.
             </div>
           ) : (
@@ -427,15 +427,15 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                     className={`w-full text-left p-2.5 transition-all block cursor-pointer border-l-2 border-t border-r border-b ${
                       isSelected
                         ? 'bg-[#1a1308] text-white border-[#ff9900]'
-                        : 'hover:bg-[#070707] text-zinc-400 border-transparent'
+                        : 'hover:bg-[#070707] text-zinc-300 border-transparent'
                     }`}
                   >
                     <div className="flex justify-between items-baseline mb-1 gap-2">
-                      <span className="text-zinc-400 font-bold text-[9px] uppercase tracking-wide truncate">
+                      <span className="text-zinc-300 font-bold text-xs uppercase tracking-wide truncate">
                         {ev.category || 'Stocks'} · VOL {formatUsdVolume(ev.volume)}
                       </span>
                       <span
-                        className={`text-[10px] font-bold font-mono tabular-nums shrink-0 ${
+                        className={`text-xs font-bold font-mono tabular-nums shrink-0 ${
                           primaryYesProb > 60
                             ? 'text-[#00ff00]'
                             : primaryYesProb < 40
@@ -449,7 +449,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                     <span className="font-bold text-xs block text-zinc-100 line-clamp-1 truncate">
                       {ev.title}
                     </span>
-                    <span className="text-[10px] text-zinc-500 line-clamp-1 mt-0.5 block truncate">
+                    <span className="text-xs text-zinc-300 line-clamp-1 mt-0.5 block truncate">
                       {ev.markets[0]?.question || 'N/A'}
                     </span>
                   </button>
@@ -473,13 +473,13 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                     href={`https://polymarket.com/event/${activeEvent.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] font-bold text-[#ff9900] hover:underline flex items-center gap-1"
+                    className="text-xs font-bold text-[#ff9900] hover:underline flex items-center gap-1"
                   >
                     <span>POLYMARKET</span>
                     <ExternalLink size={10} />
                   </a>
                 ) : (
-                  <span className="text-zinc-500 text-[9px] font-mono">ID: {activeEvent.id}</span>
+                  <span className="text-zinc-300 text-xs font-mono">ID: {activeEvent.id}</span>
                 )}
               </div>
 
@@ -489,13 +489,13 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                   <h3 className="text-white font-extrabold text-sm select-text block">
                     {activeEvent.title}
                   </h3>
-                  <div className="text-[10px] text-zinc-400 mt-1 uppercase tracking-wide flex flex-wrap items-center gap-2">
+                  <div className="text-xs text-zinc-300 mt-1 uppercase tracking-wide flex flex-wrap items-center gap-2">
                     <span className="text-[#ff9900] font-bold">
                       {activeEvent.category || 'Stocks'}
                     </span>
-                    <span className="text-zinc-600">·</span>
+                    <span className="text-zinc-300">·</span>
                     <span className="tabular-nums">VOLUME: {formatUsdVolume(activeEvent.volume)}</span>
-                    <span className="text-zinc-600">·</span>
+                    <span className="text-zinc-300">·</span>
                     <span className="tabular-nums">{activeEvent.markets.length} CONTRACTS</span>
                     {(() => {
                       const rawEventSource =
@@ -506,7 +506,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                       if (eventSourceUrl) {
                         return (
                           <>
-                            <span className="text-zinc-600">·</span>
+                            <span className="text-zinc-300">·</span>
                             <a
                               href={eventSourceUrl}
                               target="_blank"
@@ -523,8 +523,8 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                       if (rawEventSource) {
                         return (
                           <>
-                            <span className="text-zinc-600">·</span>
-                            <span className="text-zinc-400">SOURCE: {rawEventSource}</span>
+                            <span className="text-zinc-300">·</span>
+                            <span className="text-zinc-300">SOURCE: {rawEventSource}</span>
                           </>
                         );
                       }
@@ -534,7 +534,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                 </div>
 
                 {/* Markets details showing Outcome values & Live Probabilities */}
-                <div className="space-y-3 border-t border-b border-[#222] py-3.5">
+                <div className="space-y-3 border-t border-b border-[#3a3a3a] py-3.5">
                   <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block select-none">
                     Contract Strikes &amp; Implied Probabilities (CLOB Prices)
                   </span>
@@ -555,7 +555,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                     const marketResolutionUrl = getSafeHttpUrl(market.resolutionSource);
 
                     return (
-                      <div key={market.id || idx} className="bg-[#050505] border border-[#222] rounded p-2.5">
+                      <div key={market.id || idx} className="bg-[#050505] border border-[#3a3a3a] rounded p-2.5">
                         <div className="flex items-start gap-2 justify-between mb-2 select-text">
                           <span className="text-zinc-200 font-bold text-xs leading-snug">
                             {idx + 1}. {market.question}
@@ -565,7 +565,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                               href={contractUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="shrink-0 text-[10px] font-bold text-[#ff9900] hover:text-amber-400 hover:underline inline-flex items-center gap-1 select-none"
+                              className="shrink-0 text-xs font-bold text-[#ff9900] hover:text-amber-400 hover:underline inline-flex items-center gap-1 select-none"
                               title="Open contract on Polymarket"
                             >
                               <span>POLYMARKET</span>
@@ -576,7 +576,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
 
                         {/* Implied Probabilities dual Dial bar display */}
                         <div className="space-y-1.5 select-none">
-                          <div className="flex justify-between items-center text-[10px] font-mono tabular-nums">
+                          <div className="flex justify-between items-center text-xs font-mono tabular-nums">
                             <span className="text-[#00ff00] font-bold">
                               YES: ${yesVal.toFixed(2)} ({yesPct}%)
                             </span>
@@ -600,7 +600,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                         </div>
 
                         {( (market.clobTokenIds && market.clobTokenIds.length > 0) || marketResolutionUrl || market.resolutionSource ) && (
-                          <div className="mt-2 text-[9px] text-zinc-500 font-mono flex flex-wrap items-center justify-between gap-2">
+                          <div className="mt-2 text-xs text-zinc-300 font-mono flex flex-wrap items-center justify-between gap-2">
                             {market.clobTokenIds && market.clobTokenIds.length > 0 && (
                               <div className="flex gap-3">
                                 <span>YES_TOKEN: {market.clobTokenIds[0].slice(0, 10)}...</span>
@@ -621,7 +621,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                                 <ExternalLink size={9} />
                               </a>
                             ) : market.resolutionSource ? (
-                              <span className="text-zinc-400 ml-auto truncate max-w-[220px]" title={market.resolutionSource}>
+                              <span className="text-zinc-300 ml-auto truncate max-w-[220px]" title={market.resolutionSource}>
                                 SOURCE: {market.resolutionSource}
                               </span>
                             ) : null}
@@ -633,12 +633,12 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                 </div>
               </div>
 
-              <div className="p-2 select-none shrink-0 bg-[#0c0c0c] text-[9px] text-zinc-500 font-mono text-center border-t border-[#222] uppercase">
+              <div className="p-2 select-none shrink-0 bg-[#0c0c0c] text-xs text-zinc-300 font-mono text-center border-t border-[#3a3a3a] uppercase">
                 Live Polymarket CLOB implied probabilities for public equity &amp; market events.
               </div>
             </div>
           ) : (
-            <div className="m-auto text-zinc-500 text-xs py-10 font-mono text-center">
+            <div className="m-auto text-zinc-300 text-xs py-10 font-mono text-center">
               Select a stock prediction market from the left column to inspect strike odds.
             </div>
           )}

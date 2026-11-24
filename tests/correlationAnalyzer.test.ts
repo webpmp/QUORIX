@@ -325,7 +325,7 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
   const tableEnd = populatedHtml.indexOf('</table>', tableStart);
   assert.ok(tableStart > -1 && tableEnd > tableStart);
   const matrixTableHtml = populatedHtml.slice(tableStart, tableEnd);
-  assert.equal(matrixTableHtml.includes('<div class="text-[11px] font-bold text-[#3498db]">SPY</div></th>'), true);
+  assert.equal(matrixTableHtml.includes('<div class="text-xs font-bold text-[#3498db]">SPY</div></th>'), true);
   assert.equal(matrixTableHtml.includes('max-w-[110px]'), false);
   assert.equal(matrixTableHtml.includes('w-px min-w-[76px]'), true);
   assert.equal(matrixTableHtml.includes('class="block w-full"'), true);

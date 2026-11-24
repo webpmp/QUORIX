@@ -156,7 +156,7 @@ export default function Header({
   return (
     <header className="relative z-40 bg-[#1a1a1a] border-b border-[#333] select-none text-[#d4d4d4] font-mono text-xs">
       {/* City clks */}
-      <div className="flex flex-wrap items-center justify-between px-3 py-1 bg-black border-b border-[#222] text-[10px] text-zinc-400">
+      <div className="flex flex-wrap items-center justify-between px-3 py-1 bg-black border-b border-[#3a3a3a] text-xs text-zinc-400">
         <div className="flex items-center space-x-4">
           <span className="text-[#00ff00] font-bold flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[#00ff00]"></span>
@@ -177,7 +177,7 @@ export default function Header({
         {/* Terminal Indicator */}
         <div className="flex items-center space-x-2 text-[#ff9900] font-extrabold pr-2 shrink-0">
           <span className="text-2xl leading-none tracking-wider uppercase">QUORIX</span>
-          <span className="text-zinc-500 text-[10px] font-normal">v1.0</span>
+          <span className="text-zinc-300 text-xs font-normal">v1.0</span>
         </div>
 
         {/* Input area */}
@@ -227,7 +227,7 @@ export default function Header({
             />
             <button
               type="submit"
-              className="ml-2 px-3 py-0.5 rounded bg-[#ff9900] text-black font-extrabold text-[10px] uppercase hover:bg-amber-500 transition-colors cursor-pointer shrink-0"
+              className="ml-2 px-3 py-0.5 rounded bg-[#ff9900] text-black font-extrabold text-xs uppercase hover:bg-amber-500 transition-colors cursor-pointer shrink-0"
             >
               EXEC
             </button>
@@ -241,7 +241,7 @@ export default function Header({
               className="absolute left-0 right-0 top-full mt-1 z-50 bg-black border border-[#444] rounded shadow-xl shadow-black/90 overflow-hidden"
             >
               {searchHistory.length === 0 ? (
-                <div className="px-3 py-2 text-[11px] font-mono text-zinc-500">
+                <div className="px-3 py-2 text-xs font-mono text-zinc-300">
                   No recent searches yet
                 </div>
               ) : (
@@ -250,7 +250,7 @@ export default function Header({
                     key={item}
                     role="option"
                     aria-selected={false}
-                    className="flex items-center border-b border-[#222] last:border-b-0 bg-black hover:bg-[#3498db]/15 transition-colors"
+                    className="flex items-center border-b border-[#3a3a3a] last:border-b-0 bg-black hover:bg-[#3498db]/15 transition-colors"
                   >
                     <button
                       type="button"
@@ -269,7 +269,7 @@ export default function Header({
                         e.stopPropagation();
                         handleRemoveHistoryItem(item);
                       }}
-                      className="shrink-0 px-2.5 py-1.5 text-zinc-500 hover:text-[#ff4444] focus-visible:text-[#ff4444] focus-visible:outline-none cursor-pointer font-mono text-xs font-bold leading-none transition-colors"
+                      className="shrink-0 px-2.5 py-1.5 text-zinc-300 hover:text-[#ff4444] focus-visible:text-[#ff4444] focus-visible:outline-none cursor-pointer font-mono text-xs font-bold leading-none transition-colors"
                     >
                       &times;
                     </button>
@@ -281,8 +281,8 @@ export default function Header({
         </div>
 
         {/* Active command display */}
-        <div className="flex items-center space-x-2 text-[10px] self-end sm:self-auto shrink-0">
-          <span className="text-zinc-500">ACTIVE SCREEN:</span>
+        <div className="flex items-center space-x-2 text-xs self-end sm:self-auto shrink-0">
+          <span className="text-zinc-300">ACTIVE SCREEN:</span>
           <span className="bg-black border border-[#333] px-2 py-0.5 text-[#ff9900] font-bold rounded uppercase tracking-wider min-w-[42px] text-center">
             {activeScreen || 'GP COMMAND'}
           </span>

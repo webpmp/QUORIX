@@ -1817,9 +1817,9 @@ export default function ChartWidget({
     subPadTop + subAdjHeight - ((v + rocMaxAbs) / (2 * rocMaxAbs)) * subAdjHeight;
 
   const CHART_PANEL_HEADER_CLASS =
-    'absolute top-1 left-[74px] right-2 flex items-center justify-between gap-2 text-[11px] leading-tight font-bold uppercase select-none pointer-events-none';
+    'absolute top-1 left-[74px] right-2 flex items-center justify-between gap-2 text-xs leading-tight font-bold uppercase select-none pointer-events-none';
   const PRICE_VOL_PANEL_HEADER_CLASS =
-    'absolute top-1 left-[74px] right-2 flex items-center justify-between gap-2 text-[11px] leading-tight font-bold uppercase select-none pointer-events-none';
+    'absolute top-1 left-[74px] right-2 flex items-center justify-between gap-2 text-xs leading-tight font-bold uppercase select-none pointer-events-none';
 
   return (
     <div
@@ -1833,14 +1833,14 @@ export default function ChartWidget({
             <span className="text-[#ff9900]">{stock.symbol}</span>
             {stock.name && stock.name !== stock.symbol && (
               <>
-                <span className="text-zinc-600 font-normal">|</span>
+                <span className="text-zinc-300 font-normal">|</span>
                 <span className="text-white truncate max-w-[260px] sm:max-w-none">{stock.name}</span>
               </>
             )}
             {stock.exchange && (
               <>
-                <span className="text-zinc-600 font-normal">|</span>
-                <span className="text-zinc-400 text-[11px] sm:text-xs font-bold">{stock.exchange}</span>
+                <span className="text-zinc-300 font-normal">|</span>
+                <span className="text-zinc-300 text-xs sm:text-xs font-bold">{stock.exchange}</span>
               </>
             )}
           </div>
@@ -1854,10 +1854,10 @@ export default function ChartWidget({
                 key={int}
                 type="button"
                 onClick={() => setInterval(int)}
-                className={`px-2.5 py-1 text-[11px] sm:text-xs font-bold transition-all cursor-pointer border-r border-[#222] last:border-0 ${
+                className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-all cursor-pointer border-r border-[#3a3a3a] last:border-0 ${
                   interval === int
                     ? 'bg-[#00ff00] text-black font-extrabold'
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                    : 'text-zinc-300 hover:text-white hover:bg-zinc-900'
                 }`}
                 title={
                   int === '5m'
@@ -1884,8 +1884,8 @@ export default function ChartWidget({
             <button
               type="button"
               onClick={() => setChartType('candle')}
-              className={`px-2.5 py-1 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer ${
-                chartType === 'candle' ? 'bg-[#ff9900] text-black' : 'text-zinc-400 hover:text-white'
+              className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-colors cursor-pointer ${
+                chartType === 'candle' ? 'bg-[#ff9900] text-black' : 'text-zinc-300 hover:text-white'
               }`}
             >
               CANDLES
@@ -1893,8 +1893,8 @@ export default function ChartWidget({
             <button
               type="button"
               onClick={() => setChartType('line')}
-              className={`px-2.5 py-1 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer ${
-                chartType === 'line' ? 'bg-[#ff9900] text-black' : 'text-zinc-400 hover:text-white'
+              className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-colors cursor-pointer ${
+                chartType === 'line' ? 'bg-[#ff9900] text-black' : 'text-zinc-300 hover:text-white'
               }`}
             >
               LINE
@@ -1902,8 +1902,8 @@ export default function ChartWidget({
             <button
               type="button"
               onClick={() => setChartType('area')}
-              className={`px-2.5 py-1 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer ${
-                chartType === 'area' ? 'bg-[#ff9900] text-black' : 'text-zinc-400 hover:text-white'
+              className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-colors cursor-pointer ${
+                chartType === 'area' ? 'bg-[#ff9900] text-black' : 'text-zinc-300 hover:text-white'
               }`}
             >
               AREA
@@ -1913,7 +1913,7 @@ export default function ChartWidget({
           <button
             type="button"
             onClick={() => setIsStudiesModalOpen(true)}
-            className="px-3 py-1 rounded border border-[#3498db] bg-[#0a1931]/60 hover:bg-[#3498db] text-[#3498db] hover:text-black text-[11px] sm:text-xs font-extrabold transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            className="px-3 py-1 rounded border border-[#3498db] bg-[#0a1931]/60 hover:bg-[#3498db] text-[#3498db] hover:text-black text-xs sm:text-xs font-extrabold transition-colors cursor-pointer whitespace-nowrap shrink-0"
             title="Choose overlays, momentum oscillators, and volatility studies"
           >
             STUDIES ({activeStudies.length})
@@ -1922,7 +1922,7 @@ export default function ChartWidget({
       </div>
 
       {/* Top statistics summary (Interactive hover feedback) */}
-      <div className={`grid gap-2 bg-[#050505] border border-[#333] p-2 rounded mb-3 text-[10px] tabular-nums ${statsColClass}`}>
+      <div className={`grid gap-2 bg-[#050505] border border-[#333] p-2 rounded mb-3 text-xs tabular-nums ${statsColClass}`}>
         <div className="min-w-0">
           <span className="text-zinc-300 font-bold block truncate">
             LAST PRICE
@@ -1943,12 +1943,12 @@ export default function ChartWidget({
               {typeof stock.extHoursChange === 'number' &&
                 typeof stock.extHoursChangePercent === 'number' && (
                   <span
-                    className={`text-[10px] font-bold block truncate ${
+                    className={`text-xs font-bold block truncate ${
                       stock.extHoursChange > 0
                         ? 'text-[#00ff00]'
                         : stock.extHoursChange < 0
                         ? 'text-[#ff4444]'
-                        : 'text-zinc-400'
+                        : 'text-zinc-300'
                     }`}
                   >
                     {stock.extHoursChange > 0 ? '+' : ''}
@@ -1958,7 +1958,7 @@ export default function ChartWidget({
                 )}
             </>
           ) : (
-            <span className="text-zinc-500 text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5">--</span>
+            <span className="text-zinc-300 text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5">--</span>
           )}
         </div>
         <div className="min-w-0">
@@ -1985,7 +1985,7 @@ export default function ChartWidget({
             <span className="text-white text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
               {typeof stock.volume === 'number' && stock.volume > 0 ? stock.volume.toLocaleString() : '--'}
             </span>
-            <span className="text-[10px] text-zinc-500 font-bold block truncate">
+            <span className="text-xs text-zinc-300 font-bold block truncate">
               BAR VOLUME: {typeof displayData.volume === 'number' ? displayData.volume.toLocaleString() : '--'}
             </span>
           </div>
@@ -2001,7 +2001,7 @@ export default function ChartWidget({
                     : currentRsi <= 30
                     ? 'text-[#00ff00]'
                     : 'text-[#9b59b6]'
-                  : 'text-zinc-500'
+                  : 'text-zinc-300'
               }`}
             >
               {typeof currentRsi === 'number' && !isNaN(currentRsi)
@@ -2015,7 +2015,7 @@ export default function ChartWidget({
       {/* Primary SVG Stack Wrapper */}
       <div
         ref={chartStackRef}
-        className="flex flex-col gap-2 relative bg-black rounded p-1.5 border border-[#222]"
+        className="flex flex-col gap-2 relative bg-black rounded p-1.5 border border-[#3a3a3a]"
       >
         {/* PANEL 1: Main Price Chart */}
         <div
@@ -2601,7 +2601,7 @@ export default function ChartWidget({
           </svg>
           <div className={PRICE_VOL_PANEL_HEADER_CLASS}>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 min-w-0">
-              <span className="text-zinc-500">PRICE CHART</span>
+              <span className="text-zinc-300">PRICE CHART</span>
               {activeOverlayItems.map((item) => (
                 <span key={item.id} className={`${item.colorClass} tabular-nums`}>
                   {item.label}: {typeof item.val === 'number' ? item.val.toFixed(2) : '--'}
@@ -2626,21 +2626,21 @@ export default function ChartWidget({
           ) : chartDataPhase === 'pending' ? (
             <div style={{ height: BASE_PRICE_HEIGHT }} className="relative w-full">
               <div className={CHART_PANEL_HEADER_CLASS}>
-                <span className="text-zinc-500">PRICE CHART</span>
+                <span className="text-zinc-300">PRICE CHART</span>
               </div>
             </div>
           ) : (
             <div
               style={{ height: BASE_PRICE_HEIGHT }}
-              className="flex flex-col items-center justify-center text-center text-zinc-500 font-mono select-none"
+              className="flex flex-col items-center justify-center text-center text-zinc-300 font-mono select-none"
             >
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-zinc-300">
                 NO HISTORICAL DATA AVAILABLE FOR
               </p>
               <div className="text-white font-extrabold text-xl sm:text-2xl tracking-wider mt-1.5 mb-2">
                 {stock.symbol}
               </div>
-              <div className="text-[10px] text-zinc-600">
+              <div className="text-xs text-zinc-300">
                 DATA PROVIDERS: LIVE YAHOO FINANCE / ALPHA VANTAGE
               </div>
             </div>
@@ -2884,7 +2884,7 @@ export default function ChartWidget({
             </svg>
             <div className={PRICE_VOL_PANEL_HEADER_CLASS}>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
-                <span className="text-zinc-500 inline-flex items-center gap-2">
+                <span className="text-zinc-300 inline-flex items-center gap-2">
                   <span>VOLUME STUDY</span>
                   <span className="text-zinc-300 tabular-nums">
                     BAR:{' '}
@@ -2897,15 +2897,15 @@ export default function ChartWidget({
                   <button
                     type="button"
                     aria-label="How to read Volume Study"
-                    className="text-zinc-500 hover:text-[#ff9900] focus:text-[#ff9900] focus:outline-none cursor-help p-0.5 inline-flex items-center justify-center"
+                    className="text-zinc-300 hover:text-[#ff9900] focus:text-[#ff9900] focus:outline-none cursor-help p-0.5 inline-flex items-center justify-center"
                   >
                     <Info size={12} />
                   </button>
                   <div
                     role="tooltip"
-                    className="hidden group-hover/vol-tip:block group-focus-within/vol-tip:block absolute left-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-[11px] leading-relaxed text-zinc-300 select-text"
+                    className="hidden group-hover/vol-tip:block group-focus-within/vol-tip:block absolute left-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-xs leading-relaxed text-zinc-300 select-text"
                   >
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#ff9900] border-b border-[#222] pb-1 mb-2">
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#ff9900] border-b border-[#3a3a3a] pb-1 mb-2">
                       Volume Study
                     </div>
                     <div className="space-y-2">
@@ -2938,7 +2938,7 @@ export default function ChartWidget({
                   onClick={() => toggleStudy('volume')}
                   title="Hide Volume study"
                   aria-label="Hide Volume study"
-                  className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                  className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
                 >
                   <X size={11} />
                 </button>
@@ -3205,7 +3205,7 @@ export default function ChartWidget({
             </svg>
             <div className={CHART_PANEL_HEADER_CLASS}>
               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
-                <span className="text-zinc-500 inline-flex items-center gap-1.5">
+                <span className="text-zinc-300 inline-flex items-center gap-1.5">
                   <span>RSI OSCILLATOR (14)</span>
                   <span className="text-[#9b59b6] tabular-nums">
                     {typeof currentRsi === 'number' && Number.isFinite(currentRsi)
@@ -3217,15 +3217,15 @@ export default function ChartWidget({
                   <button
                     type="button"
                     aria-label="How to read RSI Oscillator (14)"
-                    className="text-zinc-500 hover:text-[#9b59b6] focus:text-[#9b59b6] focus:outline-none cursor-help p-0.5 inline-flex items-center justify-center"
+                    className="text-zinc-300 hover:text-[#9b59b6] focus:text-[#9b59b6] focus:outline-none cursor-help p-0.5 inline-flex items-center justify-center"
                   >
                     <Info size={12} />
                   </button>
                   <div
                     role="tooltip"
-                    className="hidden group-hover/rsi-tip:block group-focus-within/rsi-tip:block absolute left-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-[11px] leading-relaxed text-zinc-300 select-text"
+                    className="hidden group-hover/rsi-tip:block group-focus-within/rsi-tip:block absolute left-0 bottom-full mb-1.5 w-[340px] sm:w-[440px] max-w-[calc(100vw-6rem)] z-50 bg-[#0a0a0a] border border-[#444] rounded p-3 shadow-2xl shadow-black/95 normal-case tracking-normal font-mono font-normal text-xs leading-relaxed text-zinc-300 select-text"
                   >
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#9b59b6] border-b border-[#222] pb-1 mb-2">
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#9b59b6] border-b border-[#3a3a3a] pb-1 mb-2">
                       RSI Oscillator Study
                     </div>
                     <div className="space-y-2">
@@ -3256,7 +3256,7 @@ export default function ChartWidget({
                   onClick={() => toggleStudy('rsi')}
                   title="Hide RSI study"
                   aria-label="Hide RSI study"
-                  className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                  className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
                 >
                   <X size={11} />
                 </button>
@@ -3470,7 +3470,7 @@ export default function ChartWidget({
             </svg>
             <div className={CHART_PANEL_HEADER_CLASS} data-macd-header="true">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 min-w-0 tabular-nums">
-                <span className="text-zinc-500">MACD (12,26,9)</span>
+                <span className="text-zinc-300">MACD (12,26,9)</span>
                 <span className="text-[#38bdf8]">
                   M: {typeof hoveredData.macd === 'number' && Number.isFinite(hoveredData.macd) ? hoveredData.macd.toFixed(2) : '--'}
                 </span>
@@ -3492,7 +3492,7 @@ export default function ChartWidget({
                   onClick={() => toggleStudy('macd')}
                   title="Hide MACD study"
                   aria-label="Hide MACD study"
-                  className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                  className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
                 >
                   <X size={11} />
                 </button>
@@ -3570,8 +3570,8 @@ export default function ChartWidget({
               />
               {renderPanelHoverStripes('stoch')}
             </svg>
-            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
-              <span className="text-zinc-500 flex items-center gap-2 tabular-nums">
+            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-xs font-bold uppercase select-none pointer-events-none">
+              <span className="text-zinc-300 flex items-center gap-2 tabular-nums">
                 <span>STOCH (14,3,3)</span>
                 <span className="text-[#22d3ee]">
                   %K: {typeof hoveredData.stochK === 'number' ? hoveredData.stochK.toFixed(1) : '--'}
@@ -3585,7 +3585,7 @@ export default function ChartWidget({
                 onClick={() => toggleStudy('stoch')}
                 title="Hide Stochastic study"
                 aria-label="Hide Stochastic study"
-                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer"
+                className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer"
               >
                 <X size={10} />
               </button>
@@ -3641,8 +3641,8 @@ export default function ChartWidget({
               />
               {renderPanelHoverStripes('cci')}
             </svg>
-            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
-              <span className="text-zinc-500 flex items-center gap-2 tabular-nums">
+            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-xs font-bold uppercase select-none pointer-events-none">
+              <span className="text-zinc-300 flex items-center gap-2 tabular-nums">
                 <span>CCI (20)</span>
                 <span className="text-[#a3e635]">
                   {typeof hoveredData.cci === 'number' ? hoveredData.cci.toFixed(1) : '--'}
@@ -3653,7 +3653,7 @@ export default function ChartWidget({
                 onClick={() => toggleStudy('cci')}
                 title="Hide CCI study"
                 aria-label="Hide CCI study"
-                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer"
+                className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer"
               >
                 <X size={10} />
               </button>
@@ -3723,8 +3723,8 @@ export default function ChartWidget({
               />
               {renderPanelHoverStripes('adx')}
             </svg>
-            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
-              <span className="text-zinc-500 flex items-center gap-2 tabular-nums">
+            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-xs font-bold uppercase select-none pointer-events-none">
+              <span className="text-zinc-300 flex items-center gap-2 tabular-nums">
                 <span>ADX / DMI (14)</span>
                 <span className="text-zinc-200">
                   ADX: {typeof hoveredData.adx === 'number' ? hoveredData.adx.toFixed(1) : '--'}
@@ -3741,7 +3741,7 @@ export default function ChartWidget({
                 onClick={() => toggleStudy('adx')}
                 title="Hide ADX / DMI study"
                 aria-label="Hide ADX / DMI study"
-                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer"
+                className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer"
               >
                 <X size={10} />
               </button>
@@ -3911,7 +3911,7 @@ export default function ChartWidget({
             </svg>
             <div className={CHART_PANEL_HEADER_CLASS} data-atr-header="true">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 min-w-0 tabular-nums">
-                <span className="text-zinc-500">ATR (14)</span>
+                <span className="text-zinc-300">ATR (14)</span>
                 <span className="text-[#f59e0b]">
                   ${typeof hoveredData.atr === 'number' && Number.isFinite(hoveredData.atr) ? hoveredData.atr.toFixed(3) : '--'}
                 </span>
@@ -3927,7 +3927,7 @@ export default function ChartWidget({
                   onClick={() => toggleStudy('atr')}
                   title="Hide ATR study"
                   aria-label="Hide ATR study"
-                  className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                  className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
                 >
                   <X size={11} />
                 </button>
@@ -4112,7 +4112,7 @@ export default function ChartWidget({
             </svg>
             <div className={CHART_PANEL_HEADER_CLASS} data-obv-header="true">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 min-w-0 tabular-nums">
-                <span className="text-zinc-500">OBV</span>
+                <span className="text-zinc-300">OBV</span>
                 <span className="text-[#06b6d4]">
                   {typeof hoveredData.obv === 'number' && Number.isFinite(hoveredData.obv)
                     ? formatAxisSigned(hoveredData.obv)
@@ -4130,7 +4130,7 @@ export default function ChartWidget({
                   onClick={() => toggleStudy('obv')}
                   title="Hide OBV study"
                   aria-label="Hide OBV study"
-                  className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                  className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer shrink-0 inline-flex items-center justify-center"
                 >
                   <X size={11} />
                 </button>
@@ -4186,8 +4186,8 @@ export default function ChartWidget({
               />
               {renderPanelHoverStripes('roc')}
             </svg>
-            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-[8px] font-bold uppercase select-none pointer-events-none">
-              <span className="text-zinc-500 flex items-center gap-2 tabular-nums">
+            <div className="absolute top-1 left-[74px] right-2 flex items-center justify-between text-xs font-bold uppercase select-none pointer-events-none">
+              <span className="text-zinc-300 flex items-center gap-2 tabular-nums">
                 <span>ROC (12)</span>
                 <span className="text-[#ec4899]">
                   {typeof hoveredData.roc === 'number' ? `${hoveredData.roc >= 0 ? '+' : ''}${hoveredData.roc.toFixed(2)}%` : '--'}
@@ -4198,7 +4198,7 @@ export default function ChartWidget({
                 onClick={() => toggleStudy('roc')}
                 title="Hide ROC study"
                 aria-label="Hide ROC study"
-                className="pointer-events-auto text-zinc-600 hover:text-[#ff4444] p-0.5 cursor-pointer"
+                className="pointer-events-auto text-zinc-300 hover:text-[#ff4444] p-0.5 cursor-pointer"
               >
                 <X size={10} />
               </button>

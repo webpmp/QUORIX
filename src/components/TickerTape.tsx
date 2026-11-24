@@ -101,19 +101,19 @@ export default function TickerTape({ stocks, onSelectTicker }: TickerTapeProps) 
     <div className="bg-[#1a1a1a] border-b border-[#333] select-none text-xs font-mono py-1 px-3 whitespace-nowrap overflow-hidden flex items-center gap-6 text-[#d4d4d4] shadow-inner">
       <div className="flex items-center space-x-2 shrink-0 bg-[#1a1a1a]">
         {marketDetails.isCoreHours ? (
-          <span className="text-[9px] bg-[#ff9900] text-black px-1.5 py-0.5 font-extrabold uppercase rounded-sm">
+          <span className="text-xs bg-[#ff9900] text-black px-1.5 py-0.5 font-extrabold uppercase rounded-sm">
             INDEX TAPE
           </span>
         ) : marketDetails.isAfterHours ? (
-          <span className="text-[9px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-extrabold border border-indigo-500/30 uppercase">
+          <span className="text-xs bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-extrabold border border-indigo-500/30 uppercase">
             AFTER HOURS ACTIVE
           </span>
         ) : marketDetails.isPreMarket ? (
-          <span className="text-[9px] bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-extrabold border border-amber-500/30 uppercase">
+          <span className="text-xs bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-extrabold border border-amber-500/30 uppercase">
             PRE-MARKET ACTIVE
           </span>
         ) : (
-          <span className="text-[9px] bg-red-950/80 text-red-400 border border-red-800/60 px-1.5 py-0.5 font-extrabold uppercase rounded-sm">
+          <span className="text-xs bg-red-950/80 text-red-400 border border-red-800/60 px-1.5 py-0.5 font-extrabold uppercase rounded-sm">
             MARKET CLOSED
           </span>
         )}
@@ -166,7 +166,7 @@ export default function TickerTape({ stocks, onSelectTicker }: TickerTapeProps) 
             >
               <span className="text-zinc-400 font-semibold">{item.name}</span>
               <span className="text-white font-bold">{displayPrice}</span>
-              <span className={`text-[10px] ${!hasPrice ? 'text-zinc-600' : up ? 'text-emerald-400' : 'text-rose-500'} font-mono`}>
+              <span className={`text-xs ${!hasPrice ? 'text-zinc-400' : up ? 'text-emerald-400' : 'text-rose-500'} font-mono`}>
                 {hasPrice ? `${displayChange} (${displayPercent})` : '--'}
               </span>
             </div>

@@ -145,7 +145,7 @@ function getMarketTimeDetails(): { isPreMarket: boolean; isCoreHours: boolean; i
 
 function getAnrConsensusRating(reportText: string): { label: string; colorClass: string } {
   if (!reportText) {
-    return { label: '', colorClass: 'text-zinc-500' };
+    return { label: '', colorClass: 'text-zinc-300' };
   }
 
   let raw = '';
@@ -162,7 +162,7 @@ function getAnrConsensusRating(reportText: string): { label: string; colorClass:
   }
 
   if (!raw || raw === 'NONE' || raw === 'N/A') {
-    return { label: 'N/A', colorClass: 'text-zinc-500' };
+    return { label: 'N/A', colorClass: 'text-zinc-300' };
   }
 
   let colorClass = 'text-zinc-300';
@@ -340,10 +340,10 @@ export default function Workspace({
   const bwriteInputRef = useRef<HTMLInputElement | null>(null);
 
   const BWRITE_FONT_SCALES = [
-    { label: '10PX', body: 'text-[10px]', heading: 'text-[9px]', badge: 'text-[8px]', input: 'text-[11px]' },
-    { label: '12PX', body: 'text-xs', heading: 'text-[11px]', badge: 'text-[9px]', input: 'text-xs' },
-    { label: '14PX', body: 'text-sm', heading: 'text-xs', badge: 'text-[10px]', input: 'text-sm' },
-    { label: '16PX', body: 'text-base', heading: 'text-sm', badge: 'text-[11px]', input: 'text-base' },
+    { label: '10PX', body: 'text-xs', heading: 'text-xs', badge: 'text-xs', input: 'text-xs' },
+    { label: '12PX', body: 'text-xs', heading: 'text-xs', badge: 'text-xs', input: 'text-xs' },
+    { label: '14PX', body: 'text-sm', heading: 'text-xs', badge: 'text-xs', input: 'text-sm' },
+    { label: '16PX', body: 'text-base', heading: 'text-sm', badge: 'text-xs', input: 'text-base' },
     { label: '18PX', body: 'text-lg', heading: 'text-base', badge: 'text-xs', input: 'text-lg' },
     { label: '20PX', body: 'text-xl', heading: 'text-lg', badge: 'text-sm', input: 'text-xl' },
   ] as const;
@@ -351,7 +351,7 @@ export default function Workspace({
 
   const renderTextSizeControl = () => (
     <div className="flex items-center gap-1.5 font-mono select-none shrink-0">
-      <span className="hidden sm:inline-flex items-center text-[10px] leading-none text-zinc-500 uppercase tracking-wider mr-0.5">
+      <span className="hidden sm:inline-flex items-center text-xs leading-none text-zinc-300 uppercase tracking-wider mr-0.5">
         TEXT SIZE
       </span>
       <button
@@ -360,11 +360,11 @@ export default function Workspace({
         disabled={bwriteFontIdx === 0}
         title="Decrease text size"
         aria-label="Decrease text size"
-        className="inline-flex items-center justify-center px-2 py-1 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] leading-none font-bold transition-colors cursor-pointer"
+        className="inline-flex items-center justify-center px-2 py-1 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-xs leading-none font-bold transition-colors cursor-pointer"
       >
         A-
       </button>
-      <span className="inline-flex items-center justify-center text-[10px] leading-none text-[#ff9900] font-bold min-w-[34px] text-center">
+      <span className="inline-flex items-center justify-center text-xs leading-none text-[#ff9900] font-bold min-w-[34px] text-center">
         {activeBwriteFont.label}
       </span>
       <button
@@ -373,7 +373,7 @@ export default function Workspace({
         disabled={bwriteFontIdx === BWRITE_FONT_SCALES.length - 1}
         title="Increase text size"
         aria-label="Increase text size"
-        className="inline-flex items-center justify-center px-2 py-1 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-[10px] leading-none font-bold transition-colors cursor-pointer"
+        className="inline-flex items-center justify-center px-2 py-1 rounded border border-[#333] bg-[#0d0d0d] text-zinc-300 hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-35 disabled:hover:border-[#333] disabled:hover:text-zinc-300 disabled:cursor-not-allowed text-xs leading-none font-bold transition-colors cursor-pointer"
       >
         A+
       </button>
@@ -1057,7 +1057,7 @@ export default function Workspace({
 
   return (
     <div className={`flex-1 bg-[#010101] p-4 font-mono text-zinc-300 relative select-text ${
-      activeScreen === 'BWRITE' || activeScreen === 'ECO'
+      activeScreen === 'BWRITE' || activeScreen === 'ECO' || activeScreen === 'PRM'
         ? 'flex flex-col overflow-hidden min-h-0'
         : activeScreen === 'POLY'
         ? 'flex flex-col overflow-y-auto lg:overflow-hidden min-h-0'
@@ -1081,7 +1081,7 @@ export default function Workspace({
               {selectedTicker} Headlines
             </span>
             {newsLoading ? (
-              <div className="flex items-center gap-1.5 py-3 text-[10px] text-zinc-500 font-mono">
+              <div className="flex items-center gap-1.5 py-3 text-xs text-zinc-300 font-mono">
                 <RefreshCw size={10} className="animate-spin text-[#ff9900]" />
                 <span>REFRESHING FEEDS...</span>
               </div>
@@ -1089,7 +1089,7 @@ export default function Workspace({
               const tickerNews = getTickerNews();
               if (tickerNews.length === 0) {
                 return (
-                  <div className="text-center py-4 text-zinc-500 text-[10px] uppercase font-bold tracking-wider">
+                  <div className="text-center py-4 text-zinc-300 text-xs uppercase font-bold tracking-wider">
                     no recent headlines
                   </div>
                 );
@@ -1100,8 +1100,8 @@ export default function Workspace({
                     const displayTime = formatDisplayTime(item.publishedAt || item.time);
                     const cleanedTitle = cleanHeadline(item.title);
                     return (
-                      <div key={item.id || idx} className="bg-[#010101] border border-[#222] hover:border-[#333] p-2.5 rounded flex flex-col text-[10px]/relaxed transition-all">
-                        <div className="flex justify-between items-center text-[11px] text-zinc-400 mb-1.5 font-mono uppercase">
+                      <div key={item.id || idx} className="bg-[#010101] border border-[#3a3a3a] hover:border-[#333] p-2.5 rounded flex flex-col text-xs/relaxed transition-all">
+                        <div className="flex justify-between items-center text-xs text-zinc-300 mb-1.5 font-mono uppercase">
                           <span className="text-[#3498db] font-bold">
                             {item.source.replace(' Business', '').toUpperCase()}
                           </span>
@@ -1182,13 +1182,13 @@ export default function Workspace({
                   {currentStock.symbol} Historical Price Log System
                 </span>
                 {displayBars.length > 0 && (
-                  <span className="text-[10px] text-zinc-500 font-mono uppercase tabular-nums">
+                  <span className="text-xs text-zinc-300 font-mono uppercase tabular-nums">
                     {displayBars.length.toLocaleString()} BARS • {tradingDaysCount}{' '}
                     {tradingDaysCount === 1 ? 'DAY' : 'TRADING DAYS'} • 60M
                   </span>
                 )}
                 {hpLoading && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-[#ff9900] font-mono uppercase">
+                  <span className="inline-flex items-center gap-1 text-xs text-[#ff9900] font-mono uppercase">
                     <RefreshCw size={10} className="animate-spin" />
                     <span>LOADING ARCHIVE...</span>
                   </span>
@@ -1198,14 +1198,14 @@ export default function Workspace({
             </div>
 
             {hpWarningMsg && (
-              <div className="mb-3 px-3 py-2 rounded bg-amber-950/25 border border-amber-600/40 text-amber-300 text-[11px] font-mono flex items-center gap-2">
+              <div className="mb-3 px-3 py-2 rounded bg-amber-950/25 border border-amber-600/40 text-amber-300 text-xs font-mono flex items-center gap-2">
                 <AlertCircle size={12} className="shrink-0 text-amber-400" />
                 <span>{hpWarningMsg}</span>
               </div>
             )}
 
             {hpError && displayBars.length === 0 && !hpLoading && (
-              <div className="mb-3 px-3 py-2 rounded bg-red-950/25 border border-red-800/40 text-red-300 text-[11px] font-mono flex items-center gap-2">
+              <div className="mb-3 px-3 py-2 rounded bg-red-950/25 border border-red-800/40 text-red-300 text-xs font-mono flex items-center gap-2">
                 <AlertCircle size={12} className="shrink-0 text-[#ff4444]" />
                 <span>{hpError}</span>
               </div>
@@ -1214,7 +1214,7 @@ export default function Workspace({
             <div className="overflow-x-auto">
               <table className={`w-full text-left ${activeBwriteFont.body} text-[#d4d4d4] border-collapse`}>
                 <thead>
-                  <tr className={`border-b border-[#333] text-zinc-500 ${activeBwriteFont.heading} uppercase font-bold`}>
+                  <tr className={`border-b border-[#333] text-zinc-300 ${activeBwriteFont.heading} uppercase font-bold`}>
                     <th className="py-2.5 pr-3 whitespace-nowrap">TIME</th>
                     <th className="text-right px-3 whitespace-nowrap">OPEN VALUE</th>
                     <th className="text-right px-3 whitespace-nowrap">HIGH VALUE</th>
@@ -1227,7 +1227,7 @@ export default function Workspace({
                 <tbody>
                   {displayBars.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-zinc-500 font-mono uppercase tracking-wider">
+                      <td colSpan={7} className="py-8 text-center text-zinc-300 font-mono uppercase tracking-wider">
                         {hpLoading
                           ? `LOADING HISTORICAL HOURLY SESSIONS FOR ${currentStock.symbol}...`
                           : `NO HISTORICAL TICK SESSIONS RECOVERED FROM ARCHIVE FOR ${currentStock.symbol}.`}
@@ -1240,7 +1240,7 @@ export default function Workspace({
                       const isCloseSnapshot =
                         h.isMarketCloseSnapshot ?? isClosingPriceSnapshotBar(h);
                       return (
-                        <tr key={`${h.timestamp || h.date}-${i}`} className={`border-b border-[#222] hover:bg-[#111] ${activeBwriteFont.body} font-mono`}>
+                        <tr key={`${h.timestamp || h.date}-${i}`} className={`border-b border-[#3a3a3a] hover:bg-[#111] ${activeBwriteFont.body} font-mono`}>
                           <td className="py-2.5 pr-3 text-[#3498db] font-bold font-mono whitespace-nowrap">
                             {h.date} {isCloseSnapshot ? '(Market Close)' : '(Intraday)'}
                           </td>
@@ -1248,7 +1248,7 @@ export default function Workspace({
                           <td className="text-right px-3 font-mono text-[#00ff00] whitespace-nowrap">${h.high.toFixed(2)}</td>
                           <td className="text-right px-3 font-mono text-[#ff4444] whitespace-nowrap">${h.low.toFixed(2)}</td>
                           <td className="text-right px-3 font-mono text-zinc-150 font-bold whitespace-nowrap">${h.close.toFixed(2)}</td>
-                          <td className="text-right px-3 text-zinc-500 font-mono whitespace-nowrap">{h.volume.toLocaleString()}</td>
+                          <td className="text-right px-3 text-zinc-300 font-mono whitespace-nowrap">{h.volume.toLocaleString()}</td>
                           <td className={`text-right pl-3 font-bold font-mono whitespace-nowrap ${isUp ? 'text-[#00ff00]' : 'text-[#ff4444]'}`}>
                             {isUp ? '+' : ''}{diffRatio.toFixed(2)}%
                           </td>
@@ -1274,7 +1274,7 @@ export default function Workspace({
           </div>
 
           {desLoading ? (
-            <div className="flex flex-col items-center py-12 space-y-2 text-zinc-500 text-xs">
+            <div className="flex flex-col items-center py-12 space-y-2 text-zinc-300 text-xs">
               <RefreshCw className="animate-spin text-[#3498db]" size={20} />
               <span>COUPLING DIRECTLY WITH AI DECODER STACKS...</span>
             </div>
@@ -1287,13 +1287,13 @@ export default function Workspace({
               {/* Live quote matrix */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="bg-[#050505] border border-[#333] p-3 rounded">
-                  <span className="text-zinc-500 block text-[9px] font-bold uppercase">Last Price</span>
+                  <span className="text-zinc-300 block text-xs font-bold uppercase">Last Price</span>
                   <span className="text-white font-extrabold text-sm">
                     {currentStock.price > 0 ? `$${currentStock.price.toFixed(2)}` : '--'}
                   </span>
                 </div>
                 <div className="bg-[#050505] border border-[#333] p-3 rounded">
-                  <span className="text-zinc-500 block text-[9px] font-bold uppercase">Day Range</span>
+                  <span className="text-zinc-300 block text-xs font-bold uppercase">Day Range</span>
                   <span className="text-white font-extrabold text-sm">
                     {currentStock.low > 0 && currentStock.high > 0
                       ? `$${currentStock.low.toFixed(2)} - $${currentStock.high.toFixed(2)}`
@@ -1301,13 +1301,13 @@ export default function Workspace({
                   </span>
                 </div>
                 <div className="bg-[#050505] border border-[#333] p-3 rounded">
-                  <span className="text-zinc-500 block text-[9px] font-bold uppercase">Previous Close</span>
+                  <span className="text-zinc-300 block text-xs font-bold uppercase">Previous Close</span>
                   <span className="text-white font-extrabold text-sm">
                     {currentStock.prevClose > 0 ? `$${currentStock.prevClose.toFixed(2)}` : '--'}
                   </span>
                 </div>
                 <div className="bg-[#050505] border border-[#333] p-3 rounded">
-                  <span className="text-zinc-500 block text-[9px] font-bold uppercase">Trading Volume</span>
+                  <span className="text-zinc-300 block text-xs font-bold uppercase">Trading Volume</span>
                   <span className="text-[#3498db] font-extrabold text-sm">
                     {currentStock.volume > 0 ? currentStock.volume.toLocaleString() : '--'}
                   </span>
@@ -1331,7 +1331,7 @@ export default function Workspace({
           </div>
 
           {anrLoading ? (
-            <div className="flex flex-col items-center py-12 space-y-2 text-zinc-500 text-xs">
+            <div className="flex flex-col items-center py-12 space-y-2 text-zinc-300 text-xs">
               <RefreshCw className="animate-spin text-[#ff9900]" size={20} />
               <span>COLLECTING BUY/SELL CONSENSUS CHANNELS...</span>
             </div>
@@ -1372,13 +1372,13 @@ export default function Workspace({
               NEWS HUB
             </span>
             <div className="flex items-center gap-3">
-              <span className="text-[10px] text-zinc-500 font-mono">
+              <span className="text-xs text-zinc-300 font-mono">
                 LAST REFRESHED: {lastRefreshed > 0 ? new Date(lastRefreshed).toLocaleTimeString() : 'NEVER'}
               </span>
               <button 
                 onClick={() => fetchAggregatedNews(selectedTicker, true)} 
                 disabled={newsLoading}
-                className="text-zinc-500 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
+                className="text-zinc-300 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
                 title="Refresh news"
               >
                 <RefreshCw size={12} className={newsLoading ? 'animate-spin' : ''} />
@@ -1388,7 +1388,7 @@ export default function Workspace({
 
           <div className="space-y-4">
             {newsLoading ? (
-              <div className="flex flex-col items-center py-12 space-y-2 text-zinc-500 text-xs bg-black border border-[#333] rounded">
+              <div className="flex flex-col items-center py-12 space-y-2 text-zinc-300 text-xs bg-black border border-[#333] rounded">
                 <RefreshCw className="animate-spin text-[#3498db]" size={20} />
                 <span>SYNCING WITH REAL-TIME WEB GROUNDING ENGINE...</span>
               </div>
@@ -1420,37 +1420,37 @@ export default function Workspace({
                           {item.source && (
                             <>
                               {' '}
-                              <span className="text-[11px] text-[#ff9900] font-extrabold uppercase ml-1.5 select-none">—{' '}</span>
+                              <span className="text-xs text-[#ff9900] font-extrabold uppercase ml-1.5 select-none">—{' '}</span>
                               <a 
                                 href={item.url || 'https://www.reuters.com'} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-[11px] text-[#ff9900] font-extrabold uppercase hover:text-[#00ff00] hover:underline select-none"
+                                className="text-xs text-[#ff9900] font-extrabold uppercase hover:text-[#00ff00] hover:underline select-none"
                               >
                                 [{item.source.replace(' Business', '').toUpperCase()}]
                               </a>
                             </>
                           )}
                           {displayTime && (
-                            <div className="text-[11px] text-zinc-400 font-mono mt-1">
+                            <div className="text-xs text-zinc-300 font-mono mt-1">
                               {displayTime}
                             </div>
                           )}
                         </div>
                         {item.content && (
-                          <p className="text-xs md:text-sm text-zinc-400 font-normal font-sans mb-3 line-clamp-3">
+                          <p className="text-xs md:text-sm text-zinc-300 font-normal font-sans mb-3 line-clamp-3">
                             {item.content}
                           </p>
                         )}
                       </div>
                       
                       {/* Tickers, Sentiment below the content */}
-                      <div className="space-y-1.5 mt-2 pt-2 border-t border-[#151515] text-[11px]">
+                      <div className="space-y-1.5 mt-2 pt-2 border-t border-[#151515] text-xs">
                         {/* Related Tickers row */}
-                        <div className="flex flex-wrap items-center gap-1.5 text-sm text-zinc-400">
+                        <div className="flex flex-wrap items-center gap-1.5 text-sm text-zinc-300">
                           {relatedTickers.map((t, tIdx) => (
                             <React.Fragment key={t}>
-                              {tIdx > 0 && <span className="text-zinc-600">, </span>}
+                              {tIdx > 0 && <span className="text-zinc-300">, </span>}
                               <span
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -1468,7 +1468,7 @@ export default function Workspace({
                         </div>
 
                         {/* Sentiment temporarily disabled until accuracy is improved
-                        <div className={item.sentiment === 'positive' ? 'text-[#00ff00] font-bold' : item.sentiment === 'negative' ? 'text-[#ff4444] font-bold' : 'text-zinc-500 font-bold'}>
+                        <div className={item.sentiment === 'positive' ? 'text-[#00ff00] font-bold' : item.sentiment === 'negative' ? 'text-[#ff4444] font-bold' : 'text-zinc-300 font-bold'}>
                           {item.sentiment ? item.sentiment.toUpperCase() : 'NEUTRAL'}
                         </div>
                         */}
@@ -1478,7 +1478,7 @@ export default function Workspace({
                 })}
               </div>
             ) : (
-              <div className="text-center py-12 text-zinc-500 text-xs bg-black border border-[#333] rounded font-mono">
+              <div className="text-center py-12 text-zinc-300 text-xs bg-black border border-[#333] rounded font-mono">
                 NO RECENT WORLD OR BUSINESS NEWS POPULATED.
               </div>
             )}
@@ -1504,7 +1504,7 @@ export default function Workspace({
                 Global Economic Calendar (FRED)
               </span>
               <div className="flex items-center gap-3">
-                <span className="text-[10px] text-zinc-500 font-mono">
+                <span className="text-xs text-zinc-300 font-mono">
                   {fredEconomicsStatus?.fetchedAt
                     ? `SYNCED ${new Date(fredEconomicsStatus.fetchedAt).toLocaleTimeString()}`
                     : 'ST. LOUIS FED FRED API'}
@@ -1513,7 +1513,7 @@ export default function Workspace({
                   <button
                     onClick={onRefreshEconomics}
                     disabled={fredEconomicsStatus?.loading}
-                    className="text-zinc-500 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
+                    className="text-zinc-300 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
                     title="Refresh FRED economic indicators & calendar"
                   >
                     <RefreshCw size={12} className={fredEconomicsStatus?.loading ? 'animate-spin' : ''} />
@@ -1528,12 +1528,12 @@ export default function Workspace({
                   <AlertCircle size={14} />
                   <span>FRED_API_KEY Required</span>
                 </div>
-                <p className="text-zinc-400 leading-relaxed">
+                <p className="text-zinc-300 leading-relaxed">
                   Add <span className="text-white font-bold">FRED_API_KEY</span> in AI Studio Secrets (or <span className="text-white font-bold">.env</span>) to load live St. Louis Fed FRED macroeconomic indicators, US Treasury yields, and official economic release dates.
                 </p>
               </div>
             ) : fredEconomicsStatus?.loading && economics.length === 0 ? (
-              <div className="flex flex-col items-center py-12 space-y-2 text-zinc-500 text-xs bg-black border border-[#333] rounded">
+              <div className="flex flex-col items-center py-12 space-y-2 text-zinc-300 text-xs bg-black border border-[#333] rounded">
                 <RefreshCw className="animate-spin text-[#3498db]" size={20} />
                 <span>SYNCING ST. LOUIS FED FRED MACRO &amp; RELEASE CALENDAR...</span>
               </div>
@@ -1554,14 +1554,14 @@ export default function Workspace({
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                       {fredMacroMetrics.map((metric) => (
-                        <div key={metric.id} className="bg-black border border-[#222] p-3 rounded">
-                          <span className="text-zinc-500 block text-[9px] font-bold uppercase truncate">
+                        <div key={metric.id} className="bg-black border border-[#3a3a3a] p-3 rounded">
+                          <span className="text-zinc-300 block text-xs font-bold uppercase truncate">
                             {metric.label}
                           </span>
                           <span className="text-white font-extrabold text-sm block mt-1">
                             {metric.value}
                           </span>
-                          <span className="text-[9px] text-zinc-600 font-mono block mt-1">
+                          <span className="text-xs text-zinc-300 font-mono block mt-1">
                             {metric.id}{metric.date ? ` • ${metric.date}` : ''}
                           </span>
                         </div>
@@ -1579,7 +1579,7 @@ export default function Workspace({
                   </div>
                   <table className="w-full text-left text-xs text-zinc-300 font-mono">
                     <thead>
-                      <tr className="border-b border-[#333] text-zinc-500 text-[10px] uppercase font-bold text-left">
+                      <tr className="border-b border-[#333] text-zinc-300 text-xs uppercase font-bold text-left">
                         <th className="py-2.5">NATION/REGION</th>
                         <th className="text-right">GDP GROWTH</th>
                         <th className="text-right">UNEMPLOYMENT</th>
@@ -1591,13 +1591,13 @@ export default function Workspace({
                     <tbody>
                       {economics.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-6 text-center text-zinc-500">
+                          <td colSpan={6} className="py-6 text-center text-zinc-300">
                             NO FRED MACRO INDICATORS LOADED.
                           </td>
                         </tr>
                       ) : (
                         economics.map((eco, idx) => (
-                          <tr key={idx} className="border-b border-[#222] hover:bg-[#111] text-[11px] font-mono">
+                          <tr key={idx} className="border-b border-[#3a3a3a] hover:bg-[#111] text-xs font-mono">
                             <td className="py-3 text-[#3498db] font-bold flex items-center space-x-2 font-mono">
                               <span>{eco.flag}</span>
                               <span>{eco.country}</span>
@@ -1606,7 +1606,7 @@ export default function Workspace({
                             <td className="text-right font-mono text-zinc-300">{eco.unemployment}</td>
                             <td className="text-right font-mono text-zinc-300">{eco.inflation}</td>
                             <td className="text-right text-white font-bold font-mono">{eco.rate}</td>
-                            <td className="text-right font-mono text-[10px] text-zinc-500">
+                            <td className="text-right font-mono text-xs text-zinc-300">
                               {eco.updatedAt || '—'}
                             </td>
                           </tr>
@@ -1637,32 +1637,32 @@ export default function Workspace({
                         </div>
                         <div className="flex items-center gap-2 font-mono">
                           <div className="relative flex items-center">
-                            <Search size={11} className="text-zinc-500 absolute left-2 pointer-events-none" />
+                            <Search size={11} className="text-zinc-300 absolute left-2 pointer-events-none" />
                             <input
                               type="text"
                               value={releaseSearch}
                               onChange={(e) => setReleaseSearch(e.target.value)}
                               placeholder="FILTER RELEASES (CPI, FOMC, GDP...)"
-                              className="bg-black border border-[#333] focus:border-[#ff9900] rounded pl-6 pr-2 py-1 text-[10px] text-white placeholder-zinc-600 focus:outline-none w-52 sm:w-64 uppercase"
+                              className="bg-black border border-[#333] focus:border-[#ff9900] rounded pl-6 pr-2 py-1 text-xs text-white placeholder-zinc-600 focus:outline-none w-52 sm:w-64 uppercase"
                             />
                           </div>
                           <button
                             type="button"
                             onClick={() => setPressReleasesOnly((prev) => !prev)}
-                            className={`px-2 py-1 rounded border text-[10px] font-bold uppercase transition-colors cursor-pointer ${
+                            className={`px-2 py-1 rounded border text-xs font-bold uppercase transition-colors cursor-pointer ${
                               pressReleasesOnly
                                 ? 'border-[#ff9900] bg-[#ff9900]/15 text-[#ff9900]'
-                                : 'border-[#333] bg-black text-zinc-400 hover:border-zinc-500 hover:text-white'
+                                : 'border-[#333] bg-black text-zinc-300 hover:border-zinc-500 hover:text-white'
                             }`}
                           >
                             {pressReleasesOnly ? 'PRESS RELEASES' : 'ALL RELEASES'}
                           </button>
                         </div>
                       </div>
-                      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto border border-[#222] rounded bg-black">
+                      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto border border-[#3a3a3a] rounded bg-black">
                         <table className="w-full text-left text-xs text-zinc-300 font-mono">
                           <thead className="sticky top-0 bg-[#0a0a0a] z-10">
-                            <tr className="border-b border-[#333] text-zinc-500 text-[10px] uppercase font-bold">
+                            <tr className="border-b border-[#333] text-zinc-300 text-xs uppercase font-bold">
                               <th className="py-2 px-3 whitespace-nowrap">RELEASE DATE</th>
                               <th className="py-2 px-3 whitespace-nowrap">RELEASE ID</th>
                               <th className="py-2 px-3 whitespace-nowrap">ECONOMIC RELEASE</th>
@@ -1672,7 +1672,7 @@ export default function Workspace({
                           <tbody>
                             {filteredReleases.length === 0 ? (
                               <tr>
-                                <td colSpan={4} className="py-6 text-center text-zinc-500">
+                                <td colSpan={4} className="py-6 text-center text-zinc-300">
                                   {fredReleases.length === 0
                                     ? 'NO RELEASE CALENDAR DATES RETURNED.'
                                     : 'NO RELEASES MATCH CURRENT FILTER.'}
@@ -1684,9 +1684,9 @@ export default function Workspace({
                                 const primaryUrl = rel.sourceUrl || fredUrl;
 
                                 return (
-                                  <tr key={`${rel.releaseId}-${rel.date}-${idx}`} className="border-b border-[#222]/60 hover:bg-[#111] text-[11px]">
+                                  <tr key={`${rel.releaseId}-${rel.date}-${idx}`} className="border-b border-[#3a3a3a]/60 hover:bg-[#111] text-xs">
                                     <td className="py-2 px-3 text-[#00ff00] font-bold whitespace-nowrap">{rel.date}</td>
-                                    <td className="py-2 px-3 text-zinc-500 whitespace-nowrap">#{rel.releaseId}</td>
+                                    <td className="py-2 px-3 text-zinc-300 whitespace-nowrap">#{rel.releaseId}</td>
                                     <td className="py-2 px-3 text-zinc-200">
                                       <a
                                         href={primaryUrl}
@@ -1696,10 +1696,10 @@ export default function Workspace({
                                         title={rel.sourceUrl ? `Open official report: ${rel.sourceUrl}` : `Open FRED release #${rel.releaseId}`}
                                       >
                                         <span>{rel.releaseName}</span>
-                                        <ExternalLink size={10} className="text-zinc-500 shrink-0" />
+                                        <ExternalLink size={10} className="text-zinc-300 shrink-0" />
                                       </a>
                                       {rel.pressRelease && (
-                                        <span className="ml-2 text-[9px] text-[#ff9900] border border-[#ff9900]/40 bg-[#ff9900]/10 px-1 py-0.2 rounded uppercase">
+                                        <span className="ml-2 text-xs text-[#ff9900] border border-[#ff9900]/40 bg-[#ff9900]/10 px-1 py-0.2 rounded uppercase">
                                           PRESS
                                         </span>
                                       )}
@@ -1711,7 +1711,7 @@ export default function Workspace({
                                             href={rel.sourceUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="text-[10px] font-bold text-[#ff9900] hover:text-white border border-[#ff9900]/40 hover:border-[#ff9900] bg-[#ff9900]/10 px-1.5 py-0.5 rounded inline-flex items-center gap-1 transition-colors"
+                                            className="text-xs font-bold text-[#ff9900] hover:text-white border border-[#ff9900]/40 hover:border-[#ff9900] bg-[#ff9900]/10 px-1.5 py-0.5 rounded inline-flex items-center gap-1 transition-colors"
                                             title="Open official agency press release / report"
                                           >
                                             <span>SOURCE</span>
@@ -1722,7 +1722,7 @@ export default function Workspace({
                                           href={fredUrl}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="text-[10px] font-bold text-[#3498db] hover:text-white border border-[#3498db]/40 hover:border-[#3498db] bg-[#3498db]/10 px-1.5 py-0.5 rounded inline-flex items-center gap-1 transition-colors"
+                                          className="text-xs font-bold text-[#3498db] hover:text-white border border-[#3498db]/40 hover:border-[#3498db] bg-[#3498db]/10 px-1.5 py-0.5 rounded inline-flex items-center gap-1 transition-colors"
                                           title={`Open FRED Release #${rel.releaseId} data & series`}
                                         >
                                           <span>FRED</span>
@@ -1767,7 +1767,7 @@ export default function Workspace({
                 className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-[#0c0c0c] transition-colors cursor-pointer select-none"
                 aria-expanded={examplesExpanded}
               >
-                <span className={`${activeBwriteFont.badge} text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5`}>
+                <span className={`${activeBwriteFont.badge} text-zinc-300 font-bold uppercase tracking-wider flex items-center gap-1.5`}>
                   {examplesExpanded ? (
                     <ChevronDown size={13} className="text-[#ff9900]" />
                   ) : (
@@ -1775,17 +1775,17 @@ export default function Workspace({
                   )}
                   QI — BWRITE COMMAND EXAMPLES
                 </span>
-                <span className={`${activeBwriteFont.badge} text-zinc-500 font-bold uppercase tracking-wider`}>
+                <span className={`${activeBwriteFont.badge} text-zinc-300 font-bold uppercase tracking-wider`}>
                   {examplesExpanded ? 'COLLAPSE' : 'EXPAND'}
                 </span>
               </button>
 
               {examplesExpanded && (
-                <div className="p-4 pt-3 border-t border-[#222] grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="p-4 pt-3 border-t border-[#3a3a3a] grid grid-cols-1 md:grid-cols-2 gap-5">
                   {/* Left Column */}
                   <div className="space-y-4">
                     <div>
-                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#222] pb-1 mb-2`}>
+                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#3a3a3a] pb-1 mb-2`}>
                         Company &amp; Stock Deep-Dives
                       </div>
                       <div className="space-y-1">
@@ -1808,7 +1808,7 @@ export default function Workspace({
                     </div>
 
                     <div>
-                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#222] pb-1 mb-2`}>
+                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#3a3a3a] pb-1 mb-2`}>
                         Stock Comparisons
                       </div>
                       <div className="space-y-1">
@@ -1832,7 +1832,7 @@ export default function Workspace({
                   {/* Right Column */}
                   <div className="space-y-4">
                     <div>
-                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#222] pb-1 mb-2`}>
+                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#3a3a3a] pb-1 mb-2`}>
                         Live News &amp; Web-Grounded Queries
                       </div>
                       <div className="space-y-1">
@@ -1854,7 +1854,7 @@ export default function Workspace({
                     </div>
 
                     <div>
-                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#222] pb-1 mb-2`}>
+                      <div className={`text-[#ff9900] font-bold ${activeBwriteFont.heading} uppercase tracking-wider border-b border-[#3a3a3a] pb-1 mb-2`}>
                         Macro, Rates &amp; Commodities
                       </div>
                       <div className="space-y-1">
@@ -1910,7 +1910,7 @@ export default function Workspace({
                       key={idx}
                       className={`w-full rounded border border-[#333] bg-black text-zinc-300 p-3 ${activeBwriteFont.body} font-mono shadow-sm text-left`}
                     >
-                      <span className={`${activeBwriteFont.badge} block text-zinc-500 font-bold mb-1 uppercase tracking-wider`}>
+                      <span className={`${activeBwriteFont.badge} block text-zinc-300 font-bold mb-1 uppercase tracking-wider`}>
                         QI
                       </span>
                       <div className="whitespace-pre-wrap leading-relaxed select-text font-mono">
@@ -1918,7 +1918,7 @@ export default function Workspace({
                       </div>
                       {entry.message.links && entry.message.links.length > 0 && (
                         <div className="mt-3 border-t border-[#111] pt-2">
-                          <span className={`${activeBwriteFont.badge} text-zinc-500 font-bold block mb-1 uppercase tracking-widest`}>GROUNDING SOURCED LINKS:</span>
+                          <span className={`${activeBwriteFont.badge} text-zinc-300 font-bold block mb-1 uppercase tracking-widest`}>GROUNDING SOURCED LINKS:</span>
                           <div className="flex flex-wrap gap-1.5">
                             {entry.message.links.map((link: any, lIdx: number) => (
                               <a
@@ -1946,7 +1946,7 @@ export default function Workspace({
                   >
                     {/* Client Question (Top) */}
                     <div className="bg-[#222] text-[#ff9900] p-3 border-b border-[#ff9900]/30">
-                      <span className={`${activeBwriteFont.badge} block text-zinc-400 font-bold mb-1 uppercase tracking-wider`}>
+                      <span className={`${activeBwriteFont.badge} block text-zinc-300 font-bold mb-1 uppercase tracking-wider`}>
                         USER
                       </span>
                       <div className="whitespace-pre-wrap leading-relaxed select-text font-mono">
@@ -1956,11 +1956,11 @@ export default function Workspace({
 
                     {/* AI Response (Bottom) */}
                     <div className="bg-black text-zinc-300 p-3">
-                      <span className={`${activeBwriteFont.badge} block text-zinc-500 font-bold mb-1 uppercase tracking-wider`}>
+                      <span className={`${activeBwriteFont.badge} block text-zinc-300 font-bold mb-1 uppercase tracking-wider`}>
                         QI
                       </span>
                       {entry.isPending ? (
-                        <div className="text-zinc-500 flex items-center space-x-2 py-1">
+                        <div className="text-zinc-300 flex items-center space-x-2 py-1">
                           <RefreshCw className="animate-spin text-[#3498db]" size={12} />
                           <span>AI TERMINAL ANALYSING SEC &amp; BOND ARBITRAGE FILINGS...</span>
                         </div>
@@ -1971,7 +1971,7 @@ export default function Workspace({
                           </div>
                           {entry.answer.links && entry.answer.links.length > 0 && (
                             <div className="mt-3 border-t border-[#111] pt-2">
-                              <span className={`${activeBwriteFont.badge} text-zinc-500 font-bold block mb-1 uppercase tracking-widest`}>GROUNDING SOURCED LINKS:</span>
+                              <span className={`${activeBwriteFont.badge} text-zinc-300 font-bold block mb-1 uppercase tracking-widest`}>GROUNDING SOURCED LINKS:</span>
                               <div className="flex flex-wrap gap-1.5">
                                 {entry.answer.links.map((link: any, lIdx: number) => (
                                   <a
@@ -2047,28 +2047,28 @@ export default function Workspace({
           </div>
 
           <div className="text-xs">
-          <p className="mb-4 leading-relaxed text-zinc-400">
+          <p className="mb-4 leading-relaxed text-zinc-300">
             Configure third-party API connectivity keys in server memory for this session. Environment-provided credentials always take precedence and cannot be overwritten from this panel.
           </p>
 
           <form onSubmit={handleSaveKeys} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Alpha Vantage */}
-              <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
+              <div className="bg-black/40 border border-[#3a3a3a] p-3 rounded hover:border-zinc-800 transition-all">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <label className="text-[#3498db] font-bold uppercase text-[10px]">ALPHA VANTAGE API KEY</label>
+                  <label className="text-[#3498db] font-bold uppercase text-xs">ALPHA VANTAGE API KEY</label>
                   {credentialMeta.ALPHA_VANTAGE_API_KEY.source === 'environment' && (
-                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                    <span className="text-xs font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
                       ENV MANAGED
                     </span>
                   )}
                   {credentialMeta.ALPHA_VANTAGE_API_KEY.source === 'runtime' && (
-                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                    <span className="text-xs font-bold uppercase text-zinc-300" title="Stored in server memory for the active session">
                       RUNTIME
                     </span>
                   )}
                 </div>
-                <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for accurate real-time stock quote lookups and volume tracking.</span>
+                <span className="text-xs text-zinc-300 block mb-2 leading-snug">Used for accurate real-time stock quote lookups and volume tracking.</span>
                 <input
                   type="password"
                   value={alphaVantageKey}
@@ -2081,21 +2081,21 @@ export default function Workspace({
               </div>
 
               {/* NYT Business */}
-              <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
+              <div className="bg-black/40 border border-[#3a3a3a] p-3 rounded hover:border-zinc-800 transition-all">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <label className="text-[#3498db] font-bold uppercase text-[10px]">NY TIMES BUSINESS API KEY</label>
+                  <label className="text-[#3498db] font-bold uppercase text-xs">NY TIMES BUSINESS API KEY</label>
                   {credentialMeta.NYT_API_KEY.source === 'environment' && (
-                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                    <span className="text-xs font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
                       ENV MANAGED
                     </span>
                   )}
                   {credentialMeta.NYT_API_KEY.source === 'runtime' && (
-                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                    <span className="text-xs font-bold uppercase text-zinc-300" title="Stored in server memory for the active session">
                       RUNTIME
                     </span>
                   )}
                 </div>
-                <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for fetching business top stories from New York Times.</span>
+                <span className="text-xs text-zinc-300 block mb-2 leading-snug">Used for fetching business top stories from New York Times.</span>
                 <input
                   type="password"
                   value={nytKey}
@@ -2108,21 +2108,21 @@ export default function Workspace({
               </div>
 
               {/* News API */}
-              <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
+              <div className="bg-black/40 border border-[#3a3a3a] p-3 rounded hover:border-zinc-800 transition-all">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <label className="text-[#3498db] font-bold uppercase text-[10px]">NEWS API KEY</label>
+                  <label className="text-[#3498db] font-bold uppercase text-xs">NEWS API KEY</label>
                   {credentialMeta.NEWS_API_KEY.source === 'environment' && (
-                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                    <span className="text-xs font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
                       ENV MANAGED
                     </span>
                   )}
                   {credentialMeta.NEWS_API_KEY.source === 'runtime' && (
-                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                    <span className="text-xs font-bold uppercase text-zinc-300" title="Stored in server memory for the active session">
                       RUNTIME
                     </span>
                   )}
                 </div>
-                <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for retrieving global corporate news headlines and media tickers.</span>
+                <span className="text-xs text-zinc-300 block mb-2 leading-snug">Used for retrieving global corporate news headlines and media tickers.</span>
                 <input
                   type="password"
                   value={newsApiKey}
@@ -2135,21 +2135,21 @@ export default function Workspace({
               </div>
 
               {/* Newsdata.io */}
-              <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
+              <div className="bg-black/40 border border-[#3a3a3a] p-3 rounded hover:border-zinc-800 transition-all">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <label className="text-[#3498db] font-bold uppercase text-[10px]">NEWSDATA.IO API KEY</label>
+                  <label className="text-[#3498db] font-bold uppercase text-xs">NEWSDATA.IO API KEY</label>
                   {credentialMeta.NEWSDATA_API_KEY.source === 'environment' && (
-                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                    <span className="text-xs font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
                       ENV MANAGED
                     </span>
                   )}
                   {credentialMeta.NEWSDATA_API_KEY.source === 'runtime' && (
-                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                    <span className="text-xs font-bold uppercase text-zinc-300" title="Stored in server memory for the active session">
                       RUNTIME
                     </span>
                   )}
                 </div>
-                <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for real-time market event feeds and business data syndication.</span>
+                <span className="text-xs text-zinc-300 block mb-2 leading-snug">Used for real-time market event feeds and business data syndication.</span>
                 <input
                   type="password"
                   value={newsdataKey}
@@ -2162,21 +2162,21 @@ export default function Workspace({
               </div>
 
               {/* FRED API */}
-              <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
+              <div className="bg-black/40 border border-[#3a3a3a] p-3 rounded hover:border-zinc-800 transition-all">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <label className="text-[#3498db] font-bold uppercase text-[10px]">FRED API KEY (ST. LOUIS FED)</label>
+                  <label className="text-[#3498db] font-bold uppercase text-xs">FRED API KEY (ST. LOUIS FED)</label>
                   {credentialMeta.FRED_API_KEY.source === 'environment' && (
-                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                    <span className="text-xs font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
                       ENV MANAGED
                     </span>
                   )}
                   {credentialMeta.FRED_API_KEY.source === 'runtime' && (
-                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                    <span className="text-xs font-bold uppercase text-zinc-300" title="Stored in server memory for the active session">
                       RUNTIME
                     </span>
                   )}
                 </div>
-                <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for live US Treasury yields, global macroeconomic indicators, economic release calendar, and H.10 FX rates.</span>
+                <span className="text-xs text-zinc-300 block mb-2 leading-snug">Used for live US Treasury yields, global macroeconomic indicators, economic release calendar, and H.10 FX rates.</span>
                 <input
                   type="password"
                   value={fredKey}
@@ -2189,21 +2189,21 @@ export default function Workspace({
               </div>
 
               {/* 3SPREAD API */}
-              <div className="bg-black/40 border border-[#222] p-3 rounded hover:border-zinc-800 transition-all">
+              <div className="bg-black/40 border border-[#3a3a3a] p-3 rounded hover:border-zinc-800 transition-all">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <label className="text-[#3498db] font-bold uppercase text-[10px]">3SPREAD API KEY</label>
+                  <label className="text-[#3498db] font-bold uppercase text-xs">3SPREAD API KEY</label>
                   {credentialMeta['3SPREAD_API_KEY'].source === 'environment' && (
-                    <span className="text-[9px] font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
+                    <span className="text-xs font-bold uppercase text-emerald-400" title="Managed by server environment variable (takes precedence over runtime settings)">
                       ENV MANAGED
                     </span>
                   )}
                   {credentialMeta['3SPREAD_API_KEY'].source === 'runtime' && (
-                    <span className="text-[9px] font-bold uppercase text-zinc-400" title="Stored in server memory for the active session">
+                    <span className="text-xs font-bold uppercase text-zinc-300" title="Stored in server memory for the active session">
                       RUNTIME
                     </span>
                   )}
                 </div>
-                <span className="text-[9px] text-zinc-500 block mb-2 leading-snug">Used for retrieving institutional ownership data, institutional manager activity, and 13F filing information.</span>
+                <span className="text-xs text-zinc-300 block mb-2 leading-snug">Used for retrieving institutional ownership data, institutional manager activity, and 13F filing information.</span>
                 <input
                   type="password"
                   value={threeSpreadKey}
@@ -2217,7 +2217,7 @@ export default function Workspace({
             </div>
 
             {/* Form actions */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2 select-none border-t border-[#222]">
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2 select-none border-t border-[#3a3a3a]">
               <button
                 type="submit"
                 disabled={keysSaving || keysLoading}
@@ -2243,19 +2243,19 @@ export default function Workspace({
               </button>
 
               {saveSuccess && (
-                <span className="text-[#00ff00] font-bold text-[10px]">
+                <span className="text-[#00ff00] font-bold text-xs">
                   ● CREDENTIALS STORED SAFELY IN SERVER MEMORY
                 </span>
               )}
 
               {saveError && (
-                <span className="text-[#ff4444] font-bold text-[10px]">
+                <span className="text-[#ff4444] font-bold text-xs">
                   ● {saveError}
                 </span>
               )}
 
               {cancelNotice && (
-                <span className="text-zinc-400 font-bold text-[10px]">
+                <span className="text-zinc-300 font-bold text-xs">
                   ● CHANGES DISCARDED
                 </span>
               )}
@@ -2276,23 +2276,23 @@ export default function Workspace({
                     ? 'text-[#ff4444] border-red-900/60 bg-red-950/30'
                     : diag.status === 'TESTING'
                     ? 'text-[#ff9900] border-[#ff9900]/40 bg-[#ff9900]/10'
-                    : 'text-zinc-500 border-zinc-800 bg-zinc-950';
+                    : 'text-zinc-300 border-zinc-800 bg-zinc-950';
 
                 return (
-                  <div key={pipeline.id} className="bg-black p-3.5 border border-[#222] rounded">
+                  <div key={pipeline.id} className="bg-black p-3.5 border border-[#3a3a3a] rounded">
                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[#ff9900] font-bold text-[10px] uppercase">
+                          <span className="text-[#ff9900] font-bold text-xs uppercase">
                             {pipeline.label}
                           </span>
                           <span
-                            className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider leading-none ${statusClass}`}
+                            className={`px-1.5 py-0.5 rounded border text-xs font-bold uppercase tracking-wider leading-none ${statusClass}`}
                           >
                             {diag.status}
                           </span>
                         </div>
-                        <span className="text-[9px] text-zinc-500 block leading-snug mt-0.5">
+                        <span className="text-xs text-zinc-300 block leading-snug mt-0.5">
                           {pipeline.description}
                         </span>
                       </div>
@@ -2300,7 +2300,7 @@ export default function Workspace({
                         type="button"
                         onClick={() => runDiagnosticTest(pipeline.id)}
                         disabled={isTesting}
-                        className="w-full md:w-auto shrink-0 bg-[#111] hover:bg-[#222] active:bg-[#333] border border-[#333] hover:border-zinc-500 text-zinc-300 hover:text-white font-extrabold py-2 px-3 rounded uppercase text-[10px] text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full md:w-auto shrink-0 bg-[#111] hover:bg-[#222] active:bg-[#333] border border-[#333] hover:border-zinc-500 text-zinc-300 hover:text-white font-extrabold py-2 px-3 rounded uppercase text-xs text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isTesting ? (
                           <>
@@ -2315,7 +2315,7 @@ export default function Workspace({
 
                     {(diag.status === 'CONNECTED' || diag.status === 'FAILED') && diag.message && (
                       <div
-                        className={`mt-2.5 px-3 py-2 border text-[10px] rounded leading-relaxed break-words font-mono flex flex-wrap items-start justify-between gap-2 ${
+                        className={`mt-2.5 px-3 py-2 border text-xs rounded leading-relaxed break-words font-mono flex flex-wrap items-start justify-between gap-2 ${
                           diag.status === 'CONNECTED'
                             ? 'bg-emerald-950/20 text-[#00ff00] border-emerald-900/40'
                             : 'bg-red-950/20 text-[#ff4444] border-red-900/40'
@@ -2325,7 +2325,7 @@ export default function Workspace({
                           <span className="font-bold">{diag.status}:</span> {diag.message}
                         </span>
                         {typeof diag.latencyMs === 'number' && (
-                          <span className="text-zinc-500 tabular-nums shrink-0">{diag.latencyMs}ms</span>
+                          <span className="text-zinc-300 tabular-nums shrink-0">{diag.latencyMs}ms</span>
                         )}
                       </div>
                     )}
@@ -2335,7 +2335,7 @@ export default function Workspace({
             </div>
           </div>
 
-          <div className="mt-5 bg-[#050505] border border-[#333] p-3 rounded text-[10px] text-zinc-500/90 leading-relaxed select-none">
+          <div className="mt-5 bg-[#050505] border border-[#333] p-3 rounded text-xs text-zinc-300/90 leading-relaxed select-none">
             <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider block mb-1">
               SYSTEM ARCHITECTURE &amp; DATA ROUTING
             </span>
@@ -2352,46 +2352,46 @@ export default function Workspace({
             <span className="text-white text-md font-bold uppercase tracking-wider">
               Reference &amp; User Manual
             </span>
-            <span className="text-[10px] text-zinc-500 font-mono">HLP CENTRAL REPOSITORIES</span>
+            <span className="text-xs text-zinc-300 font-mono">HLP CENTRAL REPOSITORIES</span>
           </div>
 
           <div className="text-xs">
-          <p className="mb-4 leading-relaxed text-zinc-400">
+          <p className="mb-4 leading-relaxed text-zinc-300">
             Welcome to the QUORIX Reference &amp; User Manual. This section provides guidance on navigating the terminal, understanding its features, working with market data and research tools, and configuring system settings. Use these resources to learn how each workspace functions, understand available capabilities, and get the most out of the QUORIX financial terminal.
           </p>
 
-          <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider border-b border-[#222] pb-1 mb-2 select-none">Command Execution syntax</h3>
+          <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider border-b border-[#3a3a3a] pb-1 mb-2 select-none">Command Execution syntax</h3>
           <div className="space-y-2 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1 border-b border-[#222]/35">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1 border-b border-[#3a3a3a]/35">
               <span className="text-[#3498db] font-bold">TICKER_SYMBOL &lt;EQUITY&gt; SCREEN</span>
               <span className="text-zinc-200">GP, HP, DES, ANR, INST, NEWS</span>
-              <span className="text-zinc-500">e.g. typing "NVDA DES" or "AAPL INST" inside the input bar.</span>
+              <span className="text-zinc-300">e.g. typing "NVDA DES" or "AAPL INST" inside the input bar.</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1 border-b border-[#222]/35">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1 border-b border-[#3a3a3a]/35">
               <span className="text-[#3498db] font-bold">DIRECTORY_CODES</span>
               <span className="text-zinc-200">CORR, PRM, INST, CRNC, ECO, POLY, BWRITE, HELP</span>
-              <span className="text-zinc-500">Instant directory modules access directly.</span>
+              <span className="text-zinc-300">Instant directory modules access directly.</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 py-1">
               <span className="text-[#3498db] font-bold">CONVERSATIONAL_PROMPTING</span>
               <span className="text-zinc-200">BWRITE AI Helper</span>
-              <span className="text-zinc-500">Ask any custom finance questions in standard natural English!</span>
+              <span className="text-zinc-300">Ask any custom finance questions in standard natural English!</span>
             </div>
           </div>
 
-          <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider border-b border-[#222] pb-1 mb-2 select-none">
+          <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider border-b border-[#3a3a3a] pb-1 mb-2 select-none">
             Terminal Commands Reference
           </h3>
-          <p className="text-zinc-400 mb-3">
+          <p className="text-zinc-300 mb-3">
             Type any command into the top <span className="text-[#ff9900] font-bold">&gt;</span> prompt and press{' '}
             <span className="text-zinc-200 font-bold">Enter</span> or click{' '}
             <span className="text-zinc-200 font-bold">EXEC</span>:
           </p>
 
-          <div className="overflow-x-auto border border-[#222] rounded mb-3 bg-black">
+          <div className="overflow-x-auto border border-[#3a3a3a] rounded mb-3 bg-black">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-[#0c0c0c] border-b border-[#333] text-[10px] uppercase tracking-wider text-zinc-400 select-none">
+                <tr className="bg-[#0c0c0c] border-b border-[#333] text-xs uppercase tracking-wider text-zinc-300 select-none">
                   <th className="py-2 px-3 font-bold">Command</th>
                   <th className="py-2 px-3 font-bold">Module</th>
                   <th className="py-2 px-3 font-bold">Description</th>
@@ -2483,14 +2483,14 @@ export default function Workspace({
                     <td className="py-2 px-3 whitespace-nowrap text-zinc-200 font-semibold">
                       {row.module}
                     </td>
-                    <td className="py-2 px-3 text-zinc-400">{row.description}</td>
+                    <td className="py-2 px-3 text-zinc-300">{row.description}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <p className="text-zinc-400 leading-relaxed">
+          <p className="text-zinc-300 leading-relaxed">
             <span className="text-zinc-200 font-bold">Chained Commands:</span> Prefix a ticker symbol with a screen command, e.g.{' '}
             <button
               type="button"

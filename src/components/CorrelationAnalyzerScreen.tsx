@@ -129,19 +129,19 @@ const CORR_USAGE_ARIA_TEXT = [
 
 const CORR_USAGE_TOOLTIP_CONTENT = (
   <div className="space-y-2.5 p-0.5">
-    <div className="border-b border-[#262626] pb-2 space-y-1">
-      <div className="text-[11px] font-bold text-[#ff9900] tracking-wide">
+    <div className="border-b border-[#3a3a3a] pb-2 space-y-1">
+      <div className="text-xs font-bold text-[#ff9900] tracking-wide">
         How do I use the CORR Workspace?
       </div>
-      <p className="text-[10.5px] text-zinc-300 leading-relaxed">
+      <p className="text-[13px] text-zinc-300 leading-relaxed">
         Here is a practical workflow for analyzing your portfolio.
       </p>
     </div>
     <ol className="space-y-2">
       {CORR_USAGE_WORKFLOW_STEPS.map((item) => (
         <li key={item.step} className="space-y-0.5">
-          <div className="text-[10.5px] font-bold text-zinc-100">{item.step}</div>
-          <p className="text-[10px] text-zinc-400 leading-relaxed">{item.detail}</p>
+          <div className="text-[13px] font-bold text-zinc-100">{item.step}</div>
+          <p className="text-xs text-zinc-300 leading-relaxed">{item.detail}</p>
         </li>
       ))}
     </ol>
@@ -201,7 +201,7 @@ function getMatrixCellClasses(bandId: CorrelationBandId, isDiagonal: boolean): s
       return 'bg-[#360c0e] text-[#ff4444] border-[#7f1d1d] hover:border-[#ff4444]';
     case 'unavailable':
     default:
-      return 'bg-[#080808] text-zinc-600 border-[#1f1f1f]';
+      return 'bg-[#080808] text-zinc-300 border-[#3a3a3a]';
   }
 }
 
@@ -222,7 +222,7 @@ function getBandSwatchClass(bandId: CorrelationBandId): string {
     case 'strong-negative':
       return 'bg-[#360c0e] border-[#ff4444]/60';
     default:
-      return 'bg-[#080808] border-[#262626]';
+      return 'bg-[#080808] border-[#3a3a3a]';
   }
 }
 
@@ -243,7 +243,7 @@ function getInterpretationTextClass(bandId: CorrelationBandId): string {
     case 'strong-negative':
       return 'text-[#ff4444]';
     default:
-      return 'text-zinc-500';
+      return 'text-zinc-300';
   }
 }
 
@@ -350,11 +350,11 @@ const RollingCorrelationChart: React.FC<{
 
   if (!hasChartData) {
     return (
-      <div className="w-full h-[230px] bg-[#080808] border border-[#222] rounded flex flex-col items-center justify-center px-6 text-center gap-1.5">
-        <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">
+      <div className="w-full h-[230px] bg-[#080808] border border-[#3a3a3a] rounded flex flex-col items-center justify-center px-6 text-center gap-1.5">
+        <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
           Rolling Correlation Unavailable
         </span>
-        <span className="text-[11px] text-zinc-400 max-w-md leading-relaxed">
+        <span className="text-xs text-zinc-300 max-w-md leading-relaxed">
           {unavailableReason ||
             `Insufficient overlapping observations to compute a ${rollingWindow}-session rolling correlation for ${symbolA} vs ${symbolB}.`}
         </span>
@@ -399,9 +399,9 @@ const RollingCorrelationChart: React.FC<{
   };
 
   return (
-    <div className="w-full min-w-0 bg-[#080808] border border-[#222] rounded p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-[10px] font-mono">
-        <div className="flex flex-wrap items-center gap-2 text-zinc-400">
+    <div className="w-full min-w-0 bg-[#080808] border border-[#3a3a3a] rounded p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs font-mono">
+        <div className="flex flex-wrap items-center gap-2 text-zinc-300">
           <span className="text-zinc-200 font-bold">
             {symbolA} / {symbolB}
           </span>
@@ -415,7 +415,7 @@ const RollingCorrelationChart: React.FC<{
             />
           </span>
           <span aria-hidden="true">·</span>
-          <span className="inline-flex items-center gap-1 text-zinc-400">
+          <span className="inline-flex items-center gap-1 text-zinc-300">
             <span className="inline-block w-3 border-t border-dashed border-zinc-400" aria-hidden="true" />
             <span>0.00 line</span>
             <InfoTooltipIcon
@@ -426,11 +426,11 @@ const RollingCorrelationChart: React.FC<{
           </span>
         </div>
         <div className="flex items-center gap-2 tabular-nums">
-          <span className="text-zinc-500">{formatShortIsoDate(activePt.date)}</span>
+          <span className="text-zinc-300">{formatShortIsoDate(activePt.date)}</span>
           <span className={`font-bold ${getInterpretationTextClass(activeBand.id)}`}>
             r = {formatCorrelationValue(activePt.correlation)}
           </span>
-          <span className="text-zinc-400">({activeBand.label})</span>
+          <span className="text-zinc-300">({activeBand.label})</span>
         </div>
       </div>
 
@@ -593,7 +593,7 @@ const NormalizedPerformanceChart: React.FC<{
 
   if (!hasChartData) {
     return (
-      <div className="w-full h-[220px] bg-[#080808] border border-[#222] rounded flex items-center justify-center px-6 text-center text-[11px] text-zinc-500">
+      <div className="w-full h-[220px] bg-[#080808] border border-[#3a3a3a] rounded flex items-center justify-center px-6 text-center text-xs text-zinc-300">
         Insufficient overlapping adjusted closing prices to plot normalized performance (Base = 100).
       </div>
     );
@@ -640,8 +640,8 @@ const NormalizedPerformanceChart: React.FC<{
   };
 
   return (
-    <div className="w-full min-w-0 flex-1 bg-[#080808] border border-[#222] rounded p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-[10px] font-mono">
+    <div className="w-full min-w-0 flex-1 bg-[#080808] border border-[#3a3a3a] rounded p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs font-mono">
         <div className="flex items-center gap-3 tabular-nums">
           <span className="text-[#ff9900] font-bold">
             ━ {symbolA}: {activePt.indexA.toFixed(1)} ({pctA >= 0 ? '+' : ''}
@@ -652,7 +652,7 @@ const NormalizedPerformanceChart: React.FC<{
             {pctB.toFixed(1)}%)
           </span>
         </div>
-        <span className="text-zinc-500 tabular-nums">{formatShortIsoDate(activePt.date)}</span>
+        <span className="text-zinc-300 tabular-nums">{formatShortIsoDate(activePt.date)}</span>
       </div>
 
       <div ref={svgContainerRef} className="w-full min-w-0">
@@ -749,7 +749,7 @@ const DailyReturnScatterPlot: React.FC<{
 
   if (!hasChartData) {
     return (
-      <div className="w-full flex-1 h-[220px] bg-[#080808] border border-[#222] rounded flex items-center justify-center px-6 text-center text-[11px] text-zinc-500">
+      <div className="w-full flex-1 h-[220px] bg-[#080808] border border-[#3a3a3a] rounded flex items-center justify-center px-6 text-center text-xs text-zinc-300">
         Insufficient overlapping daily percentage returns to render scatter plot.
       </div>
     );
@@ -795,9 +795,9 @@ const DailyReturnScatterPlot: React.FC<{
   const hovered = hoverIdx !== null ? points[hoverIdx] : null;
 
   return (
-    <div className="w-full min-w-0 flex-1 bg-[#080808] border border-[#222] rounded p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-[10px] font-mono">
-        <span className="text-zinc-400">
+    <div className="w-full min-w-0 flex-1 bg-[#080808] border border-[#3a3a3a] rounded p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs font-mono">
+        <span className="text-zinc-300">
           X: <span className="text-zinc-200 font-bold">{symbolA} Daily %</span> · Y:{' '}
           <span className="text-zinc-200 font-bold">{symbolB} Daily %</span>
         </span>
@@ -815,7 +815,7 @@ const DailyReturnScatterPlot: React.FC<{
             </span>
           </span>
         ) : (
-          <span className="text-zinc-500 tabular-nums">{points.length} daily return sessions</span>
+          <span className="text-zinc-300 tabular-nums">{points.length} daily return sessions</span>
         )}
       </div>
 
@@ -1352,7 +1352,7 @@ export default function CorrelationAnalyzerScreen({
        * HEADER & ACTIVE CONFIGURATION BAR
        * ==================================================================== */}
       <div className="bg-[#050505] border border-[#333] rounded p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#222] pb-3 mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#3a3a3a] pb-3 mb-3">
           <h1 className="text-white text-sm md:text-base font-bold uppercase tracking-wider">
             CORRELATION ANALYZER
           </h1>
@@ -1364,13 +1364,13 @@ export default function CorrelationAnalyzerScreen({
               maxWidth={400}
               size={13}
               scrollable={true}
-              buttonClassName="p-1.5 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-400 hover:text-[#ff9900] focus:text-[#ff9900] focus:border-[#ff9900] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] inline-flex items-center justify-center transition-colors cursor-help shrink-0"
+              buttonClassName="p-1.5 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-300 hover:text-[#ff9900] focus:text-[#ff9900] focus:border-[#ff9900] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] inline-flex items-center justify-center transition-colors cursor-help shrink-0"
             />
             <button
               type="button"
               onClick={handleRefreshAll}
               disabled={selectedSymbols.length === 0 || anyLoading}
-              className="px-2.5 py-1.5 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-300 hover:text-white text-[10px] font-bold uppercase flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
+              className="px-2.5 py-1.5 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-300 hover:text-white text-xs font-bold uppercase flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
             >
               <RefreshCw size={11} className={anyLoading ? 'animate-spin text-[#ff9900]' : ''} />
               <span>REFRESH DATA</span>
@@ -1382,7 +1382,7 @@ export default function CorrelationAnalyzerScreen({
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           {/* Lookback Period Controls */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500 uppercase font-bold tracking-wider">
+            <span className="inline-flex items-center gap-1 text-xs text-zinc-300 uppercase font-bold tracking-wider">
               <span>LOOKBACK PERIOD</span>
               <InfoTooltipIcon
                 label="Lookback period explanation"
@@ -1399,10 +1399,10 @@ export default function CorrelationAnalyzerScreen({
                     type="button"
                     onClick={() => setLookbackPeriod(period.id)}
                     aria-pressed={isActive}
-                    className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors cursor-pointer whitespace-nowrap shrink-0 border ${
+                    className={`px-2.5 py-1 rounded text-xs font-bold uppercase transition-colors cursor-pointer whitespace-nowrap shrink-0 border ${
                       isActive
                         ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                        : 'bg-[#0a0a0a] border-[#262626] text-zinc-400 hover:text-white hover:border-[#444]'
+                        : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:text-white hover:border-[#444]'
                     }`}
                   >
                     {period.label}
@@ -1413,7 +1413,7 @@ export default function CorrelationAnalyzerScreen({
           </div>
 
           {/* Active Config Summary (clean unboxed tabular metadata) */}
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] text-zinc-400 tabular-nums">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-zinc-300 tabular-nums">
             <span className="inline-flex items-center gap-1">
               <span>
                 INTERVAL: <strong className="text-zinc-200">DAILY</strong>
@@ -1455,7 +1455,7 @@ export default function CorrelationAnalyzerScreen({
             <button
               type="button"
               onClick={handleClearAll}
-              className="text-[10px] text-zinc-400 hover:text-[#ff4444] border border-[#2a2a2a] hover:border-[#ff4444]/60 px-2 py-1 rounded uppercase font-bold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="text-xs text-zinc-300 hover:text-[#ff4444] border border-[#3a3a3a] hover:border-[#ff4444]/60 px-2 py-1 rounded uppercase font-bold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               <Trash2 size={10} />
               <span>CLEAR ALL</span>
@@ -1468,7 +1468,7 @@ export default function CorrelationAnalyzerScreen({
           <div ref={searchBoxRef} className="xl:col-span-6 relative">
             <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
               <div className="flex-1 flex items-center bg-black border border-[#333] focus-within:border-[#3498db] rounded px-2.5 py-1.5 transition-colors">
-                <Search size={12} className="text-zinc-500 mr-2 shrink-0" />
+                <Search size={12} className="text-zinc-300 mr-2 shrink-0" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -1534,7 +1534,7 @@ export default function CorrelationAnalyzerScreen({
               <button
                 type="submit"
                 disabled={!searchQuery.trim() || validatingSymbol !== null}
-                className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] leading-none uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
+                className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs leading-none uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
               >
                 <Plus size={11} className="shrink-0" />
                 <span className="leading-none">{validatingSymbol ? 'VALIDATING...' : 'ADD'}</span>
@@ -1549,9 +1549,9 @@ export default function CorrelationAnalyzerScreen({
                 className="absolute left-0 right-0 top-full mt-1 z-30 bg-[#070707] border border-[#333] rounded shadow-xl max-h-64 overflow-y-auto"
               >
                 {searchLoading && searchResults.length === 0 ? (
-                  <div className="px-3 py-2.5 text-[11px] text-zinc-500">Searching securities...</div>
+                  <div className="px-3 py-2.5 text-xs text-zinc-300">Searching securities...</div>
                 ) : searchResults.length === 0 ? (
-                  <div className="px-3 py-2.5 text-[11px] text-zinc-500">
+                  <div className="px-3 py-2.5 text-xs text-zinc-300">
                     No directory matches for &ldquo;{searchQuery.trim()}&rdquo;. Press Enter to validate directly as a ticker.
                   </div>
                 ) : (
@@ -1567,22 +1567,22 @@ export default function CorrelationAnalyzerScreen({
                         disabled={alreadySelected || !item.supported}
                         onClick={() => void handleAddSymbol(item.symbol, item)}
                         onMouseEnter={() => setSearchHighlightedIndex(idx)}
-                        className={`w-full text-left px-3 py-2 border-b border-[#181818] last:border-b-0 flex items-center justify-between gap-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                        className={`w-full text-left px-3 py-2 border-b border-[#2e2e2e] last:border-b-0 flex items-center justify-between gap-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                           isHighlighted ? 'bg-[#1e293b] text-white' : 'hover:bg-[#141414]'
                         }`}
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-[#3498db] font-bold text-xs">{item.symbol}</span>
-                            <span className="text-zinc-200 text-[11px] truncate">{item.name}</span>
+                            <span className="text-zinc-200 text-xs truncate">{item.name}</span>
                           </div>
-                          <div className="text-[9.5px] text-zinc-500 mt-0.5">
+                          <div className="text-xs text-zinc-300 mt-0.5">
                             {item.instrumentType} · {item.exchange}
                           </div>
                         </div>
-                        <span className="text-[9.5px] font-bold uppercase shrink-0">
+                        <span className="text-xs font-bold uppercase shrink-0">
                           {alreadySelected ? (
-                            <span className="text-zinc-500">SELECTED</span>
+                            <span className="text-zinc-300">SELECTED</span>
                           ) : !item.supported ? (
                             <span className="text-[#ff4444]">UNSUPPORTED</span>
                           ) : (
@@ -1600,7 +1600,7 @@ export default function CorrelationAnalyzerScreen({
           {/* Selectable Default Benchmarks */}
           <div className="xl:col-span-6">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] text-zinc-500 uppercase font-bold mr-1">BENCHMARKS:</span>
+              <span className="text-xs text-zinc-300 uppercase font-bold mr-1">BENCHMARKS:</span>
               {BENCHMARK_DEFAULTS.map((b) => {
                 const isSelected = selectedSymbols.includes(b.symbol);
                 return (
@@ -1611,10 +1611,10 @@ export default function CorrelationAnalyzerScreen({
                       isSelected ? handleRemoveSymbol(b.symbol) : void handleAddSymbol(b.symbol)
                     }
                     title={`${isSelected ? 'Remove' : 'Add'} ${b.name}`}
-                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    className={`px-2 py-1 rounded text-xs font-bold uppercase border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                       isSelected
                         ? 'bg-[#1a1a1a] border-[#ff9900] text-[#ff9900]'
-                        : 'bg-[#0a0a0a] border-[#262626] text-zinc-400 hover:border-zinc-400 hover:text-white'
+                        : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:border-zinc-400 hover:text-white'
                     }`}
                   >
                     {isSelected ? '✓ ' : '+ '}
@@ -1630,7 +1630,7 @@ export default function CorrelationAnalyzerScreen({
         {selectionNotice && (
           <div
             role="status"
-            className={`px-3 py-2 rounded border text-[11px] flex items-center justify-between gap-2 ${
+            className={`px-3 py-2 rounded border text-xs flex items-center justify-between gap-2 ${
               selectionNotice.tone === 'error'
                 ? 'bg-red-950/25 border-red-800/60 text-red-300'
                 : selectionNotice.tone === 'warning'
@@ -1646,7 +1646,7 @@ export default function CorrelationAnalyzerScreen({
               type="button"
               onClick={() => setSelectionNotice(null)}
               aria-label="Dismiss message"
-              className="text-zinc-400 hover:text-white cursor-pointer"
+              className="text-zinc-300 hover:text-white cursor-pointer"
             >
               <X size={12} />
             </button>
@@ -1667,23 +1667,23 @@ export default function CorrelationAnalyzerScreen({
               return (
                 <div
                   key={sym}
-                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded border text-[11px] max-w-full ${
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded border text-xs max-w-full ${
                     isErr
                       ? 'bg-red-950/20 border-red-800/60'
                       : partial
                       ? 'bg-amber-950/15 border-amber-700/50'
-                      : 'bg-[#0b0b0b] border-[#2a2a2a]'
+                      : 'bg-[#0b0b0b] border-[#3a3a3a]'
                   }`}
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-[#3498db]">{sym}</span>
-                      <span className="text-zinc-300 truncate max-w-[160px] text-[10px]">
+                      <span className="text-zinc-300 truncate max-w-[160px] text-xs">
                         {series?.name || sym}
                       </span>
                       {isLoad && <RefreshCw size={10} className="animate-spin text-[#ff9900] shrink-0" />}
                     </div>
-                    <div className="text-[9px] text-zinc-500 tabular-nums">
+                    <div className="text-xs text-zinc-300 tabular-nums">
                       {isLoad ? (
                         <span>Loading daily history...</span>
                       ) : isErr ? (
@@ -1710,7 +1710,7 @@ export default function CorrelationAnalyzerScreen({
                     onClick={() => handleRemoveSymbol(sym)}
                     aria-label={`Remove ${sym}`}
                     title={`Remove ${sym}`}
-                    className="p-0.5 text-zinc-500 hover:text-[#ff4444] transition-colors cursor-pointer shrink-0"
+                    className="p-0.5 text-zinc-300 hover:text-[#ff4444] transition-colors cursor-pointer shrink-0"
                   >
                     <X size={12} />
                   </button>
@@ -1725,8 +1725,8 @@ export default function CorrelationAnalyzerScreen({
        * ALERTS: API ERRORS, COVERAGE LIMITATIONS, UNADJUSTED CLOSE NOTICE
        * ==================================================================== */}
       {errorEntries.length > 0 && (
-        <div className="bg-red-950/20 border border-red-800/60 rounded p-3 space-y-1.5 text-[11px] text-red-200">
-          <div className="flex items-center gap-1.5 font-bold text-[#ff4444] uppercase text-[10px]">
+        <div className="bg-red-950/20 border border-red-800/60 rounded p-3 space-y-1.5 text-xs text-red-200">
+          <div className="flex items-center gap-1.5 font-bold text-[#ff4444] uppercase text-xs">
             <AlertCircle size={12} />
             <span>Historical Data Errors</span>
           </div>
@@ -1739,14 +1739,14 @@ export default function CorrelationAnalyzerScreen({
                 <button
                   type="button"
                   onClick={() => void ensureSymbolLoaded(sym, true)}
-                  className="text-[10px] underline hover:text-white cursor-pointer"
+                  className="text-xs underline hover:text-white cursor-pointer"
                 >
                   Retry
                 </button>
                 <button
                   type="button"
                   onClick={() => handleRemoveSymbol(sym)}
-                  className="text-[10px] underline hover:text-white cursor-pointer"
+                  className="text-xs underline hover:text-white cursor-pointer"
                 >
                   Remove
                 </button>
@@ -1757,8 +1757,8 @@ export default function CorrelationAnalyzerScreen({
       )}
 
       {coverageAlerts.length > 0 && (
-        <div className="bg-amber-950/20 border border-amber-700/50 rounded p-3 space-y-1 text-[11px] text-amber-200">
-          <div className="flex items-center gap-1.5 font-bold text-amber-400 uppercase text-[10px]">
+        <div className="bg-amber-950/20 border border-amber-700/50 rounded p-3 space-y-1 text-xs text-amber-200">
+          <div className="flex items-center gap-1.5 font-bold text-amber-400 uppercase text-xs">
             <AlertTriangle size={12} />
             <span>Insufficient Historical Coverage for {lookbackCfg.label} Lookback</span>
           </div>
@@ -1771,7 +1771,7 @@ export default function CorrelationAnalyzerScreen({
       )}
 
       {unadjustedSymbols.length > 0 && (
-        <div className="bg-[#09090b] border border-[#2a2a2e] rounded px-3 py-2 text-[10.5px] text-zinc-400 flex items-start gap-2">
+        <div className="bg-[#09090b] border border-[#2a2a2e] rounded px-3 py-2 text-[13px] text-zinc-300 flex items-start gap-2">
           <Info size={12} className="text-[#3498db] shrink-0 mt-0.5" />
           <span>
             Adjusted closing prices were unavailable from the upstream feed for{' '}
@@ -1789,14 +1789,14 @@ export default function CorrelationAnalyzerScreen({
           <div className="text-white text-sm font-bold uppercase tracking-wider">
             No Securities Selected
           </div>
-          <p className="text-zinc-400 text-xs max-w-md mx-auto">
+          <p className="text-zinc-300 text-xs max-w-md mx-auto">
             Select at least two securities above to populate the correlation matrix.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
             <button
               type="button"
               onClick={() => setSelectedSymbols(BENCHMARK_DEFAULTS.map((b) => b.symbol))}
-              className="px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-[10px] uppercase cursor-pointer"
+              className="px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs uppercase cursor-pointer"
             >
               LOAD BENCHMARKS (SPY · QQQ · IWM · DIA)
             </button>
@@ -1809,7 +1809,7 @@ export default function CorrelationAnalyzerScreen({
           <div className="text-white text-sm font-bold uppercase tracking-wider">
             One Security Selected ({selectedSymbols[0]})
           </div>
-          <p className="text-zinc-400 text-xs max-w-md mx-auto">
+          <p className="text-zinc-300 text-xs max-w-md mx-auto">
             Add another ticker to compare against{' '}
             <strong className="text-[#3498db]">{selectedSymbols[0]}</strong>.
           </p>
@@ -1819,7 +1819,7 @@ export default function CorrelationAnalyzerScreen({
                 key={b.symbol}
                 type="button"
                 onClick={() => void handleAddSymbol(b.symbol)}
-                className="px-2.5 py-1 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-200 hover:text-[#ff9900] text-[10px] font-bold uppercase cursor-pointer"
+                className="px-2.5 py-1 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-200 hover:text-[#ff9900] text-xs font-bold uppercase cursor-pointer"
               >
                 + COMPARE WITH {b.symbol}
               </button>
@@ -1833,7 +1833,7 @@ export default function CorrelationAnalyzerScreen({
        * ==================================================================== */}
       {selectedSymbols.length >= 2 && (
         <div className="bg-[#050505] border border-[#333] rounded p-4 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#222] pb-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#3a3a3a] pb-2.5">
             <div className="flex items-center gap-1.5">
               <h2 className="text-xs text-[#ff9900] font-bold uppercase tracking-wider">
                 CORRELATION MATRIX
@@ -1844,7 +1844,7 @@ export default function CorrelationAnalyzerScreen({
                 content={CORR_TOOLTIPS.correlationMatrix}
               />
             </div>
-            <div className="text-[10px] text-zinc-400 tabular-nums">
+            <div className="text-xs text-zinc-300 tabular-nums">
               {anyLoading ? (
                 <span className="text-[#ff9900] inline-flex items-center gap-1.5">
                   <RefreshCw size={10} className="animate-spin" />
@@ -1867,7 +1867,7 @@ export default function CorrelationAnalyzerScreen({
                   />
                 </span>
               ) : (
-                <span className="text-zinc-500">NO OVERLAPPING SESSIONS</span>
+                <span className="text-zinc-300">NO OVERLAPPING SESSIONS</span>
               )}
             </div>
           </div>
@@ -1880,13 +1880,13 @@ export default function CorrelationAnalyzerScreen({
             >
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-10 bg-[#050505] text-left px-2.5 py-2 text-[10px] text-zinc-500 uppercase font-bold whitespace-nowrap w-px min-w-[76px]">
+                  <th className="sticky left-0 z-10 bg-[#050505] text-left px-2.5 py-2 text-xs text-zinc-300 uppercase font-bold whitespace-nowrap w-px min-w-[76px]">
                     SECURITY
                   </th>
                   {matrixResult.symbols.map((sym) => (
                     <th
                       key={`col-${sym}`}
-                      className="px-2 py-2 text-center text-[10px] text-[#3498db] font-bold uppercase whitespace-nowrap min-w-[88px]"
+                      className="px-2 py-2 text-center text-xs text-[#3498db] font-bold uppercase whitespace-nowrap min-w-[88px]"
                       title={seriesBySymbol.get(sym)?.name || sym}
                     >
                       {sym}
@@ -1903,10 +1903,10 @@ export default function CorrelationAnalyzerScreen({
                     <tr key={`row-${rowSym}`}>
                       <th
                         scope="row"
-                        className="sticky left-0 z-10 bg-[#050505] text-left px-2.5 py-2 border-r border-[#1f1f1f] whitespace-nowrap w-px min-w-[76px]"
+                        className="sticky left-0 z-10 bg-[#050505] text-left px-2.5 py-2 border-r border-[#3a3a3a] whitespace-nowrap w-px min-w-[76px]"
                         title={rowName}
                       >
-                        <div className="text-[11px] font-bold text-[#3498db]">{rowSym}</div>
+                        <div className="text-xs font-bold text-[#3498db]">{rowSym}</div>
                       </th>
                       {row.map((cell) => {
                         const isPairSelected =
@@ -1945,7 +1945,7 @@ export default function CorrelationAnalyzerScreen({
                           : `${cell.rowSymbol} / ${cell.colSymbol} · Pearson: ${displayVal} (${cell.interpretation.label}) · Observations: ${cell.observationCount}`;
 
                         const cellTooltipBody = cellLoading ? (
-                          <div className="text-zinc-400">Loading daily return history...</div>
+                          <div className="text-zinc-300">Loading daily return history...</div>
                         ) : cell.unavailableReason ? (
                           <div className="text-amber-300">{cell.unavailableReason}</div>
                         ) : cell.isDiagonal ? (
@@ -2007,7 +2007,7 @@ export default function CorrelationAnalyzerScreen({
                                 >
                                   <span className="text-xs font-extrabold">{displayVal}</span>
                                   {!cellLoading && cell.correlation !== null && cell.hasPartialCoverage && (
-                                    <span className="text-[10px] text-amber-400 font-bold" aria-hidden="true">
+                                    <span className="text-xs text-amber-400 font-bold" aria-hidden="true">
                                       *
                                     </span>
                                   )}
@@ -2026,8 +2026,8 @@ export default function CorrelationAnalyzerScreen({
 
           {/* Compact Correlation Scale Legend with Band Tooltips */}
           <div className="pt-3 border-t border-[#1e1e1e] space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[9.5px] text-zinc-500 uppercase">
-              <span className="inline-flex items-center gap-1 font-bold text-zinc-400">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-300 uppercase">
+              <span className="inline-flex items-center gap-1 font-bold text-zinc-300">
                 <span>SCALE</span>
                 <InfoTooltipIcon
                   label="Correlation coefficient scale explanation"
@@ -2039,7 +2039,7 @@ export default function CorrelationAnalyzerScreen({
                 <span className="text-amber-400/90 normal-case">* Partial lookback coverage</span>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-1.5 text-[10px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-1.5 text-xs">
               {CORRELATION_LEGEND_BANDS.map((band) => (
                 <TerminalTooltip
                   key={band.id}
@@ -2059,7 +2059,7 @@ export default function CorrelationAnalyzerScreen({
                     />
                     <div className="min-w-0 leading-tight">
                       <div className="font-bold text-zinc-200 tabular-nums">{band.rangeLabel}</div>
-                      <div className="text-[9px] text-zinc-500 truncate">{band.label}</div>
+                      <div className="text-xs text-zinc-300 truncate">{band.label}</div>
                     </div>
                   </div>
                 </TerminalTooltip>
@@ -2075,7 +2075,7 @@ export default function CorrelationAnalyzerScreen({
       {selectedSymbols.length >= 2 && activePairAnalysis && (
         <div className="bg-[#050505] border border-[#333] rounded p-4 space-y-4">
           {/* Pair Selector & Rolling Window Controls */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-[#222] pb-3">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-[#3a3a3a] pb-3">
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-xs text-[#ff9900] font-bold uppercase tracking-wider">
@@ -2085,13 +2085,13 @@ export default function CorrelationAnalyzerScreen({
                   {activePairAnalysis.symbolA} / {activePairAnalysis.symbolB}
                 </span>
               </div>
-              <div className="text-[10px] text-zinc-500 mt-0.5">
+              <div className="text-xs text-zinc-300 mt-0.5">
                 {activePairAnalysis.nameA} · {activePairAnalysis.nameB}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-[10px]">
-              <label className="flex items-center gap-1.5 text-zinc-400">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <label className="flex items-center gap-1.5 text-zinc-300">
                 <span className="uppercase font-bold">PAIR:</span>
                 <select
                   aria-label="First security in pair"
@@ -2119,7 +2119,7 @@ export default function CorrelationAnalyzerScreen({
                 onClick={() => setActivePair([activePair[1], activePair[0]])}
                 title="Swap pair axes"
                 aria-label="Swap pair securities"
-                className="p-1 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-400 hover:text-white cursor-pointer"
+                className="p-1 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-300 hover:text-white cursor-pointer"
               >
                 <ArrowLeftRight size={12} />
               </button>
@@ -2144,10 +2144,10 @@ export default function CorrelationAnalyzerScreen({
                 ))}
               </select>
 
-              <span className="text-zinc-600 hidden sm:inline">|</span>
+              <span className="text-zinc-300 hidden sm:inline">|</span>
 
               <div className="flex items-center gap-1" role="group" aria-label="Rolling window observations">
-                <span className="inline-flex items-center gap-1 text-zinc-500 uppercase font-bold mr-0.5">
+                <span className="inline-flex items-center gap-1 text-zinc-300 uppercase font-bold mr-0.5">
                   <span>ROLLING WINDOW</span>
                   <InfoTooltipIcon
                     label="Rolling window explanation"
@@ -2164,7 +2164,7 @@ export default function CorrelationAnalyzerScreen({
                     className={`px-2 py-1 rounded border font-bold uppercase cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
                       rollingWindow === win
                         ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                        : 'bg-[#0a0a0a] border-[#262626] text-zinc-400 hover:text-white'
+                        : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:text-white'
                     }`}
                   >
                     {win} OBS
@@ -2176,7 +2176,7 @@ export default function CorrelationAnalyzerScreen({
 
           {/* Pairwise Unavailable Notice */}
           {activePairAnalysis.unavailableReason && !anyLoading && (
-            <div className="bg-amber-950/20 border border-amber-700/50 rounded p-3 text-[11px] text-amber-300 flex items-start gap-2">
+            <div className="bg-amber-950/20 border border-amber-700/50 rounded p-3 text-xs text-amber-300 flex items-start gap-2">
               <AlertTriangle size={13} className="shrink-0 mt-0.5 text-amber-400" />
               <span>{activePairAnalysis.unavailableReason}</span>
             </div>
@@ -2184,8 +2184,8 @@ export default function CorrelationAnalyzerScreen({
 
           {/* Pairwise KPI Summary Strip (flat hairline dividers, tabular-nums) */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-            <div className="bg-[#080808] border border-[#222] rounded p-2.5">
-              <div className="flex items-center justify-between gap-1 text-[9px] text-zinc-500 uppercase font-bold">
+            <div className="bg-[#080808] border border-[#3a3a3a] rounded p-2.5">
+              <div className="flex items-center justify-between gap-1 text-xs text-zinc-300 uppercase font-bold">
                 <span>PEARSON CORRELATION</span>
                 <InfoTooltipIcon
                   label="Pearson correlation explanation"
@@ -2200,11 +2200,11 @@ export default function CorrelationAnalyzerScreen({
               >
                 {formatCorrelationValue(activePairAnalysis.correlation)}
               </div>
-              <div className="text-[9.5px] text-zinc-500">{activePairAnalysis.lookbackLabel} daily</div>
+              <div className="text-xs text-zinc-300">{activePairAnalysis.lookbackLabel} daily</div>
             </div>
 
-            <div className="bg-[#080808] border border-[#222] rounded p-2.5">
-              <div className="flex items-center justify-between gap-1 text-[9px] text-zinc-500 uppercase font-bold">
+            <div className="bg-[#080808] border border-[#3a3a3a] rounded p-2.5">
+              <div className="flex items-center justify-between gap-1 text-xs text-zinc-300 uppercase font-bold">
                 <span>INTERPRETATION</span>
                 <InfoTooltipIcon
                   label="Correlation interpretation explanation"
@@ -2219,13 +2219,13 @@ export default function CorrelationAnalyzerScreen({
               >
                 {activePairAnalysis.interpretation.label}
               </div>
-              <div className="text-[9.5px] text-zinc-500 tabular-nums">
+              <div className="text-xs text-zinc-300 tabular-nums">
                 {activePairAnalysis.interpretation.rangeLabel}
               </div>
             </div>
 
-            <div className="bg-[#080808] border border-[#222] rounded p-2.5">
-              <div className="flex items-center justify-between gap-1 text-[9px] text-zinc-500 uppercase font-bold">
+            <div className="bg-[#080808] border border-[#3a3a3a] rounded p-2.5">
+              <div className="flex items-center justify-between gap-1 text-xs text-zinc-300 uppercase font-bold">
                 <span>SAME-DIRECTION SESSIONS</span>
                 <InfoTooltipIcon
                   label="Same-direction sessions explanation"
@@ -2238,15 +2238,15 @@ export default function CorrelationAnalyzerScreen({
                   ? `${activePairAnalysis.sameDirectionPct.toFixed(1)}%`
                   : '—'}
               </div>
-              <div className="text-[9.5px] text-zinc-500 tabular-nums">
+              <div className="text-xs text-zinc-300 tabular-nums">
                 {activePairAnalysis.observationCount > 0
                   ? `${activePairAnalysis.sameDirectionCount} of ${activePairAnalysis.observationCount} sessions`
                   : 'No overlapping data'}
               </div>
             </div>
 
-            <div className="bg-[#080808] border border-[#222] rounded p-2.5">
-              <div className="flex items-center justify-between gap-1 text-[9px] text-zinc-500 uppercase font-bold">
+            <div className="bg-[#080808] border border-[#3a3a3a] rounded p-2.5">
+              <div className="flex items-center justify-between gap-1 text-xs text-zinc-300 uppercase font-bold">
                 <span>OVERLAPPING OBSERVATIONS</span>
                 <InfoTooltipIcon
                   label="Overlapping observations explanation"
@@ -2257,7 +2257,7 @@ export default function CorrelationAnalyzerScreen({
               <div className="text-lg font-extrabold text-zinc-100 tabular-nums mt-0.5">
                 {activePairAnalysis.observationCount}
               </div>
-              <div className="text-[9.5px] text-zinc-500 tabular-nums">
+              <div className="text-xs text-zinc-300 tabular-nums">
                 {activePairAnalysis.startDate && activePairAnalysis.endDate
                   ? `${formatShortIsoDate(activePairAnalysis.startDate)} – ${formatShortIsoDate(
                       activePairAnalysis.endDate
@@ -2266,8 +2266,8 @@ export default function CorrelationAnalyzerScreen({
               </div>
             </div>
 
-            <div className="bg-[#080808] border border-[#222] rounded p-2.5 col-span-2 md:col-span-1">
-              <div className="flex items-center justify-between gap-1 text-[9px] text-zinc-500 uppercase font-bold">
+            <div className="bg-[#080808] border border-[#3a3a3a] rounded p-2.5 col-span-2 md:col-span-1">
+              <div className="flex items-center justify-between gap-1 text-xs text-zinc-300 uppercase font-bold">
                 <span>LATEST {rollingWindow}D ROLLING</span>
                 <InfoTooltipIcon
                   label="Latest rolling correlation explanation"
@@ -2283,7 +2283,7 @@ export default function CorrelationAnalyzerScreen({
                     )
                   : '—'}
               </div>
-              <div className="text-[9.5px] text-zinc-500 tabular-nums">
+              <div className="text-xs text-zinc-300 tabular-nums">
                 {activePairAnalysis.rollingSeries.length > 0
                   ? `${activePairAnalysis.rollingSeries.length} rolling pts`
                   : 'Insufficient history'}
@@ -2293,7 +2293,7 @@ export default function CorrelationAnalyzerScreen({
 
           {/* Rolling Correlation Chart (full width inside Pairwise section) */}
           <div className="space-y-1.5 w-full min-w-0">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-1.5">
                 <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                   ROLLING CORRELATION
@@ -2304,7 +2304,7 @@ export default function CorrelationAnalyzerScreen({
                   content={CORR_TOOLTIPS.rollingCorrelation}
                 />
               </div>
-              <span className="text-zinc-500 uppercase tabular-nums">
+              <span className="text-zinc-300 uppercase tabular-nums">
                 {rollingWindow} OBS · {lookbackCfg.label.toUpperCase()}
               </span>
             </div>
@@ -2320,7 +2320,7 @@ export default function CorrelationAnalyzerScreen({
           {/* 2-Column Analytical Pair Charts: Normalized Performance + Return Distribution */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-stretch">
             <div className="space-y-1.5 flex flex-col min-w-0 w-full">
-              <div className="flex items-center justify-between gap-2 text-[10px]">
+              <div className="flex items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                     NORMALIZED PERFORMANCE
@@ -2331,7 +2331,7 @@ export default function CorrelationAnalyzerScreen({
                     content={CORR_TOOLTIPS.normalizedPerformance}
                   />
                 </div>
-                <span className="inline-flex items-center gap-1 text-zinc-400 uppercase font-bold">
+                <span className="inline-flex items-center gap-1 text-zinc-300 uppercase font-bold">
                   <span>BASE 100</span>
                   <InfoTooltipIcon
                     label="Base 100 explanation"
@@ -2348,7 +2348,7 @@ export default function CorrelationAnalyzerScreen({
             </div>
 
             <div className="space-y-1.5 flex flex-col min-w-0 w-full">
-              <div className="flex items-center justify-between gap-2 text-[10px]">
+              <div className="flex items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
                     RETURN DISTRIBUTION
@@ -2359,7 +2359,7 @@ export default function CorrelationAnalyzerScreen({
                     content={CORR_TOOLTIPS.returnDistribution}
                   />
                 </div>
-                <span className="inline-flex items-center gap-1 text-zinc-400 uppercase font-bold">
+                <span className="inline-flex items-center gap-1 text-zinc-300 uppercase font-bold">
                   <span className="inline-block w-3 h-0.5 bg-[#ff9900]" aria-hidden="true" />
                   <span>OLS REGRESSION</span>
                   <InfoTooltipIcon
@@ -2386,7 +2386,7 @@ export default function CorrelationAnalyzerScreen({
        * ==================================================================== */}
       {selectedSymbols.length >= 2 && (
         <div className="bg-[#050505] border border-[#333] rounded p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#222] pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#3a3a3a] pb-2">
             <div className="flex items-center gap-1.5">
               <h2 className="text-xs text-[#ff9900] font-bold uppercase tracking-wider">
                 CORRELATION INSIGHTS
@@ -2400,11 +2400,11 @@ export default function CorrelationAnalyzerScreen({
           </div>
 
           {anyLoading && insights.length === 0 ? (
-            <div className="py-4 text-[11px] text-zinc-500">
+            <div className="py-4 text-xs text-zinc-300">
               Computing observations from historical returns...
             </div>
           ) : insights.length === 0 ? (
-            <div className="py-4 text-[11px] text-zinc-500">
+            <div className="py-4 text-xs text-zinc-300">
               No notable correlation observations for the current selection and lookback period.
             </div>
           ) : (
@@ -2416,7 +2416,7 @@ export default function CorrelationAnalyzerScreen({
                 >
                   <div className="space-y-0.5 max-w-3xl">
                     <div
-                      className={`text-[11px] font-bold uppercase tracking-wide ${
+                      className={`text-xs font-bold uppercase tracking-wide ${
                         item.tone === 'positive'
                           ? 'text-[#00ff00]'
                           : item.tone === 'negative'
@@ -2428,9 +2428,9 @@ export default function CorrelationAnalyzerScreen({
                     >
                       {item.title}
                     </div>
-                    <p className="text-[11px] text-zinc-300 leading-relaxed">{item.summary}</p>
+                    <p className="text-xs text-zinc-300 leading-relaxed">{item.summary}</p>
                   </div>
-                  <div className="text-[10.5px] font-bold text-zinc-200 tabular-nums whitespace-nowrap shrink-0">
+                  <div className="text-[13px] font-bold text-zinc-200 tabular-nums whitespace-nowrap shrink-0">
                     {item.metricTickers && item.metricTickers.length === 2 && item.metricValue ? (
                       <>
                         <button
@@ -2442,7 +2442,7 @@ export default function CorrelationAnalyzerScreen({
                         >
                           {item.metricTickers[0]}
                         </button>
-                        <span className="text-zinc-500"> / </span>
+                        <span className="text-zinc-300"> / </span>
                         <button
                           type="button"
                           onClick={() => handlePopulateTickerInput(item.metricTickers![1])}
@@ -2476,7 +2476,7 @@ export default function CorrelationAnalyzerScreen({
             </div>
           )}
 
-          <div className="pt-2.5 border-t border-[#1c1c1c] text-[9.5px] text-zinc-500 leading-relaxed">
+          <div className="pt-2.5 border-t border-[#2e2e2e] text-xs text-zinc-300 leading-relaxed">
             Correlation does not establish causation, does not predict future performance, and low historical correlation does not guarantee diversification during future market stress.
           </div>
         </div>

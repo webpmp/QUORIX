@@ -59,7 +59,7 @@ export default class ErrorBoundary extends React.Component<
               <button
                 type="button"
                 onClick={this.handleReset}
-                className="px-2.5 py-1 rounded border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black text-[11px] font-bold cursor-pointer"
+                className="px-2.5 py-1 rounded border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black text-xs font-bold cursor-pointer"
               >
                 RETRY
               </button>
