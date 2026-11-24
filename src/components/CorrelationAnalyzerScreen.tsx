@@ -75,15 +75,15 @@ const BAND_TOOLTIP_DESCRIPTIONS: Record<CorrelationBandId, string> = {
   'strong-positive':
     '+0.80 to +1.00: Daily returns consistently moved in the same direction with strong linear co-movement.',
   'moderate-positive':
-    '+0.50 to +0.79: Daily returns frequently moved in the same direction with noticeable linear co-movement.',
+    '+0.40 to +0.79: Daily returns frequently moved in the same direction with noticeable linear co-movement.',
   'weak-positive':
-    '+0.20 to +0.49: Daily returns showed a mild tendency to move in the same direction.',
+    '+0.10 to +0.39: Daily returns showed a mild tendency to move in the same direction.',
   neutral:
-    '-0.19 to +0.19: Daily returns showed little or no consistent linear relationship over the period.',
+    '-0.09 to +0.09: Daily returns showed little or no consistent linear relationship over the period.',
   'weak-negative':
-    '-0.49 to -0.20: Daily returns showed a mild tendency to move in opposite directions.',
+    '-0.39 to -0.10: Daily returns showed a mild tendency to move in opposite directions.',
   'moderate-negative':
-    '-0.79 to -0.50: Daily returns frequently moved in opposite directions with noticeable inverse co-movement.',
+    '-0.79 to -0.40: Daily returns frequently moved in opposite directions with noticeable inverse co-movement.',
   'strong-negative':
     '-1.00 to -0.80: Daily returns consistently moved in opposite directions with strong inverse linear co-movement.',
   unavailable:
@@ -246,6 +246,43 @@ function getInterpretationTextClass(bandId: CorrelationBandId): string {
       return 'text-zinc-300';
   }
 }
+
+const CORRELATION_SCALE_ARIA_TEXT = [
+  CORR_TOOLTIPS.correlationCoefficient,
+  ...CORRELATION_LEGEND_BANDS.map((band) => `${band.label}: ${band.rangeLabel}`),
+].join(' ');
+
+const CORRELATION_SCALE_POPOVER_CONTENT = (
+  <div className="space-y-2">
+    <p className="text-xs text-zinc-300 leading-relaxed">
+      Correlation measures how closely two securities&apos; daily returns move together.
+    </p>
+    <div className="border-t border-b border-[#2e2e2e] py-1 divide-y divide-[#1e1e1e]">
+      {CORRELATION_LEGEND_BANDS.map((band) => (
+        <div
+          key={band.id}
+          className="flex items-center justify-between gap-3 py-1 text-xs"
+        >
+          <span className="inline-flex items-center gap-2 min-w-0">
+            <span
+              className={`w-2.5 h-2.5 rounded-xs border shrink-0 ${getBandSwatchClass(band.id)}`}
+              aria-hidden="true"
+            />
+            <span className={`font-semibold ${getInterpretationTextClass(band.id)}`}>
+              {band.label}
+            </span>
+          </span>
+          <span className="font-mono text-zinc-200 tabular-nums whitespace-nowrap shrink-0">
+            {band.rangeLabel}
+          </span>
+        </div>
+      ))}
+    </div>
+    <p className="text-xs text-zinc-400 leading-snug">
+      Correlation does not establish causation.
+    </p>
+  </div>
+);
 
 function formatShortIsoDate(iso: string): string {
   if (!iso || iso.length < 10) return iso;
@@ -1995,46 +2032,54 @@ export default function CorrelationAnalyzerScreen({
             </table>
           </div>
 
-          {/* Compact Correlation Scale Legend with Band Tooltips */}
-          <div className="pt-3 border-t border-[#1e1e1e] space-y-2">
+          {/* Continuous Correlation Scale Legend with Classification Popover */}
+          <div className="pt-3 border-t border-[#1e1e1e] space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-300 uppercase">
-              <span className="inline-flex items-center gap-1 font-bold text-zinc-300">
-                <span>SCALE</span>
+              <span className="inline-flex items-center gap-1.5 font-bold tracking-wider text-zinc-300">
+                <span>CORRELATION SCALE</span>
                 <InfoTooltipIcon
-                  label="Correlation coefficient scale explanation"
-                  title="CORRELATION COEFFICIENT"
-                  content={CORR_TOOLTIPS.correlationCoefficient}
+                  label="Correlation scale classifications"
+                  title="CORRELATION CLASSIFICATIONS"
+                  content={CORRELATION_SCALE_POPOVER_CONTENT}
+                  ariaText={CORRELATION_SCALE_ARIA_TEXT}
+                  maxWidth={320}
+                  scrollable={true}
                 />
               </span>
               {coverageAlerts.length > 0 && (
                 <span className="text-amber-400/90 normal-case">* Partial lookback coverage</span>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-1.5 text-xs">
-              {CORRELATION_LEGEND_BANDS.map((band) => (
-                <TerminalTooltip
-                  key={band.id}
-                  title={band.label.toUpperCase()}
-                  content={BAND_TOOLTIP_DESCRIPTIONS[band.id]}
-                  ariaText={`${band.label}: ${BAND_TOOLTIP_DESCRIPTIONS[band.id]}`}
-                  maxWidth={240}
-                  className="w-full"
-                >
-                  <div
-                    tabIndex={0}
-                    className="w-full flex items-center gap-2 bg-[#080808] border border-[#1d1d1d] hover:border-[#3a3a3a] focus:outline-none focus-visible:border-[#ff9900] rounded px-2 py-1.5 cursor-help transition-colors"
-                  >
-                    <span
-                      className={`w-3 h-3 rounded-xs border shrink-0 ${getBandSwatchClass(band.id)}`}
-                      aria-hidden="true"
-                    />
-                    <div className="min-w-0 leading-tight">
-                      <div className="font-bold text-zinc-200 tabular-nums">{band.rangeLabel}</div>
-                      <div className="text-xs text-zinc-300 truncate">{band.label}</div>
-                    </div>
-                  </div>
-                </TerminalTooltip>
-              ))}
+
+            {/* Continuous Horizontal Color Bar (-1.0 to +1.0 using existing matrix palette) */}
+            <div className="space-y-1">
+              <div
+                aria-hidden="true"
+                className="relative h-2.5 w-full rounded-sm border border-[#2f2f33] overflow-hidden bg-[linear-gradient(90deg,#7f1d1d_0%,#4b1c1f_22%,#332020_38%,#101012_50%,#1d2c22_62%,#143a23_78%,#14532d_100%)]"
+              >
+                <span className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-zinc-400/60" />
+              </div>
+              <div className="grid grid-cols-3 items-center text-xs font-bold tabular-nums">
+                <span className="text-left text-[#f87171]">-1.0</span>
+                <span className="text-center text-zinc-300">0</span>
+                <span className="text-right text-[#6ee787]">+1.0</span>
+              </div>
+            </div>
+
+            {/* Three Concise Explanatory Groups */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 pt-0.5 text-xs">
+              <div className="sm:text-left">
+                <div className="font-bold uppercase tracking-wider text-[#ff4444]">NEGATIVE</div>
+                <div className="text-zinc-300 leading-snug">Move in opposite directions</div>
+              </div>
+              <div className="sm:text-center">
+                <div className="font-bold uppercase tracking-wider text-zinc-300">NEAR ZERO</div>
+                <div className="text-zinc-300 leading-snug">Little or no relationship</div>
+              </div>
+              <div className="sm:text-right">
+                <div className="font-bold uppercase tracking-wider text-[#00ff00]">POSITIVE</div>
+                <div className="text-zinc-300 leading-snug">Move in the same direction</div>
+              </div>
             </div>
           </div>
         </div>
@@ -2045,34 +2090,63 @@ export default function CorrelationAnalyzerScreen({
        * ==================================================================== */}
       {selectedSymbols.length >= 2 && activePairAnalysis && (
         <div className="bg-[#050505] border border-[#333] rounded p-4 space-y-4">
-          {/* Pair Selector & Rolling Window Controls */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-[#3a3a3a] pb-3">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-xs text-[#ff9900] font-bold uppercase tracking-wider">
-                  PAIRWISE COMPARISON
-                </h2>
-                <span className="text-xs font-bold text-white">
-                  {activePairAnalysis.symbolA} / {activePairAnalysis.symbolB}
-                </span>
-              </div>
-              <div className="text-xs text-zinc-300 mt-0.5">
-                {activePairAnalysis.nameA} · {activePairAnalysis.nameB}
-              </div>
-            </div>
+          {/* Section Header */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#3a3a3a] pb-2.5">
+            <h2 className="text-xs text-[#ff9900] font-bold uppercase tracking-wider">
+              PAIRWISE COMPARISON
+            </h2>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <label className="flex items-center gap-1.5 text-zinc-300">
-                <span className="uppercase font-bold">PAIR:</span>
+          {/* Pair Selector & Rolling Window Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span className="text-xs font-bold text-white whitespace-nowrap">
+                {activePairAnalysis.symbolA} / {activePairAnalysis.symbolB}
+              </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-1.5 text-zinc-300">
+                  <span className="uppercase font-bold">PAIR:</span>
+                  <select
+                    aria-label="First security in pair"
+                    value={activePair[0]}
+                    onChange={(e) => {
+                      const nextA = e.target.value;
+                      const nextB =
+                        nextA === activePair[1]
+                          ? selectedSymbols.find((s) => s !== nextA) || activePair[1]
+                          : activePair[1];
+                      setActivePair([nextA, nextB]);
+                    }}
+                    className="bg-black border border-[#333] focus:border-[#ff9900] rounded px-2 py-1 text-[#3498db] font-bold outline-none cursor-pointer"
+                  >
+                    {selectedSymbols.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => setActivePair([activePair[1], activePair[0]])}
+                  title="Swap pair axes"
+                  aria-label="Swap pair securities"
+                  className="p-1 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-300 hover:text-white cursor-pointer"
+                >
+                  <ArrowLeftRight size={12} />
+                </button>
+
                 <select
-                  aria-label="First security in pair"
-                  value={activePair[0]}
+                  aria-label="Second security in pair"
+                  value={activePair[1]}
                   onChange={(e) => {
-                    const nextA = e.target.value;
-                    const nextB =
-                      nextA === activePair[1]
-                        ? selectedSymbols.find((s) => s !== nextA) || activePair[1]
-                        : activePair[1];
+                    const nextB = e.target.value;
+                    const nextA =
+                      nextB === activePair[0]
+                        ? selectedSymbols.find((s) => s !== nextB) || activePair[0]
+                        : activePair[0];
                     setActivePair([nextA, nextB]);
                   }}
                   className="bg-black border border-[#333] focus:border-[#ff9900] rounded px-2 py-1 text-[#3498db] font-bold outline-none cursor-pointer"
@@ -2083,65 +2157,33 @@ export default function CorrelationAnalyzerScreen({
                     </option>
                   ))}
                 </select>
-              </label>
-
-              <button
-                type="button"
-                onClick={() => setActivePair([activePair[1], activePair[0]])}
-                title="Swap pair axes"
-                aria-label="Swap pair securities"
-                className="p-1 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-300 hover:text-white cursor-pointer"
-              >
-                <ArrowLeftRight size={12} />
-              </button>
-
-              <select
-                aria-label="Second security in pair"
-                value={activePair[1]}
-                onChange={(e) => {
-                  const nextB = e.target.value;
-                  const nextA =
-                    nextB === activePair[0]
-                      ? selectedSymbols.find((s) => s !== nextB) || activePair[0]
-                      : activePair[0];
-                  setActivePair([nextA, nextB]);
-                }}
-                className="bg-black border border-[#333] focus:border-[#ff9900] rounded px-2 py-1 text-[#3498db] font-bold outline-none cursor-pointer"
-              >
-                {selectedSymbols.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-
-              <span className="text-zinc-300 hidden sm:inline">|</span>
-
-              <div className="flex items-center gap-1" role="group" aria-label="Rolling window observations">
-                <span className="inline-flex items-center gap-1 text-zinc-300 uppercase font-bold mr-0.5">
-                  <span>ROLLING WINDOW</span>
-                  <InfoTooltipIcon
-                    label="Rolling window explanation"
-                    title="ROLLING WINDOW"
-                    content={CORR_TOOLTIPS.rollingWindow}
-                  />
-                </span>
-                {ROLLING_WINDOW_OPTIONS.map((win) => (
-                  <button
-                    key={win}
-                    type="button"
-                    onClick={() => setRollingWindow(win)}
-                    aria-pressed={rollingWindow === win}
-                    className={`px-2 py-1 rounded border font-bold uppercase cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
-                      rollingWindow === win
-                        ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                        : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:text-white'
-                    }`}
-                  >
-                    {win} OBS
-                  </button>
-                ))}
               </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Rolling window observations">
+              <span className="inline-flex items-center gap-1 text-zinc-300 uppercase font-bold mr-0.5">
+                <span>ROLLING WINDOW</span>
+                <InfoTooltipIcon
+                  label="Rolling window explanation"
+                  title="ROLLING WINDOW"
+                  content={CORR_TOOLTIPS.rollingWindow}
+                />
+              </span>
+              {ROLLING_WINDOW_OPTIONS.map((win) => (
+                <button
+                  key={win}
+                  type="button"
+                  onClick={() => setRollingWindow(win)}
+                  aria-pressed={rollingWindow === win}
+                  className={`px-2 py-1 rounded border font-bold uppercase cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
+                    rollingWindow === win
+                      ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
+                      : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:text-white'
+                  }`}
+                >
+                  {win} OBS
+                </button>
+              ))}
             </div>
           </div>
 

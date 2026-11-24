@@ -86,9 +86,9 @@ export const CORRELATION_LEGEND_BANDS: readonly CorrelationBandMeta[] = [
   { id: 'moderate-positive', label: 'Moderate positive', rangeLabel: '+0.40 to +0.79', direction: 'positive' },
   { id: 'weak-positive', label: 'Weak positive', rangeLabel: '+0.10 to +0.39', direction: 'positive' },
   { id: 'neutral', label: 'Little or no correlation', rangeLabel: '-0.09 to +0.09', direction: 'neutral' },
-  { id: 'weak-negative', label: 'Weak negative', rangeLabel: '-0.10 to -0.39', direction: 'negative' },
-  { id: 'moderate-negative', label: 'Moderate negative', rangeLabel: '-0.40 to -0.79', direction: 'negative' },
-  { id: 'strong-negative', label: 'Strong negative', rangeLabel: '-0.80 to -1.00', direction: 'negative' },
+  { id: 'weak-negative', label: 'Weak negative', rangeLabel: '-0.39 to -0.10', direction: 'negative' },
+  { id: 'moderate-negative', label: 'Moderate negative', rangeLabel: '-0.79 to -0.40', direction: 'negative' },
+  { id: 'strong-negative', label: 'Strong negative', rangeLabel: '-1.00 to -0.80', direction: 'negative' },
 ] as const;
 
 export function getLookbackConfig(periodId: LookbackPeriodId): LookbackPeriodConfig {
@@ -97,7 +97,8 @@ export function getLookbackConfig(periodId: LookbackPeriodId): LookbackPeriodCon
 
 /**
  * Classifies a Pearson correlation coefficient into the practical interpretation bands.
- * Rounds to two decimal places before checking boundary thresholds so display and band always match.
+ * Uses symmetric rounding to two decimal places before checking boundaries so positive and
+ * negative ranges agree exactly with CORRELATION_LEGEND_BANDS with no gaps or overlaps.
  */
 export function interpretCorrelation(r: number | null | undefined): CorrelationBandMeta {
   if (r === null || r === undefined || !Number.isFinite(r)) {
@@ -109,7 +110,8 @@ export function interpretCorrelation(r: number | null | undefined): CorrelationB
     };
   }
 
-  const rounded = Math.round(r * 100) / 100;
+  const clamped = Math.max(-1, Math.min(1, r));
+  const rounded = (clamped < 0 ? -1 : 1) * (Math.round(Math.abs(clamped) * 100) / 100);
   if (rounded >= 0.8) return CORRELATION_LEGEND_BANDS[0];
   if (rounded >= 0.4) return CORRELATION_LEGEND_BANDS[1];
   if (rounded >= 0.1) return CORRELATION_LEGEND_BANDS[2];

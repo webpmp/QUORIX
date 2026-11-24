@@ -9,6 +9,7 @@ import CorrelationAnalyzerScreen, {
   computeResponsiveChartWidth,
 } from '../src/components/CorrelationAnalyzerScreen.tsx';
 import {
+  CORRELATION_LEGEND_BANDS,
   alignSecurityReturns,
   buildCorrelationMatrix,
   computeDailyReturns,
@@ -539,16 +540,50 @@ test('computePearsonCorrelation satisfies mathematical identities and guards con
   assert.ok(knownR !== null && Math.abs(knownR - 0.9) < 1e-12);
 });
 
-test('interpretCorrelation maps all 7 interpretation bands accurately', () => {
+test('interpretCorrelation maps all 7 interpretation bands accurately with symmetric boundaries', () => {
+  assert.deepEqual(
+    CORRELATION_LEGEND_BANDS.map((b) => [b.label, b.rangeLabel]),
+    [
+      ['Strong positive', '+0.80 to +1.00'],
+      ['Moderate positive', '+0.40 to +0.79'],
+      ['Weak positive', '+0.10 to +0.39'],
+      ['Little or no correlation', '-0.09 to +0.09'],
+      ['Weak negative', '-0.39 to -0.10'],
+      ['Moderate negative', '-0.79 to -0.40'],
+      ['Strong negative', '-1.00 to -0.80'],
+    ]
+  );
+
+  // Positive and negative exact boundary symmetry (no overlaps, no gaps)
+  assert.equal(interpretCorrelation(1.0).label, 'Strong positive');
   assert.equal(interpretCorrelation(0.95).label, 'Strong positive');
   assert.equal(interpretCorrelation(0.8).label, 'Strong positive');
+  assert.equal(interpretCorrelation(0.795).label, 'Strong positive');
+  assert.equal(interpretCorrelation(0.79).label, 'Moderate positive');
   assert.equal(interpretCorrelation(0.65).label, 'Moderate positive');
+  assert.equal(interpretCorrelation(0.4).label, 'Moderate positive');
+  assert.equal(interpretCorrelation(0.395).label, 'Moderate positive');
+  assert.equal(interpretCorrelation(0.39).label, 'Weak positive');
   assert.equal(interpretCorrelation(0.25).label, 'Weak positive');
+  assert.equal(interpretCorrelation(0.1).label, 'Weak positive');
+  assert.equal(interpretCorrelation(0.095).label, 'Weak positive');
+  assert.equal(interpretCorrelation(0.09).label, 'Little or no correlation');
   assert.equal(interpretCorrelation(0.05).label, 'Little or no correlation');
+  assert.equal(interpretCorrelation(0).label, 'Little or no correlation');
   assert.equal(interpretCorrelation(-0.08).label, 'Little or no correlation');
+  assert.equal(interpretCorrelation(-0.09).label, 'Little or no correlation');
+  assert.equal(interpretCorrelation(-0.095).label, 'Weak negative');
+  assert.equal(interpretCorrelation(-0.1).label, 'Weak negative');
   assert.equal(interpretCorrelation(-0.25).label, 'Weak negative');
+  assert.equal(interpretCorrelation(-0.39).label, 'Weak negative');
+  assert.equal(interpretCorrelation(-0.395).label, 'Moderate negative');
+  assert.equal(interpretCorrelation(-0.4).label, 'Moderate negative');
   assert.equal(interpretCorrelation(-0.6).label, 'Moderate negative');
+  assert.equal(interpretCorrelation(-0.79).label, 'Moderate negative');
+  assert.equal(interpretCorrelation(-0.795).label, 'Strong negative');
+  assert.equal(interpretCorrelation(-0.8).label, 'Strong negative');
   assert.equal(interpretCorrelation(-0.85).label, 'Strong negative');
+  assert.equal(interpretCorrelation(-1.0).label, 'Strong negative');
   assert.equal(interpretCorrelation(null).label, 'Unavailable');
 });
 
@@ -701,7 +736,29 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
   assert.equal(populatedHtml.includes('Orange line = OLS linear fit'), false);
   assert.equal(populatedHtml.includes('Practical reference bands (not universal statistical thresholds)'), false);
 
-  // Contextual tooltips across configuration, matrix cells, interpretation bands, KPIs, charts, and insights
+  // Continuous correlation scale legend replaces the old 7-card grid
+  assert.equal(populatedHtml.includes('CORRELATION SCALE'), true);
+  assert.equal(populatedHtml.includes('xl:grid-cols-7'), false);
+  assert.equal(populatedHtml.includes('>-1.0<'), true);
+  assert.equal(populatedHtml.includes('>0<'), true);
+  assert.equal(populatedHtml.includes('>+1.0<'), true);
+  assert.equal(populatedHtml.includes('NEGATIVE'), true);
+  assert.equal(populatedHtml.includes('Move in opposite directions'), true);
+  assert.equal(populatedHtml.includes('NEAR ZERO'), true);
+  assert.equal(populatedHtml.includes('Little or no relationship'), true);
+  assert.equal(populatedHtml.includes('POSITIVE'), true);
+  assert.equal(populatedHtml.includes('Move in the same direction'), true);
+  assert.equal(
+    populatedHtml.includes("Correlation measures how closely two securities&#x27; daily returns move together. Correlation does not establish causation."),
+    false
+  );
+
+  // Old mismatched band tooltip ranges must no longer exist
+  for (const staleRange of ['+0.50 to +0.79', '+0.20 to +0.49', '-0.19 to +0.19', '-0.49 to -0.20', '-0.79 to -0.50']) {
+    assert.equal(populatedHtml.includes(staleRange), false, `Stale inconsistent range still rendered: ${staleRange}`);
+  }
+
+  // Contextual tooltips across configuration, matrix cells, scale classifications popover, KPIs, charts, and insights
   const expectedTooltipFragments = [
     'Historical period used for correlation calculations.',
     'daily percentage returns from consecutive trading sessions.',
@@ -711,13 +768,13 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
     'SPY / QQQ · Pearson:',
     'Self-correlation: 1.00',
     '+1 indicates perfect positive correlation, 0 indicates no linear correlation, and -1 indicates perfect negative correlation.',
-    '+0.80 to +1.00:',
-    '+0.50 to +0.79:',
-    '+0.20 to +0.49:',
-    '-0.19 to +0.19:',
-    '-0.49 to -0.20:',
-    '-0.79 to -0.50:',
-    '-1.00 to -0.80:',
+    'Strong positive: +0.80 to +1.00',
+    'Moderate positive: +0.40 to +0.79',
+    'Weak positive: +0.10 to +0.39',
+    'Little or no correlation: -0.09 to +0.09',
+    'Weak negative: -0.39 to -0.10',
+    'Moderate negative: -0.79 to -0.40',
+    'Strong negative: -1.00 to -0.80',
     'changes over time using a moving observation window.',
     'Indicates zero linear correlation. Values above the line are positive; values below are negative.',
     'setting both securities to a common starting value of 100.',
