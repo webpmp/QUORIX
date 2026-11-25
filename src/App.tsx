@@ -372,8 +372,8 @@ export default function App() {
         lastPrefilledCommandRef.current = cmd;
         setCurrentCommand(cmd);
       } else if (parsed.screen === 'NEWS') {
-        lastPrefilledCommandRef.current = 'NEWS';
-        setCurrentCommand('NEWS');
+        lastPrefilledCommandRef.current = 'NEWS ';
+        setCurrentCommand('NEWS ');
       }
       return;
     }
@@ -473,6 +473,7 @@ export default function App() {
       setFocusAskQuorixSignal((n) => n + 1);
     }
     const formatted = formatCommandInput(screenCode);
+    lastPrefilledCommandRef.current = formatted;
     setCurrentCommand(formatted);
     const terminalInput = document.getElementById('terminal-input') as HTMLInputElement | null;
     if (terminalInput) {
@@ -486,7 +487,7 @@ export default function App() {
   useEffect(() => {
     if (activeScreen === 'NEWS') {
       const sym = (newsHubFilterTicker || '').trim().toUpperCase();
-      const cmd = sym ? `NEWS ${sym}` : 'NEWS';
+      const cmd = sym ? `NEWS ${sym}` : 'NEWS ';
       lastPrefilledCommandRef.current = cmd;
       setCurrentCommand(cmd);
     } else if (
@@ -499,7 +500,7 @@ export default function App() {
     ) {
       const sym = (selectedTicker || '').trim().toUpperCase();
       const prefix = activeScreen;
-      const cmd = sym ? `${prefix} ${sym}` : prefix;
+      const cmd = sym ? `${prefix} ${sym}` : `${prefix} `;
       lastPrefilledCommandRef.current = cmd;
       setCurrentCommand(cmd);
     } else if (activeScreen === 'CRNC') {
@@ -596,7 +597,7 @@ export default function App() {
           newsHubFilterTicker={newsHubFilterTicker}
           onClearNewsHubFilter={() => {
             setNewsHubFilterTicker(null);
-            setCurrentCommand('NEWS');
+            setCurrentCommand('NEWS ');
           }}
           onRefreshEconomics={() => fetchFredEconomics(true)}
           onRefreshCurrencies={() => fetchFredCurrencies(true)}
