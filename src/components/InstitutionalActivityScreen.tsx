@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, useId } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Search,
   RefreshCw,
@@ -10,7 +9,6 @@ import {
   Activity,
   Briefcase,
   ExternalLink,
-  Info,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -47,9 +45,6 @@ interface InstitutionalActivityScreenProps {
 type InstitutionalTab = 'HOLDINGS' | 'ACCUMULATION' | 'INVESTORS' | 'CHANGES' | 'SECTOR_ROTATION';
 
 const EXCLUDED_QUICK_TICKERS = new Set(['SPX', 'DJI', 'IXIC', 'GC', 'CL', 'TNX', 'BTC']);
-
-const DISCLOSURE_TOOLTIP_TEXT =
-  'Institutional holdings reflect quarterly SEC Form 13F filings via 3spread (filed up to 45 days after quarter-end), not real-time trading activity or investment recommendations.';
 
 export function formatHoldingsLimitationsNotice(limitations: string[]): string {
   return limitations
@@ -126,18 +121,6 @@ export default function InstitutionalActivityScreen({
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>('');
-
-  // Delayed 13F Disclosure tooltip state & positioning
-  const [disclosureTooltipOpen, setDisclosureTooltipOpen] = useState<boolean>(false);
-  const [disclosureTooltipPos, setDisclosureTooltipPos] = useState<{
-    top: number;
-    left: number;
-    width: number;
-    arrowLeft: number;
-  } | null>(null);
-  const disclosureTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const disclosureCloseTimerRef = useRef<number | null>(null);
-  const disclosureTooltipId = useId();
 
   // Section A: Institutional Holdings state
   const [activeHoldingsQuery, setActiveHoldingsQuery] = useState<{
@@ -662,77 +645,6 @@ export default function InstitutionalActivityScreen({
     [holdingsLimitations]
   );
 
-  const updateDisclosureTooltipPosition = useCallback(() => {
-    const triggerEl = disclosureTriggerRef.current;
-    if (!triggerEl || typeof window === 'undefined') return;
-    const rect = triggerEl.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const margin = 12;
-    const width = Math.min(340, Math.max(220, viewportWidth - margin * 2));
-    const preferredLeft = rect.right - width;
-    const clampedLeft = Math.max(margin, Math.min(preferredLeft, viewportWidth - width - margin));
-    const triggerCenterX = rect.left + rect.width / 2;
-    const arrowLeft = Math.max(14, Math.min(width - 14, triggerCenterX - clampedLeft));
-    setDisclosureTooltipPos({
-      top: rect.bottom + 8,
-      left: clampedLeft,
-      width,
-      arrowLeft,
-    });
-  }, []);
-
-  const cancelDisclosureCloseTimer = useCallback(() => {
-    if (disclosureCloseTimerRef.current !== null) {
-      window.clearTimeout(disclosureCloseTimerRef.current);
-      disclosureCloseTimerRef.current = null;
-    }
-  }, []);
-
-  const openDisclosureTooltip = useCallback(() => {
-    cancelDisclosureCloseTimer();
-    updateDisclosureTooltipPosition();
-    setDisclosureTooltipOpen(true);
-  }, [cancelDisclosureCloseTimer, updateDisclosureTooltipPosition]);
-
-  const scheduleCloseDisclosureTooltip = useCallback(() => {
-    cancelDisclosureCloseTimer();
-    disclosureCloseTimerRef.current = window.setTimeout(() => {
-      setDisclosureTooltipOpen(false);
-    }, 120);
-  }, [cancelDisclosureCloseTimer]);
-
-  const closeDisclosureTooltipImmediately = useCallback(() => {
-    cancelDisclosureCloseTimer();
-    setDisclosureTooltipOpen(false);
-  }, [cancelDisclosureCloseTimer]);
-
-  useEffect(() => {
-    return () => {
-      if (disclosureCloseTimerRef.current !== null) {
-        window.clearTimeout(disclosureCloseTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!disclosureTooltipOpen) return;
-    updateDisclosureTooltipPosition();
-    const handleReposition = () => updateDisclosureTooltipPosition();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setDisclosureTooltipOpen(false);
-      }
-    };
-    window.addEventListener('resize', handleReposition);
-    window.addEventListener('scroll', handleReposition, true);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('resize', handleReposition);
-      window.removeEventListener('scroll', handleReposition, true);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [disclosureTooltipOpen, updateDisclosureTooltipPosition]);
-
   return (
     <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl select-text flex flex-col lg:flex-1 lg:min-h-0 lg:overflow-hidden font-mono text-xs text-zinc-200">
       {/* 1. WORKSPACE HEADER */}
@@ -747,55 +659,10 @@ export default function InstitutionalActivityScreen({
         </div>
 
         <div className="flex flex-col items-start md:items-end gap-1 text-xs text-zinc-300">
-          {/* Top-right compact informational indicators */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[#3498db] font-bold">PROVIDER: 3SPREAD</span>
-            <span className="text-zinc-700">|</span>
-            <button
-              ref={disclosureTriggerRef}
-              type="button"
-              aria-describedby={disclosureTooltipOpen ? disclosureTooltipId : undefined}
-              aria-expanded={disclosureTooltipOpen}
-              onMouseEnter={openDisclosureTooltip}
-              onMouseLeave={scheduleCloseDisclosureTooltip}
-              onFocus={openDisclosureTooltip}
-              onBlur={closeDisclosureTooltipImmediately}
-              onClick={() => {
-                if (disclosureTooltipOpen) {
-                  closeDisclosureTooltipImmediately();
-                } else {
-                  openDisclosureTooltip();
-                }
-              }}
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#0c0c0c] border border-[#ff9900]/40 hover:border-[#ff9900] focus:border-[#ff9900] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] text-amber-300 hover:text-[#ff9900] focus:text-[#ff9900] font-bold uppercase tracking-wide text-xs leading-none transition-colors cursor-help"
-            >
-              <Info size={10} className="text-[#ff9900] shrink-0" aria-hidden="true" />
-              <span>DELAYED 13F DISCLOSURE</span>
-            </button>
-          </div>
-
           {/* Metadata & Sync Row */}
           <div className="flex flex-wrap items-center gap-2">
-            {activeReportingPeriodDisplay && (
-              <span className="tabular-nums text-zinc-300">
-                PERIOD: {formatQuarterLabel(activeReportingPeriodDisplay)}
-              </span>
-            )}
-            {freshness?.latestAcceptedTime && (
-              <>
-                {activeReportingPeriodDisplay && <span className="text-zinc-700">|</span>}
-                <span className="tabular-nums text-zinc-300">
-                  LATEST FILING: {formatIsoDateShort(freshness.latestAcceptedTime)}
-                </span>
-              </>
-            )}
             {lastRefreshedAt && (
-              <>
-                {(activeReportingPeriodDisplay || freshness?.latestAcceptedTime) && (
-                  <span className="text-zinc-700">|</span>
-                )}
-                <span className="tabular-nums text-zinc-300">SYNC: {lastRefreshedAt}</span>
-              </>
+              <span className="tabular-nums text-zinc-300">SYNC: {lastRefreshedAt}</span>
             )}
             <button
               type="button"
@@ -809,39 +676,6 @@ export default function InstitutionalActivityScreen({
           </div>
         </div>
       </div>
-
-      {/* Delayed 13F Disclosure Tooltip Portal (never clipped by overflow-hidden containers) */}
-      {disclosureTooltipOpen &&
-        disclosureTooltipPos &&
-        typeof document !== 'undefined' &&
-        createPortal(
-          <div
-            id={disclosureTooltipId}
-            role="tooltip"
-            onMouseEnter={cancelDisclosureCloseTimer}
-            onMouseLeave={scheduleCloseDisclosureTooltip}
-            style={{
-              position: 'fixed',
-              top: `${disclosureTooltipPos.top}px`,
-              left: `${disclosureTooltipPos.left}px`,
-              width: `${disclosureTooltipPos.width}px`,
-              zIndex: 9999,
-            }}
-            className="rounded bg-[#0a0a0a] border border-[#ff9900]/60 shadow-2xl px-3 py-2.5 font-mono text-xs leading-relaxed text-zinc-200 select-text"
-          >
-            <span
-              aria-hidden="true"
-              style={{ left: `${disclosureTooltipPos.arrowLeft - 5}px` }}
-              className="absolute -top-[5px] w-2.5 h-2.5 rotate-45 bg-[#0a0a0a] border-l border-t border-[#ff9900]/60"
-            />
-            <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-[#ff9900] mb-1">
-              <Info size={11} className="shrink-0" aria-hidden="true" />
-              <span>DELAYED 13F DISCLOSURE</span>
-            </div>
-            <p className="text-zinc-300 font-normal">{DISCLOSURE_TOOLTIP_TEXT}</p>
-          </div>,
-          document.body
-        )}
 
       {/* 2. PRIMARY SECTION TABS & REPORTING PERIOD SELECTOR */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#3a3a3a] pb-2.5 mb-3 shrink-0 select-none">
@@ -1125,12 +959,6 @@ export default function InstitutionalActivityScreen({
                       <span className="text-[#ff4444]">✕{holdingsSummary.exitedPositions}</span>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {holdingsNoticeText && (
-                <div className="px-2.5 py-1.5 bg-[#0b0b0b] border border-[#3a3a3a] rounded text-xs text-zinc-300 shrink-0">
-                  {holdingsNoticeText}
                 </div>
               )}
 
