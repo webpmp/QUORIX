@@ -23,6 +23,7 @@ import {
   isValidTickerFormat,
   normalizeTickerSymbol,
 } from '../utils/equityValidation';
+import TerminalSelect from './TerminalSelect';
 import {
   detectCsvColumnMapping,
   parseCsvText,
@@ -801,14 +802,16 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                         <label className="block text-xs text-zinc-300 uppercase font-bold mb-1">
                           {field.label}
                         </label>
-                        <select
+                        <TerminalSelect
+                          sizeVariant="sm"
                           value={csvMapping[field.key] === null ? '' : String(csvMapping[field.key])}
                           onChange={(e) => {
                             const val = e.target.value === '' ? null : Number(e.target.value);
                             setCsvMapping((prev) => ({ ...prev, [field.key]: val }));
                             setCsvVerificationDone(false);
                           }}
-                          className="w-full bg-[#080808] border border-[#333] rounded px-2 py-1 text-xs text-zinc-200 outline-none"
+                          containerClassName="relative block w-full"
+                          className="w-full text-zinc-200"
                         >
                           <option value="">— Unmapped —</option>
                           {parsedCsv.headers.map((h, idx) => (
@@ -816,7 +819,7 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                               {h}
                             </option>
                           ))}
-                        </select>
+                        </TerminalSelect>
                       </div>
                     ))}
                   </div>
@@ -824,25 +827,25 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
                   <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-[#1e1e1e] text-xs text-zinc-300">
                     <label className="inline-flex items-center gap-1.5">
                       <span className="text-zinc-300 uppercase">CSV Duplicates:</span>
-                      <select
+                      <TerminalSelect
+                        sizeVariant="sm"
                         value={csvDupStrategy}
                         onChange={(e) => setCsvDupStrategy(e.target.value as 'merge' | 'skip')}
-                        className="bg-[#080808] border border-[#333] rounded px-1.5 py-0.5 text-xs text-zinc-200"
                       >
                         <option value="merge">Merge shares</option>
                         <option value="skip">Skip duplicates</option>
-                      </select>
+                      </TerminalSelect>
                     </label>
                     <label className="inline-flex items-center gap-1.5">
                       <span className="text-zinc-300 uppercase">Existing Holdings:</span>
-                      <select
+                      <TerminalSelect
+                        sizeVariant="sm"
                         value={csvExistingMode}
                         onChange={(e) => setCsvExistingMode(e.target.value as 'add' | 'replace')}
-                        className="bg-[#080808] border border-[#333] rounded px-1.5 py-0.5 text-xs text-zinc-200"
                       >
                         <option value="add">Merge shares</option>
                         <option value="replace">Overwrite</option>
-                      </select>
+                      </TerminalSelect>
                     </label>
                     <label className="inline-flex items-center gap-1.5 cursor-pointer">
                       <input
@@ -1008,14 +1011,14 @@ export const PortfolioManagerPanel: React.FC<PortfolioManagerPanelProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <select
+              <TerminalSelect
+                sizeVariant="base"
                 value={watchlistMergeMode}
                 onChange={(e) => setWatchlistMergeMode(e.target.value as 'add' | 'replace')}
-                className="bg-[#080808] border border-[#333] rounded px-2 py-1 text-xs text-zinc-200"
               >
                 <option value="replace">Overwrite existing</option>
                 <option value="add">Add to existing</option>
-              </select>
+              </TerminalSelect>
               <button
                 type="button"
                 onClick={handleImportWatchlist}

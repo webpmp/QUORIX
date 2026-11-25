@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { extractRecognizedCommandPrefix } from '../utils/commandParser';
 
 interface HeaderProps {
   currentCommand: string;
@@ -201,32 +202,49 @@ export default function Header({
             >
               {isHistoryOpen ? '⌄' : '>'}
             </button>
-            <input
-              ref={inputRef}
-              type="text"
-              value={currentCommand}
-              onChange={(e) => {
-                const start = e.target.selectionStart;
-                const end = e.target.selectionEnd;
-                onCommandChange(e.target.value.toUpperCase());
-                requestAnimationFrame(() => {
-                  if (
-                    inputRef.current &&
-                    start !== null &&
-                    end !== null &&
-                    document.activeElement === inputRef.current
-                  ) {
-                    inputRef.current.setSelectionRange(start, end);
-                  }
-                });
-              }}
-              placeholder="Enter command code (e.g., AAPL GP, CRNC, WEAT, or describe stock/query...)"
-              className="flex-1 min-w-0 bg-transparent text-[#00ff00] font-mono text-sm uppercase placeholder:normal-case outline-none placeholder-zinc-700 caret-[#00ff00]"
-              id="terminal-input"
-              autoFocus
-              autoComplete="off"
-              spellCheck="false"
-            />
+            <div className="relative flex-1 min-w-0 flex items-center h-full">
+              {/* Synchronized visual presentation layer for command prefix styling */}
+              {(() => {
+                const prefixMatch = extractRecognizedCommandPrefix(currentCommand);
+                if (prefixMatch && prefixMatch.prefix) {
+                  return (
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none select-none absolute inset-0 flex items-center font-mono text-sm whitespace-pre"
+                    >
+                      <span className="relative inline-flex items-center justify-center font-mono text-sm leading-none shrink-0 uppercase">
+                        {/* Invisible character sizing anchor matching input typography */}
+                        <span className="invisible select-none">{prefixMatch.prefix}</span>
+                        {/* Perfectly centered visual badge with balanced padding and full border visibility */}
+                        <span className="absolute inset-x-[-4px] top-1/2 -translate-y-1/2 flex items-center justify-center bg-black border border-[#3a3a3a] rounded text-xs text-[#ff9900] font-bold leading-none px-1.5 h-[18px]">
+                          {prefixMatch.prefix}
+                        </span>
+                      </span>
+                      <span className="text-[#00ff00] uppercase font-mono">
+                        {prefixMatch.remainder}
+                      </span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              <input
+                ref={inputRef}
+                type="text"
+                value={currentCommand}
+                onChange={(e) => {
+                  onCommandChange(e.target.value.toUpperCase());
+                }}
+                placeholder="Enter command code (e.g., AAPL GP, CRNC, WEAT, or describe stock/query...)"
+                className={`w-full bg-transparent font-mono text-sm uppercase placeholder:normal-case outline-none placeholder-zinc-700 caret-[#00ff00] relative z-10 selection:bg-[#3498db]/40 selection:text-white ${
+                  extractRecognizedCommandPrefix(currentCommand) ? 'text-transparent' : 'text-[#00ff00]'
+                }`}
+                id="terminal-input"
+                autoFocus
+                autoComplete="off"
+                spellCheck="false"
+              />
+            </div>
             <button
               type="submit"
               className="ml-2 px-3 py-0.5 rounded bg-[#ff9900] text-black font-extrabold text-xs uppercase hover:bg-amber-500 transition-colors cursor-pointer shrink-0"
@@ -257,36 +275,50 @@ export default function Header({
                   No recent searches yet
                 </div>
               ) : (
-                searchHistory.map((item) => (
-                  <div
-                    key={item}
-                    role="option"
-                    aria-selected={false}
-                    className="flex items-center border-b border-[#3a3a3a] last:border-b-0 bg-black hover:bg-[#3498db]/15 transition-colors"
-                  >
-                    <button
-                      type="button"
-                      aria-label={`Run recent search: ${item}`}
-                      onClick={() => handleSelectHistoryItem(item)}
-                      className="flex-1 min-w-0 text-left px-2.5 py-1.5 flex items-center gap-2 focus-visible:bg-[#3498db]/15 focus-visible:outline-none cursor-pointer font-mono text-xs"
+                searchHistory.map((item) => {
+                  const prefixMatch = extractRecognizedCommandPrefix(item);
+                  return (
+                    <div
+                      key={item}
+                      role="option"
+                      aria-selected={false}
+                      className="flex items-center border-b border-[#3a3a3a] last:border-b-0 bg-black hover:bg-[#3498db]/15 transition-colors"
                     >
-                      <span className="text-[#3498db] font-bold shrink-0" aria-hidden="true">&gt;</span>
-                      <span className="text-[#00ff00] truncate">{item}</span>
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Remove ${item} from search history`}
-                      title="Remove from history"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveHistoryItem(item);
-                      }}
-                      className="shrink-0 px-2.5 py-1.5 text-zinc-300 hover:text-[#ff4444] focus-visible:text-[#ff4444] focus-visible:outline-none cursor-pointer font-mono text-xs font-bold leading-none transition-colors"
-                    >
-                      &times;
-                    </button>
-                  </div>
-                ))
+                      <button
+                        type="button"
+                        aria-label={`Run recent search: ${item}`}
+                        onClick={() => handleSelectHistoryItem(item)}
+                        className="flex-1 min-w-0 text-left px-2.5 py-1.5 flex items-center gap-2 focus-visible:bg-[#3498db]/15 focus-visible:outline-none cursor-pointer font-mono text-xs"
+                      >
+                        <span className="text-[#3498db] font-bold shrink-0" aria-hidden="true">&gt;</span>
+                        {prefixMatch && prefixMatch.prefix ? (
+                          <div className="flex items-center truncate whitespace-pre">
+                            <span className="inline-flex items-center justify-center bg-black border border-[#3a3a3a] rounded text-xs text-[#ff9900] font-bold leading-none px-1.5 h-[18px] shrink-0 uppercase mr-1.5">
+                              {prefixMatch.prefix}
+                            </span>
+                            <span className="text-[#00ff00] uppercase font-mono truncate">
+                              {prefixMatch.remainder.trimStart()}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[#00ff00] truncate">{item}</span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${item} from search history`}
+                        title="Remove from history"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveHistoryItem(item);
+                        }}
+                        className="shrink-0 px-2.5 py-1.5 text-zinc-300 hover:text-[#ff4444] focus-visible:text-[#ff4444] focus-visible:outline-none cursor-pointer font-mono text-xs font-bold leading-none transition-colors"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  );
+                })
               )}
             </div>
           )}

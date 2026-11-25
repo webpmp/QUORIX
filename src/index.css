@@ -81,3 +81,14 @@
 .flash-down {
   animation: flash-red 0.7s ease-out;
 }
+
+select.appearance-none,
+.appearance-none {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+select::-ms-expand {
+  display: none;
+}

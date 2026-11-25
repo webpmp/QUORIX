@@ -74,6 +74,8 @@ export default function App() {
   const [fredMacroMetrics, setFredMacroMetrics] = useState<FredMacroMetric[]>([]);
   const [fredReleases, setFredReleases] = useState<FredReleaseDate[]>([]);
   const [selectedTicker, setSelectedTicker] = useState<string>('AAPL');
+  const [selectedCurrency, setSelectedCurrency] = useState<string | null>(null);
+  const [selectedEcoCategory, setSelectedEcoCategory] = useState<string | null>(null);
   const [activeScreen, setActiveScreen] = useState<string>('GP');
 
   const [fredEconomicsStatus, setFredEconomicsStatus] = useState<FredFeedStatus>({
@@ -92,6 +94,7 @@ export default function App() {
 
   // Custom global command input state
   const [currentCommand, setCurrentCommand] = useState<string>('');
+  const [tickerCommandSubmissionSignal, setTickerCommandSubmissionSignal] = useState<{ id: number; screen: string; ticker: string } | null>(null);
   const [pendingAiQuery, setPendingAiQuery] = useState<{ id: number; text: string } | null>(null);
   const [askPrefillPrompt, setAskPrefillPrompt] = useState<{ id: number; text: string } | null>(null);
   const [corrSeedTicker, setCorrSeedTicker] = useState<{ id: number; symbol: string } | null>(null);
@@ -99,6 +102,7 @@ export default function App() {
   const [tickTime, setTickTime] = useState<string>('');
   const [commandError, setCommandError] = useState<string | null>(null);
   const activeValidationTokenRef = useRef<number>(0);
+  const lastPrefilledCommandRef = useRef<string | null>(null);
   const [quoteLoadState, setQuoteLoadState] = useState<
     Record<string, 'loading' | 'ready' | 'unavailable' | 'invalid'>
   >({});
@@ -333,15 +337,23 @@ export default function App() {
     if (!currentCommand.trim()) return;
 
     const rawCommand = currentCommand.trim();
-    setCurrentCommand('');
     setCommandError(null);
 
     const parsed = parseCommandLineInput(rawCommand);
     const executionToken = ++activeValidationTokenRef.current;
 
+    if (parsed.type === 'INVALID_COMMAND') {
+      setCommandError(parsed.error);
+      return;
+    }
+
     if (parsed.type === 'SCREEN') {
+      if (parsed.screen === 'ECO') {
+        setSelectedEcoCategory(null);
+      }
       setActiveScreen(parsed.screen);
       if (parsed.screen === 'ASK') {
+        setCurrentCommand('');
         setFocusAskQuorixSignal((n) => n + 1);
       }
       return;
@@ -351,10 +363,25 @@ export default function App() {
       const ticker = parsed.ticker.toUpperCase();
       const targetScreen = parsed.screen;
 
+      // Special handling for Economic Indicator: "ECO <CATEGORY>"
+      if (targetScreen === 'ECO') {
+        setSelectedEcoCategory(ticker);
+        setActiveScreen('ECO');
+        return;
+      }
+
+      // Special handling for Currencies screen: "CRNC <CURRENCY>"
+      if (targetScreen === 'CRNC') {
+        setSelectedCurrency(ticker);
+        setActiveScreen('CRNC');
+        return;
+      }
+
       // If ticker is already validly tracked or in tape, navigate immediately
       if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker) || stocks[ticker]) {
         setSelectedTicker(ticker);
         setActiveScreen(targetScreen);
+        setTickerCommandSubmissionSignal({ id: Date.now(), screen: targetScreen, ticker });
         if (targetScreen === 'CORR') {
           setCorrSeedTicker({ id: Date.now(), symbol: ticker });
         }
@@ -378,6 +405,7 @@ export default function App() {
           const resolvedSym = res.stock.symbol || ticker;
           setSelectedTicker(resolvedSym);
           setActiveScreen(targetScreen);
+          setTickerCommandSubmissionSignal({ id: Date.now(), screen: targetScreen, ticker: resolvedSym });
           if (targetScreen === 'CORR') {
             setCorrSeedTicker({ id: Date.now(), symbol: resolvedSym });
           }
@@ -394,6 +422,7 @@ export default function App() {
     }
 
     // Default: Conversational AI prompt
+    setCurrentCommand('');
     setActiveScreen('ASK');
     setPendingAiQuery({ id: Date.now(), text: rawCommand });
   };
@@ -405,6 +434,32 @@ export default function App() {
     }
   };
 
+  // Keep search input prepopulated when on NEWS HUB, GRAPH PRICE, HISTORICAL PRICING, INSTITUTIONAL ACTIVITY, POLYMARKET SCREENER, SECURITY ANALYTICS, or CURRENCIES with active ticker/currency
+  useEffect(() => {
+    if (activeScreen === 'NEWS' || activeScreen === 'GP' || activeScreen === 'HP' || activeScreen === 'INST' || activeScreen === 'POLY' || activeScreen === 'DES') {
+      const sym = (selectedTicker || '').trim().toUpperCase();
+      const prefix = activeScreen;
+      const cmd = sym ? `${prefix} ${sym}` : '';
+      lastPrefilledCommandRef.current = cmd;
+      setCurrentCommand(cmd);
+    } else if (activeScreen === 'CRNC') {
+      const code = (selectedCurrency || '').trim().toUpperCase();
+      const cmd = code ? `CRNC ${code}` : 'CRNC';
+      lastPrefilledCommandRef.current = cmd;
+      setCurrentCommand(cmd);
+    } else if (activeScreen === 'ECO') {
+      const cat = (selectedEcoCategory || '').trim().toUpperCase();
+      const cmd = cat ? `ECO ${cat}` : 'ECO';
+      lastPrefilledCommandRef.current = cmd;
+      setCurrentCommand(cmd);
+    } else {
+      if (lastPrefilledCommandRef.current !== null && currentCommand === lastPrefilledCommandRef.current) {
+        setCurrentCommand('');
+      }
+      lastPrefilledCommandRef.current = null;
+    }
+  }, [activeScreen, selectedTicker, selectedCurrency, selectedEcoCategory]);
+
   const handleSelectTicker = (ticker: string) => {
     const sym = normalizeTickerSymbol(ticker);
     if (!sym) return;
@@ -415,7 +470,7 @@ export default function App() {
     }
     setSelectedTicker(sym);
     fetchLiveQuote(sym, false, true);
-    if (!['GP', 'HP', 'DES', 'ANR', 'INST', 'NEWS'].includes(activeScreen)) {
+    if (!['GP', 'HP', 'DES', 'ANR', 'INST', 'NEWS', 'POLY'].includes(activeScreen)) {
       setActiveScreen('GP');
     }
   };
@@ -435,6 +490,7 @@ export default function App() {
       <Header
         currentCommand={currentCommand}
         onCommandChange={(val) => {
+          lastPrefilledCommandRef.current = null;
           setCurrentCommand(val);
           if (commandError) {
             setCommandError(null);
@@ -469,11 +525,14 @@ export default function App() {
           trackedTickers={trackedTickers}
           corrSeedTicker={corrSeedTicker}
           currencies={currencies}
+          selectedCurrency={selectedCurrency}
+          onSelectCurrency={setSelectedCurrency}
           economics={economics}
           fredMacroMetrics={fredMacroMetrics}
           fredReleases={fredReleases}
           fredEconomicsStatus={fredEconomicsStatus}
           fredCurrenciesStatus={fredCurrenciesStatus}
+          selectedEcoCategory={selectedEcoCategory}
           onRefreshEconomics={() => fetchFredEconomics(true)}
           onRefreshCurrencies={() => fetchFredCurrencies(true)}
           onExecuteCommand={(cmd) => {
@@ -482,12 +541,15 @@ export default function App() {
           onSelectScreen={handleSelectScreen}
           onSelectTicker={(ticker) => {
             handleSelectTicker(ticker);
-            setActiveScreen('GP');
+            if (activeScreen !== 'NEWS' && activeScreen !== 'INST' && activeScreen !== 'POLY' && activeScreen !== 'DES') {
+              setActiveScreen('GP');
+            }
           }}
           pendingAiQuery={pendingAiQuery}
           onClearPendingAiQuery={() => setPendingAiQuery(null)}
           askPrefillPrompt={askPrefillPrompt}
           onClearAskPrefillPrompt={() => setAskPrefillPrompt(null)}
+          tickerCommandSubmissionSignal={tickerCommandSubmissionSignal}
           focusAskQuorixSignal={focusAskQuorixSignal}
           onTickTimeChange={setTickTime}
         />

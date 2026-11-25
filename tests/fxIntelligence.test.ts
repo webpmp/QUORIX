@@ -4,14 +4,17 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   CENTRAL_BANK_DIRECTORY,
+  CURRENCY_ALIAS_MAP,
   MAJOR_CURRENCIES,
   buildCurrencyCrossRates,
   buildCurrencyPerformanceRows,
   computeCurrencyPeriodChanges,
   computeHistoricalFxTrend,
   deriveCentralBankPolicySummary,
+  normalizeCurrencyCode,
   parseBisPolicyCsv,
 } from '../src/utils/fxAnalytics';
+import { parseCommandLineInput } from '../src/utils/commandParser';
 import { CurrenciesScreen } from '../src/components/CurrenciesScreen';
 import type { FxIntelligencePayload, FxPairHistory } from '../src/types';
 
@@ -349,5 +352,182 @@ describe('CurrenciesScreen SSR Rendering', () => {
     assert.ok(html.includes('FRED_API_KEY Required'));
     assert.ok(html.includes('3.875%'));
     assert.ok(html.includes('BIS WS_CBPOL'));
+  });
+
+  it('normalizes currency codes and aliases correctly', () => {
+    assert.equal(normalizeCurrencyCode('GBP'), 'GBP');
+    assert.equal(normalizeCurrencyCode('gbp'), 'GBP');
+    assert.equal(normalizeCurrencyCode('POUND'), 'GBP');
+    assert.equal(normalizeCurrencyCode('BRITISH POUND'), 'GBP');
+    assert.equal(normalizeCurrencyCode('EURO'), 'EUR');
+    assert.equal(normalizeCurrencyCode('EUR'), 'EUR');
+    assert.equal(normalizeCurrencyCode('YEN'), 'JPY');
+    assert.equal(normalizeCurrencyCode('JPY'), 'JPY');
+    assert.equal(normalizeCurrencyCode('LOONIE'), 'CAD');
+    assert.equal(normalizeCurrencyCode('CAD'), 'CAD');
+    assert.equal(normalizeCurrencyCode('FRANC'), 'CHF');
+    assert.equal(normalizeCurrencyCode('SWISS FRANC'), 'CHF');
+    assert.equal(normalizeCurrencyCode('AUD'), 'AUD');
+    assert.equal(normalizeCurrencyCode('AUSTIE'), null);
+    assert.equal(normalizeCurrencyCode('AUSSIE'), 'AUD');
+    assert.equal(normalizeCurrencyCode('AUSTRALIAN DOLLAR'), 'AUD');
+    assert.equal(normalizeCurrencyCode('DOLLAR'), 'USD');
+    assert.equal(normalizeCurrencyCode('INVALID_CODE'), null);
+  });
+
+  it('parses CRNC commands with tickers and aliases', () => {
+    assert.deepEqual(parseCommandLineInput('CRNC'), {
+      type: 'SCREEN',
+      screen: 'CRNC',
+    });
+    assert.deepEqual(parseCommandLineInput('CRNC GBP'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'GBP',
+      screen: 'CRNC',
+    });
+    assert.deepEqual(parseCommandLineInput('CRNC POUND'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'GBP',
+      screen: 'CRNC',
+    });
+    assert.deepEqual(parseCommandLineInput('CRNC BRITISH POUND'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'GBP',
+      screen: 'CRNC',
+    });
+    assert.deepEqual(parseCommandLineInput('CRNC EURO'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'EUR',
+      screen: 'CRNC',
+    });
+    assert.deepEqual(parseCommandLineInput('CRNC YEN'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'JPY',
+      screen: 'CRNC',
+    });
+    assert.deepEqual(parseCommandLineInput('CRNC LOONIE'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'CAD',
+      screen: 'CRNC',
+    });
+    assert.deepEqual(parseCommandLineInput('CRNC FRANC'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'CHF',
+      screen: 'CRNC',
+    });
+    assert.deepEqual(parseCommandLineInput('EUR CRNC'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'EUR',
+      screen: 'CRNC',
+    });
+    // Universal cross-screen commands
+    assert.deepEqual(parseCommandLineInput('NEWS AAPL'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'AAPL',
+      screen: 'NEWS',
+    });
+    assert.deepEqual(parseCommandLineInput('NEWS GOOG'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'GOOG',
+      screen: 'NEWS',
+    });
+    assert.deepEqual(parseCommandLineInput('GRAPH MSFT'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'MSFT',
+      screen: 'GP',
+    });
+    assert.deepEqual(parseCommandLineInput('GRAPH NVDA'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'NVDA',
+      screen: 'GP',
+    });
+    assert.deepEqual(parseCommandLineInput('GP MSFT'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'MSFT',
+      screen: 'GP',
+    });
+    assert.deepEqual(parseCommandLineInput('INSTITUTIONAL NVDA'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'NVDA',
+      screen: 'INST',
+    });
+    assert.deepEqual(parseCommandLineInput('INSTITUTIONAL AAPL'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'AAPL',
+      screen: 'INST',
+    });
+    assert.deepEqual(parseCommandLineInput('INST NVDA'), {
+      type: 'TICKER_SCREEN',
+      ticker: 'NVDA',
+      screen: 'INST',
+    });
+  });
+
+  it('highlights selected currency with #38bdf8 accents across CurrenciesScreen sections', () => {
+    const pairHistories = makeSamplePairHistories();
+    const centralBanks = [
+      deriveCentralBankPolicySummary(
+        [{ date: '2026-11-17', value: 4.75 }],
+        CENTRAL_BANK_DIRECTORY[2], // Bank of England (GBP)
+        'BIS WS_CBPOL',
+        'D.GB'
+      ),
+      deriveCentralBankPolicySummary(
+        [{ date: '2026-11-17', value: 3.25 }],
+        CENTRAL_BANK_DIRECTORY[1], // ECB (EUR)
+        'BIS WS_CBPOL',
+        'D.XM'
+      ),
+    ];
+
+    const payload: FxIntelligencePayload = {
+      success: true,
+      requiresKey: false,
+      error: null,
+      fetchedAt: '2026-11-17T16:00:00.000Z',
+      currencies: [
+        {
+          pair: 'GBP/USD',
+          rate: 1.2800,
+          prevRate: 1.2700,
+          change: 0.0100,
+          date: '2026-11-13',
+          seriesId: 'DEXUSUK',
+        },
+        {
+          pair: 'EUR/USD',
+          rate: 1.1000,
+          prevRate: 1.0900,
+          change: 0.0100,
+          date: '2026-11-13',
+          seriesId: 'DEXUSEU',
+        },
+      ],
+      pairHistories,
+      usdIndex: null,
+      centralBanks,
+      centralBanksFetchedAt: '2026-11-17T16:00:00.000Z',
+      centralBanksSource: 'BIS WS_CBPOL',
+    };
+
+    const html = renderToStaticMarkup(
+      React.createElement(CurrenciesScreen, {
+        currencies: payload.currencies,
+        initialIntelligence: payload,
+        disableAutoFetch: true,
+        selectedCurrency: 'GBP',
+      })
+    );
+
+    // Header badge
+    assert.ok(html.includes('HIGHLIGHTED:'));
+    assert.ok(html.includes('[GBP]'));
+    assert.ok(html.includes('British Pound'));
+
+    // Visual accent class #38bdf8 in cards / tables / cross rates
+    assert.ok(html.includes('#38bdf8'));
+    assert.ok(html.includes('ACTIVE'));
+    assert.ok(html.includes('SELECTED'));
+    assert.ok(html.includes('MATCH'));
   });
 });

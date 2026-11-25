@@ -39,6 +39,8 @@ export interface FredCurrenciesStatus {
 
 export interface CurrenciesScreenProps {
   currencies: CurrencyPair[];
+  selectedCurrency?: string | null;
+  onSelectCurrency?: (code: string) => void;
   fredCurrenciesStatus?: FredCurrenciesStatus;
   onRefreshCurrencies?: () => void;
   /** Optional preloaded payload (used for deterministic testing / SSR). */
@@ -465,6 +467,8 @@ const HistoricalFxChart: React.FC<HistoricalFxChartProps> = ({
 
 export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
   currencies,
+  selectedCurrency,
+  onSelectCurrency,
   fredCurrenciesStatus,
   onRefreshCurrencies,
   initialIntelligence = null,
@@ -486,6 +490,20 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
     base: MajorCurrencyCode;
     quote: MajorCurrencyCode;
   } | null>(null);
+
+  // Sync selectedPairId when selectedCurrency changes
+  useEffect(() => {
+    if (!selectedCurrency) return;
+    const code = selectedCurrency.toUpperCase();
+    if (code === 'USD') {
+      setSelectedPairId('USD_INDEX');
+    } else {
+      const meta = FX_CURRENCY_META[code as MajorCurrencyCode];
+      if (meta?.pairLabel) {
+        setSelectedPairId(meta.pairLabel);
+      }
+    }
+  }, [selectedCurrency]);
 
   const fetchIntelligence = useCallback(async (force = false) => {
     setLoading(true);
@@ -634,6 +652,9 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
     : null;
 
   const handleSelectOverviewCurrency = (row: CurrencyPerformanceRow) => {
+    if (onSelectCurrency) {
+      onSelectCurrency(row.code);
+    }
     if (row.code === 'USD') {
       setSelectedPairId('USD_INDEX');
     } else {
@@ -652,17 +673,35 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
     );
   };
 
+  const activeCurrencyCode = selectedCurrency ? selectedCurrency.toUpperCase() : null;
+  const activeCurrencyMeta = activeCurrencyCode
+    ? FX_CURRENCY_META[activeCurrencyCode as MajorCurrencyCode] || null
+    : null;
+
   return (
     <div className="space-y-4 animate-fade-in select-none font-mono">
       {/* TOP WORKSPACE HEADER */}
       <div className="bg-[#050505] border border-[#333] rounded px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <span className="text-white text-md font-bold uppercase tracking-wider block">
-            CURRENCIES (FX)
-          </span>
-          <div className="text-xs text-zinc-300 mt-0.5">
-            FEDERAL RESERVE H.10 DAILY FX OBSERVATIONS · BIS OFFICIAL POLICY RATES
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <span className="text-white text-md font-bold uppercase tracking-wider block">
+              CURRENCIES (FX)
+            </span>
+            <div className="text-xs text-zinc-300 mt-0.5">
+              FEDERAL RESERVE H.10 DAILY FX OBSERVATIONS · BIS OFFICIAL POLICY RATES
+            </div>
           </div>
+          {activeCurrencyCode && (
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-[#38bdf8]/10 border border-[#38bdf8]/50 text-xs">
+              <span className="text-zinc-400 uppercase font-bold text-xs">HIGHLIGHTED:</span>
+              <span className="text-[#38bdf8] font-extrabold tracking-wide">
+                [{activeCurrencyCode}]
+              </span>
+              <span className="text-zinc-200 font-semibold">
+                {activeCurrencyMeta?.name || activeCurrencyCode}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3 text-xs text-zinc-300">
           <span className="tabular-nums">
@@ -757,6 +796,7 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
               const isSelectedForChart =
                 (row.code === 'USD' && selectedPairId === 'USD_INDEX') ||
                 (row.code !== 'USD' && selectedPairId === row.pairLabel);
+              const isCurrencyHighlighted = activeCurrencyCode === row.code;
               const dailyPositive = row.dailyPct !== null && row.dailyPct > 0;
               const dailyNegative = row.dailyPct !== null && row.dailyPct < 0;
 
@@ -765,34 +805,53 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                   key={row.code}
                   type="button"
                   onClick={() => handleSelectOverviewCurrency(row)}
-                  className={`text-left bg-[#080808] border rounded p-3 transition-colors cursor-pointer ${
-                    isSelectedForChart
+                  className={`text-left border rounded p-3 transition-colors cursor-pointer relative ${
+                    isCurrencyHighlighted
+                      ? 'border-[#38bdf8] bg-[#38bdf8]/10 shadow-[0_0_12px_rgba(56,189,248,0.25)] ring-1 ring-[#38bdf8]/50'
+                      : isSelectedForChart
                       ? 'border-[#ff9900]/70 bg-[#0f0c06]'
-                      : 'border-[#3a3a3a] hover:border-[#444] hover:bg-[#0d0d0d]'
+                      : 'bg-[#080808] border-[#3a3a3a] hover:border-[#444] hover:bg-[#0d0d0d]'
                   }`}
                 >
+                  {isCurrencyHighlighted && (
+                    <span className="absolute top-1.5 right-1.5 text-xs font-extrabold uppercase px-1.5 py-0.2 rounded bg-[#38bdf8] text-black">
+                      ACTIVE
+                    </span>
+                  )}
                   <div className="flex items-start justify-between gap-1.5 mb-1">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-white font-bold text-xs">{row.code}</span>
+                        <span
+                          className={`font-bold text-xs ${
+                            isCurrencyHighlighted ? 'text-[#38bdf8]' : 'text-white'
+                          }`}
+                        >
+                          {row.code}
+                        </span>
                         <span className="text-xs text-zinc-300 truncate">{row.name}</span>
                       </div>
-                      <div className="text-xs text-[#3498db] font-semibold uppercase tracking-wide mt-0.5">
+                      <div
+                        className={`text-xs font-semibold uppercase tracking-wide mt-0.5 ${
+                          isCurrencyHighlighted ? 'text-[#38bdf8]' : 'text-[#3498db]'
+                        }`}
+                      >
                         {row.pairLabel}
                       </div>
                     </div>
-                    <span
-                      className={`shrink-0 mt-0.5 ${getValueColorClass(row.dailyPct)}`}
-                      aria-hidden="true"
-                    >
-                      {dailyPositive ? (
-                        <TrendingUp size={13} />
-                      ) : dailyNegative ? (
-                        <TrendingDown size={13} />
-                      ) : (
-                        <Minus size={13} />
-                      )}
-                    </span>
+                    {!isCurrencyHighlighted && (
+                      <span
+                        className={`shrink-0 mt-0.5 ${getValueColorClass(row.dailyPct)}`}
+                        aria-hidden="true"
+                      >
+                        {dailyPositive ? (
+                          <TrendingUp size={13} />
+                        ) : dailyNegative ? (
+                          <TrendingDown size={13} />
+                        ) : (
+                          <Minus size={13} />
+                        )}
+                      </span>
+                    )}
                   </div>
 
                   <div className="text-base font-bold text-white tabular-nums tracking-tight my-1.5">
@@ -914,19 +973,41 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                 const barWidthPct =
                   score !== null ? Math.min(100, (Math.abs(score) / maxAbsTrendScore) * 100) : 0;
                 const isPosTrend = score !== null && score >= 0;
+                const isCurrencyHighlighted = activeCurrencyCode === row.code;
 
                 return (
                   <tr
                     key={row.code}
-                    className="border-b border-[#2e2e2e] hover:bg-[#101010] text-xs transition-colors"
+                    className={`border-b border-[#2e2e2e] text-xs transition-colors ${
+                      isCurrencyHighlighted
+                        ? 'bg-[#38bdf8]/10 border-l-2 border-l-[#38bdf8]'
+                        : 'hover:bg-[#101010]'
+                    }`}
                   >
-                    <td className="py-2.5 pr-3">
+                    <td className="py-2.5 pr-3 pl-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-[#3498db] font-bold w-8">{row.code}</span>
-                        <span className="text-zinc-300">{row.name}</span>
+                        <span
+                          className={`font-bold w-8 ${
+                            isCurrencyHighlighted ? 'text-[#38bdf8]' : 'text-[#3498db]'
+                          }`}
+                        >
+                          {row.code}
+                        </span>
+                        <span
+                          className={
+                            isCurrencyHighlighted ? 'text-white font-semibold' : 'text-zinc-300'
+                          }
+                        >
+                          {row.name}
+                        </span>
                         <span className="text-xs text-zinc-300 hidden sm:inline">
                           ({row.pairLabel})
                         </span>
+                        {isCurrencyHighlighted && (
+                          <span className="text-xs font-extrabold uppercase px-1 py-0.2 rounded bg-[#38bdf8] text-black">
+                            SELECTED
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td
@@ -1239,12 +1320,32 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                     typeof curr.prevRate === 'number' && curr.prevRate > 0
                       ? ((curr.rate - curr.prevRate) / curr.prevRate) * 100
                       : null;
+                  const isPairHighlighted = Boolean(
+                    activeCurrencyCode &&
+                      (curr.pair.startsWith(activeCurrencyCode) ||
+                        curr.pair.endsWith(activeCurrencyCode))
+                  );
                   return (
                     <tr
                       key={curr.seriesId || idx}
-                      className="border-b border-[#2e2e2e] hover:bg-[#101010] text-xs font-mono tabular-nums"
+                      className={`border-b border-[#2e2e2e] text-xs font-mono tabular-nums transition-colors ${
+                        isPairHighlighted
+                          ? 'bg-[#38bdf8]/10 border-l-2 border-l-[#38bdf8]'
+                          : 'hover:bg-[#101010]'
+                      }`}
                     >
-                      <td className="py-2.5 text-[#3498db] font-bold">{curr.pair}</td>
+                      <td
+                        className={`py-2.5 pl-2 font-bold ${
+                          isPairHighlighted ? 'text-[#38bdf8]' : 'text-[#3498db]'
+                        }`}
+                      >
+                        {curr.pair}
+                        {isPairHighlighted && (
+                          <span className="ml-1.5 text-xs font-extrabold uppercase px-1 py-0.2 rounded bg-[#38bdf8] text-black">
+                            MATCH
+                          </span>
+                        )}
+                      </td>
                       <td className="text-zinc-300 text-xs">{curr.seriesId || '—'}</td>
                       <td className="text-right font-bold text-white">{curr.rate.toFixed(4)}</td>
                       <td className="text-right text-zinc-300">
@@ -1327,58 +1428,83 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
             <thead>
               <tr className="border-b border-[#333] text-xs uppercase">
                 <th className="py-2 px-2 pr-3 text-left text-zinc-300 font-bold whitespace-nowrap">BASE \ QUOTE</th>
-                {crossMatrix.currencies.map((quote) => (
-                  <th
-                    key={quote}
-                    className={`py-2 px-2 text-right font-bold transition-colors ${
-                      hoveredCross?.quote === quote ? 'text-[#ff9900]' : 'text-[#3498db]'
-                    }`}
-                  >
-                    {quote}
-                  </th>
-                ))}
+                {crossMatrix.currencies.map((quote) => {
+                  const isColHighlighted = activeCurrencyCode === quote;
+                  return (
+                    <th
+                      key={quote}
+                      className={`py-2 px-2 text-right font-bold transition-colors ${
+                        hoveredCross?.quote === quote
+                          ? 'text-[#ff9900]'
+                          : isColHighlighted
+                          ? 'text-[#38bdf8] bg-[#38bdf8]/10'
+                          : 'text-[#3498db]'
+                      }`}
+                    >
+                      {quote}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
-              {crossMatrix.currencies.map((base) => (
-                <tr key={base} className="border-b border-[#2e2e2e]">
-                  <th
-                    scope="row"
-                    className={`py-2.5 px-2 text-left text-xs font-bold transition-colors ${
-                      hoveredCross?.base === base ? 'text-[#ff9900]' : 'text-[#3498db]'
+              {crossMatrix.currencies.map((base) => {
+                const isRowHighlighted = activeCurrencyCode === base;
+                return (
+                  <tr
+                    key={base}
+                    className={`border-b border-[#2e2e2e] ${
+                      isRowHighlighted ? 'bg-[#38bdf8]/5' : ''
                     }`}
                   >
-                    {base}
-                  </th>
-                  {crossMatrix.currencies.map((quote) => {
-                    const cell = crossMatrix.rows[base][quote];
-                    const isHovered =
-                      hoveredCross?.base === base && hoveredCross?.quote === quote;
-                    const isAxisHighlighted =
-                      hoveredCross &&
-                      (hoveredCross.base === base || hoveredCross.quote === quote);
+                    <th
+                      scope="row"
+                      className={`py-2.5 px-2 text-left text-xs font-bold transition-colors ${
+                        hoveredCross?.base === base
+                          ? 'text-[#ff9900]'
+                          : isRowHighlighted
+                          ? 'text-[#38bdf8] bg-[#38bdf8]/10'
+                          : 'text-[#3498db]'
+                      }`}
+                    >
+                      {base}
+                    </th>
+                    {crossMatrix.currencies.map((quote) => {
+                      const cell = crossMatrix.rows[base][quote];
+                      const isHovered =
+                        hoveredCross?.base === base && hoveredCross?.quote === quote;
+                      const isAxisHighlighted =
+                        hoveredCross &&
+                        (hoveredCross.base === base || hoveredCross.quote === quote);
+                      const isCellCurrencyHighlighted =
+                        !hoveredCross &&
+                        activeCurrencyCode &&
+                        (activeCurrencyCode === base || activeCurrencyCode === quote);
 
-                    return (
-                      <td
-                        key={`${base}-${quote}`}
-                        onMouseEnter={() => setHoveredCross({ base, quote })}
-                        onMouseLeave={() => setHoveredCross(null)}
-                        className={`py-2.5 px-2 text-right text-xs tabular-nums transition-colors ${
-                          cell.isDiagonal
-                            ? 'text-zinc-300 bg-[#0a0a0a]'
-                            : isHovered
-                            ? 'bg-[#1a1306] text-[#ff9900] font-bold'
-                            : isAxisHighlighted
-                            ? 'bg-[#0e0e0e] text-white'
-                            : 'text-zinc-200 hover:bg-[#111]'
-                        }`}
-                      >
-                        {cell.rate !== null ? cell.rate.toFixed(cell.decimals) : '—'}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                      return (
+                        <td
+                          key={`${base}-${quote}`}
+                          onMouseEnter={() => setHoveredCross({ base, quote })}
+                          onMouseLeave={() => setHoveredCross(null)}
+                          className={`py-2.5 px-2 text-right text-xs tabular-nums transition-colors ${
+                            cell.isDiagonal
+                              ? 'text-zinc-300 bg-[#0a0a0a]'
+                              : isHovered
+                              ? 'bg-[#1a1306] text-[#ff9900] font-bold'
+                              : isAxisHighlighted
+                              ? 'bg-[#0e0e0e] text-white'
+                              : isCellCurrencyHighlighted
+                              ? 'bg-[#38bdf8]/5 text-zinc-100 hover:bg-[#38bdf8]/15'
+                              : 'text-zinc-200 hover:bg-[#111]'
+                          }`}
+                        >
+                          {cell.rate !== null ? cell.rate.toFixed(cell.decimals) : '—'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1465,17 +1591,39 @@ export const CurrenciesScreen: React.FC<CurrenciesScreenProps> = ({
                       : cb.lastDecisionBps !== null && cb.lastDecisionBps < 0
                       ? 'text-[#3498db]'
                       : 'text-zinc-300';
+                  const isBankHighlighted = activeCurrencyCode === cb.currency;
 
                   return (
                     <tr
                       key={cb.currency}
-                      className="border-b border-[#2e2e2e] hover:bg-[#101010] text-xs tabular-nums"
+                      className={`border-b border-[#2e2e2e] text-xs tabular-nums transition-colors ${
+                        isBankHighlighted
+                          ? 'bg-[#38bdf8]/10 border-l-2 border-l-[#38bdf8]'
+                          : 'hover:bg-[#101010]'
+                      }`}
                     >
-                      <td className="py-2.5 pr-3">
+                      <td className="py-2.5 pr-3 pl-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-[#3498db] font-bold w-8">{cb.currency}</span>
+                          <span
+                            className={`font-bold w-8 ${
+                              isBankHighlighted ? 'text-[#38bdf8]' : 'text-[#3498db]'
+                            }`}
+                          >
+                            {cb.currency}
+                          </span>
                           <div>
-                            <div className="text-white font-semibold">{cb.centralBank}</div>
+                            <div
+                              className={`font-semibold ${
+                                isBankHighlighted ? 'text-white' : 'text-white'
+                              }`}
+                            >
+                              {cb.centralBank}
+                              {isBankHighlighted && (
+                                <span className="ml-1.5 text-xs font-extrabold uppercase px-1 py-0.2 rounded bg-[#38bdf8] text-black">
+                                  SELECTED
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs text-zinc-300">{cb.rateLabel}</div>
                           </div>
                         </div>

@@ -31,6 +31,7 @@ import {
   subscribePaywallUpdates,
   syncNewsPaywallStatuses,
 } from '../utils/newsPaywall';
+import { normalizeEcoCategory, ECO_RELEASE_CATEGORIES } from '../utils/ecoReleaseFilter';
 import { Send, AlertCircle, RefreshCw, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 
 interface WorkspaceProps {
@@ -40,11 +41,14 @@ interface WorkspaceProps {
   trackedTickers?: string[];
   corrSeedTicker?: { id: number; symbol: string } | null;
   currencies: CurrencyPair[];
+  selectedCurrency?: string | null;
+  onSelectCurrency?: (code: string) => void;
   economics: EconomicIndicator[];
   fredMacroMetrics?: FredMacroMetric[];
   fredReleases?: FredReleaseDate[];
   fredEconomicsStatus?: FredFeedStatus;
   fredCurrenciesStatus?: FredFeedStatus;
+  selectedEcoCategory?: string | null;
   onRefreshEconomics?: () => void;
   onRefreshCurrencies?: () => void;
   onExecuteCommand: (cmd: string) => void;
@@ -55,6 +59,7 @@ interface WorkspaceProps {
   askPrefillPrompt?: { id: number; text: string } | null;
   onClearAskPrefillPrompt?: () => void;
   focusAskQuorixSignal?: number;
+  tickerCommandSubmissionSignal?: { id: number; screen: string; ticker: string } | null;
   onTickTimeChange?: (val: string) => void;
   initialHpEarningsDates?: Record<string, string[]>;
 }
@@ -223,6 +228,42 @@ function cleanHeadline(title: string): string {
   return cleaned;
 }
 
+function cleanSummary(rawSummary?: string, headline?: string): string {
+  if (!rawSummary || typeof rawSummary !== 'string') return '';
+  // 1. Strip HTML tags
+  let cleaned = rawSummary.replace(/<[^>]*>/g, ' ');
+  // 2. Decode common HTML entities
+  cleaned = cleaned
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, dec) => {
+      try {
+        return String.fromCharCode(parseInt(dec, 10));
+      } catch {
+        return '';
+      }
+    });
+  // 3. Normalize whitespace and trim
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return '';
+
+  // 4. Do not display if it merely repeats the headline
+  if (headline) {
+    const normSummary = cleaned.toLowerCase().replace(/[^\w\s]/g, '').trim();
+    const normHeadline = headline.toLowerCase().replace(/[^\w\s]/g, '').trim();
+    if (normSummary === normHeadline || (normHeadline.length > 15 && normSummary.startsWith(normHeadline))) {
+      return '';
+    }
+  }
+
+  return cleaned;
+}
+
 function getRelatedTickers(title: string, content: string, stocks: Record<string, any>): string[] {
   const text = ((title || '') + ' ' + (content || '')).toUpperCase();
   const found = new Set<string>();
@@ -313,11 +354,14 @@ export default function Workspace({
   trackedTickers = [],
   corrSeedTicker = null,
   currencies,
+  selectedCurrency,
+  onSelectCurrency,
   economics,
   fredMacroMetrics = [],
   fredReleases = [],
   fredEconomicsStatus,
   fredCurrenciesStatus,
+  selectedEcoCategory = null,
   onRefreshEconomics,
   onRefreshCurrencies,
   onExecuteCommand,
@@ -327,6 +371,7 @@ export default function Workspace({
   onClearPendingAiQuery,
   askPrefillPrompt,
   onClearAskPrefillPrompt,
+  tickerCommandSubmissionSignal,
   focusAskQuorixSignal = 0,
   onTickTimeChange,
   initialHpEarningsDates,
@@ -336,8 +381,13 @@ export default function Workspace({
   const [userInput, setUserInput] = useState(() => askPrefillPrompt?.text || '');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [examplesExpanded, setExamplesExpanded] = useState(true);
-  const [releaseSearch, setReleaseSearch] = useState('');
+  const [releaseSearch, setReleaseSearch] = useState(() => selectedEcoCategory || '');
   const [pressReleasesOnly, setPressReleasesOnly] = useState(false);
+
+  // Synchronize ECO command parameter into the RELEASE table filter input
+  useEffect(() => {
+    setReleaseSearch(selectedEcoCategory ? selectedEcoCategory.toUpperCase() : '');
+  }, [selectedEcoCategory]);
   const [bwriteFontIdx, setBwriteFontIdx] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('quorix_ask_font_size_idx') || localStorage.getItem('quorix_bwrite_font_size_idx');
@@ -1226,6 +1276,7 @@ export default function Workspace({
                     const cleanedTitle = cleanHeadline(item.title);
                     const sourceLabel = formatNewsSourceLabel(item.source);
                     const paywalled = isNewsItemPaywalled(item);
+                    const cleanedItemSummary = cleanSummary(item.content, cleanedTitle);
                     return (
                       <div key={item.id || idx} className="bg-[#010101] border border-[#3a3a3a] hover:border-[#333] p-2.5 rounded flex items-start justify-between gap-3 text-xs/relaxed transition-all font-mono">
                         <div className="min-w-0 flex-1 leading-snug break-words">
@@ -1256,6 +1307,11 @@ export default function Workspace({
                               {' '}
                               <NewsPaywallBadge className="ml-1" />
                             </>
+                          )}
+                          {cleanedItemSummary && (
+                            <p className="text-xs text-zinc-300 font-normal font-sans mt-1 line-clamp-2">
+                              {cleanedItemSummary}
+                            </p>
                           )}
                         </div>
                         {displayTime && (
@@ -1680,6 +1736,8 @@ export default function Workspace({
       {activeScreen === 'CRNC' && (
         <CurrenciesScreen
           currencies={currencies}
+          selectedCurrency={selectedCurrency}
+          onSelectCurrency={onSelectCurrency}
           fredCurrenciesStatus={fredCurrenciesStatus}
           onRefreshCurrencies={onRefreshCurrencies}
         />
@@ -1809,9 +1867,17 @@ export default function Workspace({
                 {/* FRED Release Calendar */}
                 {(() => {
                   const normalizedQuery = releaseSearch.trim().toLowerCase();
+                  const matchedCategory = normalizeEcoCategory(releaseSearch);
                   const filteredReleases = fredReleases.filter((rel) => {
                     if (pressReleasesOnly && !rel.pressRelease) return false;
                     if (!normalizedQuery) return true;
+                    // If the input matches a recognized ECO category, also match its specific release IDs & keywords
+                    if (matchedCategory) {
+                      const meta = ECO_RELEASE_CATEGORIES[matchedCategory];
+                      if (meta.releaseIds.includes(rel.releaseId)) return true;
+                      const lowerName = rel.releaseName.toLowerCase();
+                      if (meta.terms.some((term) => lowerName.includes(term))) return true;
+                    }
                     return (
                       rel.releaseName.toLowerCase().includes(normalizedQuery) ||
                       rel.date.includes(normalizedQuery) ||
@@ -1838,7 +1904,14 @@ export default function Workspace({
                           </div>
                           <button
                             type="button"
-                            onClick={() => setPressReleasesOnly((prev) => !prev)}
+                            onClick={() => {
+                              if (pressReleasesOnly) {
+                                setPressReleasesOnly(false);
+                              } else {
+                                setReleaseSearch('');
+                                setPressReleasesOnly(false);
+                              }
+                            }}
                             className={`px-2 py-1 rounded border text-xs font-bold uppercase transition-colors cursor-pointer ${
                               pressReleasesOnly
                                 ? 'border-[#ff9900] bg-[#ff9900]/15 text-[#ff9900]'
@@ -2218,6 +2291,18 @@ export default function Workspace({
       {activeScreen === 'POLY' && (
         <PolymarketScreen 
           stocks={stocks}
+          selectedTicker={selectedTicker}
+          onSelectTicker={onSelectTicker}
+          onResetTicker={() => {
+            if (onSelectTicker) {
+              onSelectTicker('');
+            }
+          }}
+          submissionSignal={
+            tickerCommandSubmissionSignal?.screen === 'POLY'
+              ? tickerCommandSubmissionSignal
+              : null
+          }
         />
       )}
 

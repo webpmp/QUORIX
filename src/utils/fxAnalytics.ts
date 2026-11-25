@@ -18,6 +18,83 @@ export const MAJOR_CURRENCIES: readonly MajorCurrencyCode[] = [
   'CAD',
 ] as const;
 
+/** Canonical map of currency aliases, names, and nicknames to canonical ISO 4217 code. */
+export const CURRENCY_ALIAS_MAP: Record<string, MajorCurrencyCode> = {
+  // USD
+  USD: 'USD',
+  'US DOLLAR': 'USD',
+  'U.S. DOLLAR': 'USD',
+  DOLLAR: 'USD',
+  DOLLARS: 'USD',
+  GREENBACK: 'USD',
+  BUCKS: 'USD',
+
+  // EUR
+  EUR: 'EUR',
+  EURO: 'EUR',
+  EUROS: 'EUR',
+
+  // GBP
+  GBP: 'GBP',
+  'BRITISH POUND': 'GBP',
+  'GREAT BRITISH POUND': 'GBP',
+  POUND: 'GBP',
+  POUNDS: 'GBP',
+  STERLING: 'GBP',
+  CABLE: 'GBP',
+  QUID: 'GBP',
+
+  // JPY
+  JPY: 'JPY',
+  'JAPANESE YEN': 'JPY',
+  YEN: 'JPY',
+
+  // AUD
+  AUD: 'AUD',
+  'AUSTRALIAN DOLLAR': 'AUD',
+  AUSSIE: 'AUD',
+
+  // CAD
+  CAD: 'CAD',
+  'CANADIAN DOLLAR': 'CAD',
+  LOONIE: 'CAD',
+
+  // CHF (Swiss Franc - mapped to CHF / handled gracefully)
+  CHF: 'CHF' as MajorCurrencyCode,
+  'SWISS FRANC': 'CHF' as MajorCurrencyCode,
+  FRANC: 'CHF' as MajorCurrencyCode,
+  SWISSIE: 'CHF' as MajorCurrencyCode,
+
+  // NZD (New Zealand Dollar - mapped to NZD / handled gracefully)
+  NZD: 'NZD' as MajorCurrencyCode,
+  'NEW ZEALAND DOLLAR': 'NZD' as MajorCurrencyCode,
+  KIWI: 'NZD' as MajorCurrencyCode,
+};
+
+/**
+ * Normalizes user input into a canonical ISO 4217 3-letter currency code.
+ * Returns null if unrecognized.
+ */
+export function normalizeCurrencyCode(input: string): string | null {
+  if (!input) return null;
+  const cleaned = input
+    .toUpperCase()
+    .replace(/[()]/g, ' ')
+    .replace(/[^A-Z0-9\s]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  if (!cleaned) return null;
+  if (CURRENCY_ALIAS_MAP[cleaned]) {
+    return CURRENCY_ALIAS_MAP[cleaned];
+  }
+  // Check if it's already an ISO code in uppercase
+  if (/^[A-Z]{3}$/.test(cleaned)) {
+    return cleaned;
+  }
+  return null;
+}
+
 export interface FxCurrencyMetadata {
   code: MajorCurrencyCode;
   name: string;

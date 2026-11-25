@@ -51,6 +51,7 @@ import {
   type EnrichedPortfolioPosition,
 } from '../utils/portfolioRiskEngine';
 import { PortfolioManagerPanel, type PortfolioManagerTab } from './PortfolioManagerPanel';
+import TerminalSelect from './TerminalSelect';
 import PortfolioGlossaryModal, { type PrmGlossaryTermId } from './PortfolioGlossaryModal';
 import {
   IndustryAllocationPieChart,
@@ -591,20 +592,21 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
         <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-[#3a3a3a] pb-2.5">
           {activePortfolio && (
             <div className="flex items-center gap-1.5">
-              <select
+              <TerminalSelect
                 aria-label="Select portfolio"
+                sizeVariant="base"
                 value={activePortfolio.id}
                 onChange={(e) =>
                   setStore((prev) => ({ ...prev, activePortfolioId: e.target.value }))
                 }
-                className="bg-black border border-[#333] hover:border-[#ff9900] rounded px-2 py-1 text-xs text-zinc-100 font-bold outline-none cursor-pointer"
+                className="text-zinc-100 font-bold max-w-[220px] sm:max-w-xs truncate"
               >
                 {store.portfolios.map((pf) => (
                   <option key={pf.id} value={pf.id}>
                     {pf.name} ({pf.holdings.length})
                   </option>
                 ))}
-              </select>
+              </TerminalSelect>
             </div>
           )}
 
@@ -2366,20 +2368,21 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         <label className="block text-xs text-zinc-300 uppercase mb-1">
                           Target Sector
                         </label>
-                        <select
+                        <TerminalSelect
                           value={customSectorName}
                           onChange={(e) => {
                             setCustomSectorName(e.target.value);
                             setSelectedScenarioId('custom-sector');
                           }}
-                          className="w-full bg-[#080808] border border-[#333] rounded px-2 py-1.5 text-xs text-zinc-100 outline-none"
+                          containerClassName="relative block w-full"
+                          className="w-full text-zinc-100"
                         >
                           {analysis.sectorExposure.sectors.map((s) => (
                             <option key={s.sector} value={s.sector}>
                               {s.sector} ({s.portfolioWeightPct.toFixed(1)}%)
                             </option>
                           ))}
-                        </select>
+                        </TerminalSelect>
                       </div>
                       <div>
                         <label className="block text-xs text-zinc-300 uppercase mb-1">
@@ -2429,10 +2432,11 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                         <label className="block text-xs text-zinc-300 uppercase mb-1">
                           Holding
                         </label>
-                        <select
+                        <TerminalSelect
                           value={newShockTicker}
                           onChange={(e) => setNewShockTicker(e.target.value)}
-                          className="w-full bg-[#080808] border border-[#333] rounded px-2 py-1.5 text-xs text-zinc-100 outline-none"
+                          containerClassName="relative block w-full"
+                          className="w-full text-zinc-100"
                         >
                           {analysis.positions
                             .filter((p) => p.marketValue !== null)
@@ -2441,7 +2445,7 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
                                 {p.ticker} ({formatPct(p.weightPct)})
                               </option>
                             ))}
-                        </select>
+                        </TerminalSelect>
                       </div>
                       <div className="w-24">
                         <label className="block text-xs text-zinc-300 uppercase mb-1">

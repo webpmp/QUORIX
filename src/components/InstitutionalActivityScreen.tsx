@@ -13,6 +13,7 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Compass,
 } from 'lucide-react';
 import type {
@@ -35,6 +36,7 @@ import {
   formatSignedPercent,
 } from '../utils/institutionalActivity';
 import SectorRotationPanel from './SectorRotationPanel';
+import TerminalSelect from './TerminalSelect';
 
 interface InstitutionalActivityScreenProps {
   selectedTicker: string;
@@ -138,7 +140,6 @@ export default function InstitutionalActivityScreen({
   const disclosureTooltipId = useId();
 
   // Section A: Institutional Holdings state
-  const [holdingsTickerInput, setHoldingsTickerInput] = useState<string>(selectedTicker || 'AAPL');
   const [activeHoldingsQuery, setActiveHoldingsQuery] = useState<{
     ticker?: string;
     cusip?: string;
@@ -231,10 +232,9 @@ export default function InstitutionalActivityScreen({
     return Array.from(new Set([...tracked, ...defaults])).slice(0, 8);
   }, [stocks]);
 
-  // Sync holdings query when user clicks a stock in Quorix's left Tracked Equities panel
+  // Sync holdings query when user clicks a stock in Quorix's left Tracked Equities panel or uses INST command
   useEffect(() => {
     if (selectedTicker && !EXCLUDED_QUICK_TICKERS.has(selectedTicker)) {
-      setHoldingsTickerInput(selectedTicker);
       setActiveHoldingsQuery({ ticker: selectedTicker });
       setHoldingsPage(1);
     }
@@ -589,20 +589,6 @@ export default function InstitutionalActivityScreen({
     }
   }, [activeTab, fetchSectorRotation]);
 
-  const handleHoldingsSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const raw = holdingsTickerInput.trim().toUpperCase();
-    setHoldingsPage(1);
-    if (!raw) return;
-    if (/^[A-Z0-9]{9}$/.test(raw) && /\d/.test(raw)) {
-      setActiveHoldingsQuery({ cusip: raw });
-    } else if (/^[A-Z]{1,6}(?:[.-][A-Z0-9]{1,3})?$/.test(raw)) {
-      setActiveHoldingsQuery({ ticker: raw });
-    } else {
-      setActiveHoldingsQuery({ issuer: raw });
-    }
-  };
-
   const openInvestorProfileFromTable = (cik: string) => {
     setSelectedManagerCik(cik);
     setSelectedManagerPeriod(selectedPeriod || '');
@@ -614,14 +600,12 @@ export default function InstitutionalActivityScreen({
   const openSecurityHoldingsFromTable = (security: { ticker?: string | null; cusip?: string; issuerName?: string }) => {
     setHoldingsPage(1);
     if (security.cusip) {
-      setHoldingsTickerInput(security.ticker || security.cusip);
       setActiveHoldingsQuery({
         cusip: security.cusip,
         ticker: security.ticker || undefined,
         issuer: security.issuerName || undefined,
       });
     } else if (security.ticker) {
-      setHoldingsTickerInput(security.ticker);
       setActiveHoldingsQuery({ ticker: security.ticker });
     }
     setActiveTab('HOLDINGS');
@@ -896,22 +880,23 @@ export default function InstitutionalActivityScreen({
             <label htmlFor="inst-period-select" className="text-zinc-300 font-bold uppercase text-xs">
               REPORTING PERIOD:
             </label>
-            <select
+            <TerminalSelect
               id="inst-period-select"
+              sizeVariant="sm"
               value={selectedPeriod}
               onChange={(e) => {
                 setSelectedPeriod(e.target.value);
                 setHoldingsPage(1);
                 setChangesPage(1);
               }}
-              className="bg-black border border-[#333] focus:border-[#ff9900] rounded px-2 py-0.5 text-xs text-zinc-200 font-mono outline-none cursor-pointer"
+              className="font-mono"
             >
               {availablePeriods.map((p) => (
                 <option key={p} value={p}>
                   {formatQuarterLabel(p)}
                 </option>
               ))}
-            </select>
+            </TerminalSelect>
           </div>
         )}
       </div>
@@ -982,27 +967,7 @@ export default function InstitutionalActivityScreen({
               {/* Filter / Search Bar */}
               <div className="space-y-2 shrink-0 select-none">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
-                  <form
-                    onSubmit={handleHoldingsSearchSubmit}
-                    className="lg:col-span-4 flex items-center bg-black border border-[#333] focus-within:border-[#ff9900] rounded overflow-hidden p-1"
-                  >
-                    <Search size={12} className="text-zinc-300 mx-1.5 shrink-0" />
-                    <input
-                      type="text"
-                      value={holdingsTickerInput}
-                      onChange={(e) => setHoldingsTickerInput(e.target.value)}
-                      placeholder="Ticker, 9-char CUSIP, or issuer (e.g. AAPL)..."
-                      className="flex-1 bg-transparent text-xs text-zinc-100 outline-none px-1 font-mono"
-                    />
-                    <button
-                      type="submit"
-                      className="px-2.5 py-1 bg-[#ff9900] hover:bg-amber-500 text-black text-xs font-extrabold uppercase rounded cursor-pointer"
-                    >
-                      LOOKUP
-                    </button>
-                  </form>
-
-                  <div className="lg:col-span-3 flex items-center bg-black border border-[#333] focus-within:border-[#3498db] rounded px-2 py-1">
+                  <div className="lg:col-span-5 flex items-center bg-black border border-[#333] focus-within:border-[#3498db] rounded px-2 py-1">
                     <Building2 size={12} className="text-zinc-300 mr-1.5 shrink-0" />
                     <input
                       type="text"
@@ -1016,15 +981,14 @@ export default function InstitutionalActivityScreen({
                     />
                   </div>
 
-                  <div className="lg:col-span-5 flex flex-wrap items-center gap-1.5 text-xs">
-                    <select
+                  <div className="lg:col-span-7 flex flex-wrap items-center gap-1.5 text-xs">
+                    <TerminalSelect
                       aria-label="Filter by position status"
                       value={holdingsStatusFilter}
                       onChange={(e) => {
                         setHoldingsStatusFilter(e.target.value);
                         setHoldingsPage(1);
                       }}
-                      className="bg-black border border-[#333] rounded px-2 py-1.5 text-zinc-200 outline-none cursor-pointer"
                     >
                       <option value="ALL">STATUS: ALL</option>
                       <option value="NEW">NEW POSITION</option>
@@ -1032,13 +996,12 @@ export default function InstitutionalActivityScreen({
                       <option value="DECREASED">DECREASED</option>
                       <option value="EXITED">EXITED</option>
                       <option value="UNCHANGED">UNCHANGED</option>
-                    </select>
+                    </TerminalSelect>
 
-                    <select
+                    <TerminalSelect
                       aria-label="Sort institutional holdings"
                       value={holdingsSortBy}
                       onChange={(e) => setHoldingsSortBy(e.target.value)}
-                      className="bg-black border border-[#333] rounded px-2 py-1.5 text-zinc-200 outline-none cursor-pointer"
                     >
                       <option value="valueUsd">SORT: POSITION VALUE</option>
                       <option value="percentChange">SORT: % CHANGE</option>
@@ -1046,7 +1009,7 @@ export default function InstitutionalActivityScreen({
                       <option value="shares">SORT: SHARES HELD</option>
                       <option value="portfolioPct">SORT: PORTFOLIO %</option>
                       <option value="managerName">SORT: INVESTOR NAME</option>
-                    </select>
+                    </TerminalSelect>
 
                     <button
                       type="button"
@@ -1071,9 +1034,12 @@ export default function InstitutionalActivityScreen({
                           key={sym}
                           type="button"
                           onClick={() => {
-                            setHoldingsTickerInput(sym);
-                            setActiveHoldingsQuery({ ticker: sym });
-                            setHoldingsPage(1);
+                            if (onSelectTicker) {
+                              onSelectTicker(sym);
+                            } else {
+                              setActiveHoldingsQuery({ ticker: sym });
+                              setHoldingsPage(1);
+                            }
                           }}
                           className={`px-2 py-0.5 rounded border font-bold cursor-pointer transition-colors ${
                             active
@@ -1099,7 +1065,7 @@ export default function InstitutionalActivityScreen({
                           className="text-[#3498db] hover:underline font-bold cursor-pointer"
                           title={`Open ${holdingsResolved.ticker} chart`}
                         >
-                          ${holdingsResolved.ticker}
+                          {holdingsResolved.ticker}
                         </button>
                       )}
                       {holdingsResolved.cusip && (
@@ -1404,18 +1370,17 @@ export default function InstitutionalActivityScreen({
                     </select>
                   </label>
 
-                  <select
+                  <TerminalSelect
                     aria-label="Sort accumulation screener"
                     value={accSortBy}
                     onChange={(e) => setAccSortBy(e.target.value)}
-                    className="bg-black border border-[#333] rounded px-2 py-1.5 text-zinc-200 outline-none cursor-pointer"
                   >
                     <option value="institutionsIncreasing">SORT: INST INCREASING</option>
                     <option value="newPositions">SORT: NEW POSITIONS</option>
                     <option value="netShareChange">SORT: NET SHARE CHG</option>
                     <option value="netPercentChange">SORT: NET % CHG</option>
                     <option value="totalValueUsd">SORT: TOTAL VALUE</option>
-                  </select>
+                  </TerminalSelect>
 
                   <button
                     type="button"
@@ -1716,18 +1681,18 @@ export default function InstitutionalActivityScreen({
                         </div>
 
                         {managerPeriods.length > 0 && (
-                          <select
+                          <TerminalSelect
                             aria-label="Manager reporting period"
+                            sizeVariant="sm"
                             value={selectedManagerPeriod || investorProfile.reportingPeriod}
                             onChange={(e) => setSelectedManagerPeriod(e.target.value)}
-                            className="bg-black border border-[#333] rounded px-2 py-1 text-xs text-zinc-200 outline-none cursor-pointer"
                           >
                             {managerPeriods.map((p) => (
                               <option key={p} value={p}>
                                 {formatQuarterLabel(p)}
                               </option>
                             ))}
-                          </select>
+                          </TerminalSelect>
                         )}
                       </div>
 

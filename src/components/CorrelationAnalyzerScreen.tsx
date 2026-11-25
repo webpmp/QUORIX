@@ -435,11 +435,6 @@ const RollingCorrelationChart: React.FC<{
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1.5 text-xs font-mono uppercase tracking-wider tabular-nums select-none">
-        <span className="font-semibold text-[#00ff00]">POSITIVE (+1.00)</span>
-        <span className="font-semibold text-[#ff4444]">NEGATIVE (-1.00)</span>
-      </div>
-
       <div ref={svgContainerRef} className="w-full min-w-0">
         <svg
           viewBox={`0 0 ${width} ${height}`}
@@ -557,6 +552,11 @@ const RollingCorrelationChart: React.FC<{
           </g>
         )}
         </svg>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1 mt-2 text-xs font-mono uppercase tracking-wider tabular-nums select-none">
+        <span className="font-semibold text-[#00ff00]">POSITIVE (+1.00)</span>
+        <span className="font-semibold text-[#ff4444]">NEGATIVE (-1.00)</span>
       </div>
     </div>
   );

@@ -722,6 +722,14 @@ test('CorrelationAnalyzerScreen renders populated matrix/charts, empty state, si
   assert.equal(twoHundredViewBoxes.length, 2);
   assert.equal(populatedHtml.includes('viewBox="0 0 520 220"'), false);
 
+  // Rolling correlation legend labels placed centered below the chart
+  const rollingSvgIdx = populatedHtml.indexOf('viewBox="0 0 680 210"');
+  const posLegendIdx = populatedHtml.indexOf('POSITIVE (+1.00)');
+  const negLegendIdx = populatedHtml.indexOf('NEGATIVE (-1.00)');
+  assert.ok(rollingSvgIdx > -1 && posLegendIdx > rollingSvgIdx && negLegendIdx > rollingSvgIdx, 'Legend labels must appear below the chart SVG');
+  assert.equal(populatedHtml.includes('text-[#00ff00]">POSITIVE (+1.00)</span>'), true);
+  assert.equal(populatedHtml.includes('text-[#ff4444]">NEGATIVE (-1.00)</span>'), true);
+
   // Removed instructional / redundant prose and ACTIVE indicator should no longer clutter the workspace
   assert.equal(populatedHtml.includes('ACTIVE:'), false);
   assert.equal(populatedHtml.includes('INTERVAL:'), true);

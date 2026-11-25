@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Search,
   RefreshCw,
   Database,
   ShieldCheck,
@@ -27,6 +26,10 @@ import {
 
 interface PolymarketScreenProps {
   stocks: Record<string, StockData>;
+  selectedTicker?: string;
+  onSelectTicker?: (ticker: string) => void;
+  onResetTicker?: () => void;
+  submissionSignal?: { id: number; ticker: string } | null;
 }
 
 const POLYMARKET_DEPARTMENTS = [
@@ -67,12 +70,19 @@ function formatSourceHost(url: string): string {
   }
 }
 
-export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
+export default function PolymarketScreen({
+  stocks,
+  selectedTicker: externalSelectedTicker,
+  onSelectTicker,
+  onResetTicker,
+  submissionSignal,
+}: PolymarketScreenProps) {
   const [events, setEvents] = useState<PolymarketEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedTicker, setSelectedTicker] = useState<string>('');
+  const [selectedTicker, setSelectedTicker] = useState<string>(() =>
+    (externalSelectedTicker || '').trim().toUpperCase(),
+  );
   const [resolvedCompanyName, setResolvedCompanyName] = useState<string | null>(null);
   const [resultStatus, setResultStatus] = useState<
     'idle' | 'ok' | 'no_matching_markets' | 'unrecognized_ticker' | 'provider_error'
@@ -268,9 +278,33 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
     }
   };
 
-  // Initial load (defaults to individual stocks & equities)
+  const lastAppliedTickerRef = useRef<string | undefined>(externalSelectedTicker);
+
+  // Sync with external selectedTicker prop from universal command input
   useEffect(() => {
-    fetchActivePolymarketEvents('', 'Stocks', '');
+    if (externalSelectedTicker !== undefined) {
+      const sym = externalSelectedTicker.trim().toUpperCase();
+      setSelectedTicker(sym);
+      fetchActivePolymarketEvents('', selectedCategory, sym);
+      lastAppliedTickerRef.current = externalSelectedTicker;
+    }
+  }, [externalSelectedTicker]);
+
+  // Handle explicit resubmissions from global terminal command even if externalSelectedTicker hasn't changed
+  useEffect(() => {
+    if (submissionSignal && submissionSignal.ticker) {
+      const sym = submissionSignal.ticker.trim().toUpperCase();
+      setSelectedTicker(sym);
+      fetchActivePolymarketEvents('', selectedCategory, sym);
+      lastAppliedTickerRef.current = sym;
+    }
+  }, [submissionSignal]);
+
+  // Initial load if no externalSelectedTicker provided
+  useEffect(() => {
+    if (externalSelectedTicker === undefined) {
+      fetchActivePolymarketEvents('', 'Stocks', '');
+    }
     return () => {
       requestGuardRef.current?.abortAll();
     };
@@ -353,27 +387,16 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
     };
   }, [clobSubscriptionKey]);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = searchTerm.trim();
-    const upper = trimmed.toUpperCase();
-    const matchedTicker = quickTickers.includes(upper)
-      ? upper
-      : resolveTickerFromQuery('', trimmed);
-    setSelectedTicker(matchedTicker);
-    fetchActivePolymarketEvents(trimmed, selectedCategory, matchedTicker);
-  };
-
   const handleCategorySwitch = (cat: string) => {
     setSelectedCategory(cat);
-    setSelectedTicker('');
-    setSearchTerm('');
-    fetchActivePolymarketEvents('', cat, '');
+    fetchActivePolymarketEvents('', cat, selectedTicker);
   };
 
   const handleQuickTickerClick = (ticker: string) => {
     setSelectedTicker(ticker);
-    setSearchTerm(ticker);
+    if (onSelectTicker) {
+      onSelectTicker(ticker);
+    }
     fetchActivePolymarketEvents(ticker, selectedCategory, ticker);
   };
 
@@ -455,32 +478,11 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
         </div>
       </div>
 
-      {/* 2. SEARCH, QUICK TICKERS & DEPARTMENT FILTERS */}
+      {/* 2. QUICK TICKERS & DEPARTMENT FILTERS */}
       <div className="space-y-2.5 mb-3 select-none shrink-0">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-          {/* Search Input bar */}
-          <form
-            onSubmit={handleSearchSubmit}
-            className="lg:col-span-5 flex items-center bg-black border border-[#333] focus-within:border-[#ff9900] rounded overflow-hidden p-1 transition-colors"
-          >
-            <Search size={12} className="text-zinc-300 mx-2 shrink-0" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search stocks or tickers (e.g. NVDA, AAPL, TSLA, earnings)..."
-              className="flex-1 bg-transparent text-xs text-zinc-200 outline-none p-1 font-mono"
-            />
-            <button
-              type="submit"
-              className="px-2.5 py-1 bg-[#ff9900] hover:bg-amber-500 text-black text-xs uppercase font-extrabold rounded cursor-pointer transition-colors"
-            >
-              SEARCH
-            </button>
-          </form>
-
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-black border border-[#333] rounded px-3 py-2">
           {/* Categories toggler */}
-          <div className="lg:col-span-7 flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none">
+          <div className="flex items-center gap-1.5 overflow-x-auto text-xs scrollbar-none">
             <span className="text-zinc-300 font-bold uppercase shrink-0">FOCUS:</span>
             {POLYMARKET_DEPARTMENTS.map((cat) => (
               <button
@@ -488,7 +490,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                 type="button"
                 onClick={() => handleCategorySwitch(cat)}
                 className={`px-2.5 py-1 rounded font-bold uppercase transition-all shrink-0 border cursor-pointer ${
-                  selectedCategory === cat && !searchTerm && !selectedTicker
+                  selectedCategory === cat && !selectedTicker
                     ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
                     : 'bg-black border-[#3a3a3a] text-zinc-300 hover:border-zinc-600 hover:text-zinc-200'
                 }`}
@@ -496,16 +498,34 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                 {cat}
               </button>
             ))}
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-mono ml-auto">
+            {selectedTicker && (
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-400 uppercase font-bold">ACTIVE FILTER:</span>
+                <span className="text-[#ff9900] font-extrabold px-1.5 py-0.5 rounded bg-[#ff9900]/10 border border-[#ff9900]/40">
+                  {selectedTicker}
+                </span>
+                {resolvedCompanyName && (
+                  <span className="text-zinc-300 hidden sm:inline truncate max-w-[200px]">
+                    ({resolvedCompanyName})
+                  </span>
+                )}
+              </div>
+            )}
 
             <button
               type="button"
               onClick={() => {
                 setSelectedTicker('');
-                setSearchTerm('');
                 setSelectedCategory('Stocks');
                 fetchActivePolymarketEvents('', 'Stocks', '');
+                if (onResetTicker) {
+                  onResetTicker();
+                }
               }}
-              className="ml-auto px-2 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-600 transition-colors shrink-0 cursor-pointer"
+              className="px-2 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-600 transition-colors shrink-0 cursor-pointer"
             >
               <RefreshCw size={10} className={`inline mr-1 ${loading ? 'animate-spin' : ''}`} />
               RESET
@@ -671,8 +691,8 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
         <div className="lg:col-span-5 border border-[#333] bg-black rounded flex flex-col min-h-[320px] lg:min-h-0 lg:h-full overflow-hidden">
           <div className="bg-[#0c0c0c] border-[#333] border-b p-2 flex justify-between items-center select-none shrink-0">
             <span className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
-              {selectedTicker || searchTerm
-                ? `QUERY "${(selectedTicker || searchTerm).toUpperCase()}" (${events.length})`
+              {selectedTicker
+                ? `TICKER "${selectedTicker}" (${events.length})`
                 : `${selectedCategory.toUpperCase()} MARKETS (${events.length})`}
             </span>
             {lastUpdated && <span className="text-zinc-300 text-xs tabular-nums">TICK: {lastUpdated}</span>}
@@ -688,7 +708,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
               <AlertCircle size={18} />
               <span>
                 {error ||
-                  `Ticker "${selectedTicker || searchTerm}" is not recognized as a valid stock symbol.`}
+                  `Ticker "${selectedTicker}" is not recognized as a valid stock symbol.`}
               </span>
               <span className="text-zinc-300">
                 Verify the ticker symbol or click RESET to return to active markets.
@@ -705,7 +725,7 @@ export default function PolymarketScreen({ stocks }: PolymarketScreenProps) {
                 ? `No active stock markets matched ${selectedTicker}${
                     resolvedCompanyName ? ` (${resolvedCompanyName})` : ''
                   }. Click RESET or try another ticker.`
-                : `No active stock markets matched "${searchTerm || selectedCategory}". Click RESET or try another ticker.`}
+                : `No active stock markets matched "${selectedCategory}". Click RESET or try another ticker.`}
             </div>
           ) : (
             <div className="divide-y divide-[#222] overflow-y-auto flex-1 min-h-0">
