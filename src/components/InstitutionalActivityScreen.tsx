@@ -1221,12 +1221,6 @@ export default function InstitutionalActivityScreen({
                 </div>
               </div>
 
-              {accMeta?.methodologyNote && (
-                <div className="px-2.5 py-1.5 bg-[#0b0b0b] border border-[#3a3a3a] rounded text-xs text-zinc-300 shrink-0">
-                  {accMeta.methodologyNote}
-                </div>
-              )}
-
               {/* Accumulation Screener Table */}
               <div className="flex-1 min-h-[260px] bg-black border border-[#333] rounded flex flex-col overflow-hidden">
                 <div className="bg-[#0c0c0c] border-b border-[#333] px-3 py-1.5 flex items-center justify-between text-xs shrink-0 select-none">
