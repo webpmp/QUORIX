@@ -41,6 +41,7 @@ import {
 } from '../utils/dailyHistoryClient';
 import { InfoTooltipIcon, TerminalTooltip } from './TerminalTooltip';
 import ExplainerButton from './ExplainerButton';
+import InsightRow from './InsightRow';
 
 const CORR_TOOLTIPS = {
   lookbackPeriod: 'Historical period used for correlation calculations.',
@@ -1350,357 +1351,366 @@ export default function CorrelationAnalyzerScreen({
   return (
     <div className="space-y-4 animate-fade-in font-mono text-zinc-300">
       {/* ====================================================================
-       * HEADER & ACTIVE CONFIGURATION BAR
+       * FROZEN TOP CONTROLS: HEADER & SECURITY SELECTION
+       * Pinned at the top together on viewports >= 1024px wide AND >= 800px tall
+       * Content below scrolls cleanly underneath behind the opaque bg-black container.
+       * Uses top-[-1rem] -mt-4 pt-4 to fully cover the scroller's top padding (no peek gap).
+       * Tightened paddings/gaps keep vertical height compact (~260-280px / <30% of 900px).
        * ==================================================================== */}
-      <div className="bg-[#050505] border border-[#333] rounded p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#3a3a3a] pb-3 mb-3">
-          <h1 className="text-white text-sm md:text-base font-bold uppercase tracking-wider">
-            CORRELATION ANALYZER
-          </h1>
-          <div className="flex items-center gap-2 shrink-0">
-            <ExplainerButton
-              label="How do I use the CORR Workspace?"
-              ariaText={CORR_USAGE_ARIA_TEXT}
-              text={CORR_USAGE_TOOLTIP_CONTENT}
-              maxWidth={400}
-            />
-            <button
-              type="button"
-              onClick={handleRefreshAll}
-              disabled={selectedSymbols.length === 0 || anyLoading}
-              className="px-2.5 py-1.5 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-300 hover:text-white text-xs font-bold uppercase flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
-            >
-              <RefreshCw size={11} className={anyLoading ? 'animate-spin text-[#ff9900]' : ''} />
-              <span>REFRESH DATA</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Active Configuration Readout + Controls */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          {/* Lookback Period Controls */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-xs text-zinc-300 uppercase font-bold tracking-wider">
-              <span>LOOKBACK PERIOD</span>
-              <InfoTooltipIcon
-                label="Lookback period explanation"
-                title="LOOKBACK PERIOD"
-                content={CORR_TOOLTIPS.lookbackPeriod}
+      <div className="lg:[@media(min-height:800px)]:sticky lg:[@media(min-height:800px)]:-top-4 lg:[@media(min-height:800px)]:-mt-4 lg:[@media(min-height:800px)]:pt-4 z-30 bg-black space-y-2.5 pb-2.5">
+        {/* ====================================================================
+         * HEADER & ACTIVE CONFIGURATION BAR
+         * ==================================================================== */}
+        <div className="bg-[#050505] border border-[#333] rounded px-3 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#3a3a3a] pb-2 mb-2">
+            <h1 className="text-white text-sm md:text-base font-bold uppercase tracking-wider">
+              CORRELATION ANALYZER
+            </h1>
+            <div className="flex items-center gap-2 shrink-0">
+              <ExplainerButton
+                label="How do I use the CORR Workspace?"
+                ariaText={CORR_USAGE_ARIA_TEXT}
+                text={CORR_USAGE_TOOLTIP_CONTENT}
+                maxWidth={400}
               />
-            </span>
-            <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Lookback period">
-              {LOOKBACK_PERIODS.map((period) => {
-                const isActive = lookbackPeriod === period.id;
-                return (
-                  <button
-                    key={period.id}
-                    type="button"
-                    onClick={() => setLookbackPeriod(period.id)}
-                    aria-pressed={isActive}
-                    className={`px-2.5 py-1 rounded text-xs font-bold uppercase transition-colors cursor-pointer whitespace-nowrap shrink-0 border ${
-                      isActive
-                        ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                        : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:text-white hover:border-[#444]'
-                    }`}
-                  >
-                    {period.label}
-                  </button>
-                );
-              })}
+              <button
+                type="button"
+                onClick={handleRefreshAll}
+                disabled={selectedSymbols.length === 0 || anyLoading}
+                className="px-2.5 py-1 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-300 hover:text-white text-xs font-bold uppercase flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
+              >
+                <RefreshCw size={11} className={anyLoading ? 'animate-spin text-[#ff9900]' : ''} />
+                <span>REFRESH DATA</span>
+              </button>
             </div>
           </div>
 
-          {/* Active Config Summary (clean unboxed tabular metadata) */}
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-zinc-300 tabular-nums">
-            <span className="inline-flex items-center gap-1">
-              <span>
-                INTERVAL: <strong className="text-zinc-200">DAILY</strong>
+          {/* Active Configuration Readout + Controls */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+            {/* Lookback Period Controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-xs text-zinc-300 uppercase font-bold tracking-wider">
+                <span>LOOKBACK PERIOD</span>
+                <InfoTooltipIcon
+                  label="Lookback period explanation"
+                  title="LOOKBACK PERIOD"
+                  content={CORR_TOOLTIPS.lookbackPeriod}
+                />
               </span>
-              <InfoTooltipIcon
-                label="Daily return interval explanation"
-                title="DAILY RETURNS"
-                content={CORR_TOOLTIPS.daily}
-              />
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="inline-flex items-center gap-1">
-              <span>
-                METHOD: <strong className="text-zinc-200">PEARSON</strong>
+              <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Lookback period">
+                {LOOKBACK_PERIODS.map((period) => {
+                  const isActive = lookbackPeriod === period.id;
+                  return (
+                    <button
+                      key={period.id}
+                      type="button"
+                      onClick={() => setLookbackPeriod(period.id)}
+                      aria-pressed={isActive}
+                      className={`px-2 py-0.5 rounded text-xs font-bold uppercase transition-colors cursor-pointer whitespace-nowrap shrink-0 border ${
+                        isActive
+                          ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
+                          : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:text-white hover:border-[#444]'
+                      }`}
+                    >
+                      {period.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Active Config Summary (clean unboxed tabular metadata) */}
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-zinc-300 tabular-nums">
+              <span className="inline-flex items-center gap-1">
+                <span>
+                  INTERVAL: <strong className="text-zinc-200">DAILY</strong>
+                </span>
+                <InfoTooltipIcon
+                  label="Daily return interval explanation"
+                  title="DAILY RETURNS"
+                  content={CORR_TOOLTIPS.daily}
+                />
               </span>
-              <InfoTooltipIcon
-                label="Pearson correlation method explanation"
-                title="PEARSON CORRELATION"
-                content={CORR_TOOLTIPS.pearson}
-              />
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              SECURITIES: <strong className="text-zinc-200">{selectedSymbols.length}</strong>
-            </span>
+              <span aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1">
+                <span>
+                  METHOD: <strong className="text-zinc-200">PEARSON</strong>
+                </span>
+                <InfoTooltipIcon
+                  label="Pearson correlation method explanation"
+                  title="PEARSON CORRELATION"
+                  content={CORR_TOOLTIPS.pearson}
+                />
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>
+                SECURITIES: <strong className="text-zinc-200">{selectedSymbols.length}</strong>
+              </span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ====================================================================
-       * A. SECURITY SELECTION & BENCHMARK CONTROLS
-       * ==================================================================== */}
-      <div className="bg-[#050505] border border-[#333] rounded p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
-            SECURITY SELECTION
-          </h2>
-          {selectedSymbols.length > 0 && (
-            <button
-              type="button"
-              onClick={handleClearAll}
-              className="text-xs text-zinc-300 hover:text-[#ff4444] border border-[#3a3a3a] hover:border-[#ff4444]/60 px-2 py-1 rounded uppercase font-bold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <Trash2 size={10} />
-              <span>CLEAR ALL</span>
-            </button>
-          )}
-        </div>
-
-        {/* Search Input + Benchmark Quick-Adds */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 items-center">
-          <div ref={searchBoxRef} className="xl:col-span-6 relative">
-            <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
-              <div className="flex-1 flex items-center bg-black border border-[#333] focus-within:border-[#3498db] rounded px-2.5 py-1.5 transition-colors">
-                <Search size={12} className="text-zinc-300 mr-2 shrink-0" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    const rawValue = e.target.value;
-                    const upperValue = rawValue.toUpperCase();
-                    if (
-                      upperValue !== rawValue &&
-                      e.target.selectionStart !== null &&
-                      e.target.selectionEnd !== null
-                    ) {
-                      pendingSearchSelectionRef.current = {
-                        start: e.target.selectionStart,
-                        end: e.target.selectionEnd,
-                      };
-                    }
-                    setSearchQuery(upperValue);
-                    setSearchOpen(true);
-                    setSearchHighlightedIndex(-1);
-                    setSelectionNotice(null);
-                  }}
-                  onFocus={() => {
-                    if (searchQuery.trim()) setSearchOpen(true);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowDown') {
-                      if (searchResults.length > 0) {
-                        e.preventDefault();
-                        if (!searchOpen) {
-                          setSearchOpen(true);
-                          setSearchHighlightedIndex(0);
-                        } else {
-                          setSearchHighlightedIndex((prev) =>
-                            prev < searchResults.length - 1 ? prev + 1 : 0
-                          );
-                        }
-                      }
-                    } else if (e.key === 'ArrowUp') {
-                      if (searchResults.length > 0) {
-                        e.preventDefault();
-                        if (!searchOpen) {
-                          setSearchOpen(true);
-                          setSearchHighlightedIndex(searchResults.length - 1);
-                        } else {
-                          setSearchHighlightedIndex((prev) =>
-                            prev <= 0 ? searchResults.length - 1 : prev - 1
-                          );
-                        }
-                      }
-                    } else if (e.key === 'Enter') {
-                      if (searchOpen && searchHighlightedIndex >= 0 && searchHighlightedIndex < searchResults.length) {
-                        const item = searchResults[searchHighlightedIndex];
-                        const alreadySelected = selectedSymbols.includes(item.symbol);
-                        if (!alreadySelected && item.supported) {
-                          e.preventDefault();
-                          void handleAddSymbol(item.symbol, item);
-                        }
-                      }
-                    } else if (e.key === 'Escape') {
-                      if (searchOpen) {
-                        e.preventDefault();
-                        setSearchOpen(false);
-                        setSearchHighlightedIndex(-1);
-                      }
-                    }
-                  }}
-                  placeholder="Search ticker or company name (e.g., AAPL, Microsoft, SPY, SPX, Gold, BTC)..."
-                  aria-label="Search security by ticker symbol or company name"
-                  className="flex-1 min-w-0 bg-transparent text-[#00ff00] text-xs font-mono outline-none placeholder-zinc-600"
-                  autoComplete="off"
-                  spellCheck="false"
-                />
-                {searchLoading && <RefreshCw size={11} className="animate-spin text-[#ff9900] ml-1 shrink-0" />}
-              </div>
+        {/* ====================================================================
+         * A. SECURITY SELECTION & BENCHMARK CONTROLS
+         * ==================================================================== */}
+        <div className="bg-[#050505] border border-[#333] rounded px-3 py-2.5 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
+            <h2 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider">
+              SECURITY SELECTION
+            </h2>
+            {selectedSymbols.length > 0 && (
               <button
-                type="submit"
-                disabled={!searchQuery.trim() || validatingSymbol !== null}
-                className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs leading-none uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
+                type="button"
+                onClick={handleClearAll}
+                className="text-xs text-zinc-300 hover:text-[#ff4444] border border-[#3a3a3a] hover:border-[#ff4444]/60 px-2 py-0.5 rounded uppercase font-bold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
-                <Plus size={11} className="shrink-0" />
-                <span className="leading-none">{validatingSymbol ? 'VALIDATING...' : 'ADD'}</span>
+                <Trash2 size={10} />
+                <span>CLEAR ALL</span>
               </button>
-            </form>
-
-            {/* Live Search Dropdown */}
-            {searchOpen && searchQuery.trim().length > 0 && (
-              <div
-                role="listbox"
-                aria-label="Matching securities"
-                className="absolute left-0 right-0 top-full mt-1 z-30 bg-[#070707] border border-[#333] rounded shadow-xl max-h-64 overflow-y-auto"
-              >
-                {searchLoading && searchResults.length === 0 ? (
-                  <div className="px-3 py-2.5 text-xs text-zinc-300">Searching securities...</div>
-                ) : searchResults.length === 0 ? (
-                  <div className="px-3 py-2.5 text-xs text-zinc-300">
-                    No directory matches for &ldquo;{searchQuery.trim()}&rdquo;. Press Enter to validate directly as a ticker.
-                  </div>
-                ) : (
-                  searchResults.map((item, idx) => {
-                    const alreadySelected = selectedSymbols.includes(item.symbol);
-                    const isHighlighted = idx === searchHighlightedIndex;
-                    return (
-                      <button
-                        key={item.symbol}
-                        type="button"
-                        role="option"
-                        aria-selected={isHighlighted || alreadySelected}
-                        disabled={alreadySelected || !item.supported}
-                        onClick={() => void handleAddSymbol(item.symbol, item)}
-                        onMouseEnter={() => setSearchHighlightedIndex(idx)}
-                        className={`w-full text-left px-3 py-2 border-b border-[#2e2e2e] last:border-b-0 flex items-center justify-between gap-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                          isHighlighted ? 'bg-[#1e293b] text-white' : 'hover:bg-[#141414]'
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[#3498db] font-bold text-xs">{item.symbol}</span>
-                            <span className="text-zinc-200 text-xs truncate">{item.name}</span>
-                          </div>
-                          <div className="text-xs text-zinc-300 mt-0.5">
-                            {item.instrumentType} · {item.exchange}
-                          </div>
-                        </div>
-                        <span className="text-xs font-bold uppercase shrink-0">
-                          {alreadySelected ? (
-                            <span className="text-zinc-300">SELECTED</span>
-                          ) : !item.supported ? (
-                            <span className="text-[#ff4444]">UNSUPPORTED</span>
-                          ) : (
-                            <span className="text-[#00ff00]">+ ADD</span>
-                          )}
-                        </span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
             )}
           </div>
 
-          {/* Selectable Default Benchmarks */}
-          <div className="xl:col-span-6">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-zinc-300 uppercase font-bold mr-1">BENCHMARKS:</span>
-              {BENCHMARK_DEFAULTS.map((b) => {
-                const isSelected = selectedSymbols.includes(b.symbol);
+          {/* Search Input + Benchmark Quick-Adds */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-2.5 items-center">
+            <div ref={searchBoxRef} className="xl:col-span-6 relative">
+              <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
+                <div className="flex-1 flex items-center bg-black border border-[#333] focus-within:border-[#3498db] rounded px-2.5 py-1 transition-colors">
+                  <Search size={12} className="text-zinc-300 mr-2 shrink-0" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      const rawValue = e.target.value;
+                      const upperValue = rawValue.toUpperCase();
+                      if (
+                        upperValue !== rawValue &&
+                        e.target.selectionStart !== null &&
+                        e.target.selectionEnd !== null
+                      ) {
+                        pendingSearchSelectionRef.current = {
+                          start: e.target.selectionStart,
+                          end: e.target.selectionEnd,
+                        };
+                      }
+                      setSearchQuery(upperValue);
+                      setSearchOpen(true);
+                      setSearchHighlightedIndex(-1);
+                      setSelectionNotice(null);
+                    }}
+                    onFocus={() => {
+                      if (searchQuery.trim()) setSearchOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowDown') {
+                        if (searchResults.length > 0) {
+                          e.preventDefault();
+                          if (!searchOpen) {
+                            setSearchOpen(true);
+                            setSearchHighlightedIndex(0);
+                          } else {
+                            setSearchHighlightedIndex((prev) =>
+                              prev < searchResults.length - 1 ? prev + 1 : 0
+                            );
+                          }
+                        }
+                      } else if (e.key === 'ArrowUp') {
+                        if (searchResults.length > 0) {
+                          e.preventDefault();
+                          if (!searchOpen) {
+                            setSearchOpen(true);
+                            setSearchHighlightedIndex(searchResults.length - 1);
+                          } else {
+                            setSearchHighlightedIndex((prev) =>
+                              prev <= 0 ? searchResults.length - 1 : prev - 1
+                            );
+                          }
+                        }
+                      } else if (e.key === 'Enter') {
+                        if (searchOpen && searchHighlightedIndex >= 0 && searchHighlightedIndex < searchResults.length) {
+                          const item = searchResults[searchHighlightedIndex];
+                          const alreadySelected = selectedSymbols.includes(item.symbol);
+                          if (!alreadySelected && item.supported) {
+                            e.preventDefault();
+                            void handleAddSymbol(item.symbol, item);
+                          }
+                        }
+                      } else if (e.key === 'Escape') {
+                        if (searchOpen) {
+                          e.preventDefault();
+                          setSearchOpen(false);
+                          setSearchHighlightedIndex(-1);
+                        }
+                      }
+                    }}
+                    placeholder="Search ticker or company name (e.g., AAPL, Microsoft, SPY, SPX, Gold, BTC)..."
+                    aria-label="Search security by ticker symbol or company name"
+                    className="flex-1 min-w-0 bg-transparent text-[#00ff00] text-xs font-mono outline-none placeholder-zinc-600"
+                    autoComplete="off"
+                    spellCheck="false"
+                  />
+                  {searchLoading && <RefreshCw size={11} className="animate-spin text-[#ff9900] ml-1 shrink-0" />}
+                </div>
+                <button
+                  type="submit"
+                  disabled={!searchQuery.trim() || validatingSymbol !== null}
+                  className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs leading-none uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
+                >
+                  <Plus size={11} className="shrink-0" />
+                  <span className="leading-none">{validatingSymbol ? 'VALIDATING...' : 'ADD'}</span>
+                </button>
+              </form>
+
+              {/* Live Search Dropdown */}
+              {searchOpen && searchQuery.trim().length > 0 && (
+                <div
+                  role="listbox"
+                  aria-label="Matching securities"
+                  className="absolute left-0 right-0 top-full mt-1 z-40 bg-[#070707] border border-[#333] rounded shadow-xl max-h-64 overflow-y-auto"
+                >
+                  {searchLoading && searchResults.length === 0 ? (
+                    <div className="px-3 py-2.5 text-xs text-zinc-300">Searching securities...</div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="px-3 py-2.5 text-xs text-zinc-300">
+                      No directory matches for &ldquo;{searchQuery.trim()}&rdquo;. Press Enter to validate directly as a ticker.
+                    </div>
+                  ) : (
+                    searchResults.map((item, idx) => {
+                      const alreadySelected = selectedSymbols.includes(item.symbol);
+                      const isHighlighted = idx === searchHighlightedIndex;
+                      return (
+                        <button
+                          key={item.symbol}
+                          type="button"
+                          role="option"
+                          aria-selected={isHighlighted || alreadySelected}
+                          disabled={alreadySelected || !item.supported}
+                          onClick={() => void handleAddSymbol(item.symbol, item)}
+                          onMouseEnter={() => setSearchHighlightedIndex(idx)}
+                          className={`w-full text-left px-3 py-2 border-b border-[#2e2e2e] last:border-b-0 flex items-center justify-between gap-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isHighlighted ? 'bg-[#1e293b] text-white' : 'hover:bg-[#141414]'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[#3498db] font-bold text-xs">{item.symbol}</span>
+                              <span className="text-zinc-200 text-xs truncate">{item.name}</span>
+                            </div>
+                            <div className="text-xs text-zinc-300 mt-0.5">
+                              {item.instrumentType} · {item.exchange}
+                            </div>
+                          </div>
+                          <span className="text-xs font-bold uppercase shrink-0">
+                            {alreadySelected ? (
+                              <span className="text-zinc-300">SELECTED</span>
+                            ) : !item.supported ? (
+                              <span className="text-[#ff4444]">UNSUPPORTED</span>
+                            ) : (
+                              <span className="text-[#00ff00]">+ ADD</span>
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Selectable Default Benchmarks */}
+            <div className="xl:col-span-6">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-zinc-300 uppercase font-bold mr-1">BENCHMARKS:</span>
+                {BENCHMARK_DEFAULTS.map((b) => {
+                  const isSelected = selectedSymbols.includes(b.symbol);
+                  return (
+                    <button
+                      key={b.symbol}
+                      type="button"
+                      onClick={() =>
+                        isSelected ? handleRemoveSymbol(b.symbol) : void handleAddSymbol(b.symbol)
+                      }
+                      title={`${isSelected ? 'Remove' : 'Add'} ${b.name}`}
+                      className={`px-2 py-1 rounded text-xs font-bold uppercase border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                        isSelected
+                          ? 'bg-[#1a1a1a] border-[#ff9900] text-[#ff9900]'
+                          : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:border-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {isSelected ? '✓ ' : '+ '}
+                      {b.symbol}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Inline Selection Feedback */}
+          {selectionNotice && (
+            <div
+              role="status"
+              className={`px-3 py-2 rounded border text-xs flex items-center justify-between gap-2 ${
+                selectionNotice.tone === 'error'
+                  ? 'bg-red-950/25 border-red-800/60 text-red-300'
+                  : selectionNotice.tone === 'warning'
+                  ? 'bg-amber-950/25 border-amber-700/60 text-amber-300'
+                  : 'bg-zinc-900/60 border-zinc-700 text-zinc-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <AlertCircle size={12} className="shrink-0" />
+                <span>{selectionNotice.text}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectionNotice(null)}
+                aria-label="Dismiss message"
+                className="text-zinc-300 hover:text-white cursor-pointer"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          )}
+
+          {/* Selected Securities List */}
+          {selectedSymbols.length > 0 && (
+            <div className="pt-2 border-t border-[#1e1e1e] flex flex-wrap gap-2">
+              {selectedSymbols.map((sym) => {
+                const entry = loadMap[sym];
+                const isErr = entry?.status === 'error';
+                const isLoad = !entry || entry.status === 'loading';
+                const cov = matrixResult.coverageBySymbol[sym];
+                const partial = !isLoad && !isErr && cov && !cov.hasSufficientCoverage;
+
                 return (
-                  <button
-                    key={b.symbol}
-                    type="button"
-                    onClick={() =>
-                      isSelected ? handleRemoveSymbol(b.symbol) : void handleAddSymbol(b.symbol)
-                    }
-                    title={`${isSelected ? 'Remove' : 'Add'} ${b.name}`}
-                    className={`px-2 py-1 rounded text-xs font-bold uppercase border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                      isSelected
-                        ? 'bg-[#1a1a1a] border-[#ff9900] text-[#ff9900]'
-                        : 'bg-[#0a0a0a] border-[#3a3a3a] text-zinc-300 hover:border-zinc-400 hover:text-white'
+                  <div
+                    key={sym}
+                    className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded border text-xs max-w-full ${
+                      isErr
+                        ? 'bg-red-950/20 border-red-800/60'
+                        : partial
+                        ? 'bg-amber-950/15 border-amber-700/50'
+                        : 'bg-[#0b0b0b] border-[#3a3a3a]'
                     }`}
                   >
-                    {isSelected ? '✓ ' : '+ '}
-                    {b.symbol}
-                  </button>
+                    <span className="font-bold text-[#3498db] whitespace-nowrap">{sym}</span>
+                    {isLoad && <RefreshCw size={10} className="animate-spin text-[#ff9900] shrink-0" />}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSymbol(sym)}
+                      aria-label={`Remove ${sym}`}
+                      title={`Remove ${sym}`}
+                      className="p-0.5 text-zinc-300 hover:text-[#ff4444] transition-colors cursor-pointer shrink-0"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
                 );
               })}
             </div>
-          </div>
+          )}
         </div>
-
-        {/* Inline Selection Feedback */}
-        {selectionNotice && (
-          <div
-            role="status"
-            className={`px-3 py-2 rounded border text-xs flex items-center justify-between gap-2 ${
-              selectionNotice.tone === 'error'
-                ? 'bg-red-950/25 border-red-800/60 text-red-300'
-                : selectionNotice.tone === 'warning'
-                ? 'bg-amber-950/25 border-amber-700/60 text-amber-300'
-                : 'bg-zinc-900/60 border-zinc-700 text-zinc-300'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <AlertCircle size={12} className="shrink-0" />
-              <span>{selectionNotice.text}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectionNotice(null)}
-              aria-label="Dismiss message"
-              className="text-zinc-300 hover:text-white cursor-pointer"
-            >
-              <X size={12} />
-            </button>
-          </div>
-        )}
-
-        {/* Selected Securities List */}
-        {selectedSymbols.length > 0 && (
-          <div className="pt-2 border-t border-[#1e1e1e] flex flex-wrap gap-2">
-            {selectedSymbols.map((sym) => {
-              const entry = loadMap[sym];
-              const isErr = entry?.status === 'error';
-              const isLoad = !entry || entry.status === 'loading';
-              const cov = matrixResult.coverageBySymbol[sym];
-              const partial = !isLoad && !isErr && cov && !cov.hasSufficientCoverage;
-
-              return (
-                <div
-                  key={sym}
-                  className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded border text-xs max-w-full ${
-                    isErr
-                      ? 'bg-red-950/20 border-red-800/60'
-                      : partial
-                      ? 'bg-amber-950/15 border-amber-700/50'
-                      : 'bg-[#0b0b0b] border-[#3a3a3a]'
-                  }`}
-                >
-                  <span className="font-bold text-[#3498db] whitespace-nowrap">{sym}</span>
-                  {isLoad && <RefreshCw size={10} className="animate-spin text-[#ff9900] shrink-0" />}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveSymbol(sym)}
-                    aria-label={`Remove ${sym}`}
-                    title={`Remove ${sym}`}
-                    className="p-0.5 text-zinc-300 hover:text-[#ff4444] transition-colors cursor-pointer shrink-0"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* ====================================================================
@@ -2391,73 +2401,16 @@ export default function CorrelationAnalyzerScreen({
           ) : (
             <div className="divide-y divide-[#1d1d1d]">
               {insights.map((item) => (
-                <div
+                <InsightRow
                   key={item.id}
-                  className="py-2.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2"
-                >
-                  <div className="space-y-0.5 max-w-3xl">
-                    <div
-                      className={`text-xs font-bold uppercase tracking-wide ${
-                        item.tone === 'positive'
-                          ? 'text-[#00ff00]'
-                          : item.tone === 'negative'
-                          ? 'text-[#ff4444]'
-                          : item.tone === 'warning'
-                          ? 'text-amber-400'
-                          : 'text-[#3498db]'
-                      }`}
-                    >
-                      {item.title}
-                    </div>
-                    <p className="text-xs text-zinc-300 leading-relaxed">{item.summary}</p>
-                  </div>
-                  <div className="text-[13px] font-bold text-zinc-200 tabular-nums whitespace-nowrap shrink-0">
-                    {item.metricTickers && item.metricTickers.length === 2 && item.metricValue ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handlePopulateTickerInput(item.metricTickers![0])}
-                          title={`Populate ticker input with ${item.metricTickers[0]}`}
-                          aria-label={`Populate ticker input with ${item.metricTickers[0]}`}
-                          className="text-[#3498db] hover:text-[#ff9900] focus-visible:text-[#ff9900] font-bold cursor-pointer transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] rounded-xs"
-                        >
-                          {item.metricTickers[0]}
-                        </button>
-                        <span className="text-zinc-300"> / </span>
-                        <button
-                          type="button"
-                          onClick={() => handlePopulateTickerInput(item.metricTickers![1])}
-                          title={`Populate ticker input with ${item.metricTickers[1]}`}
-                          aria-label={`Populate ticker input with ${item.metricTickers[1]}`}
-                          className="text-[#3498db] hover:text-[#ff9900] focus-visible:text-[#ff9900] font-bold cursor-pointer transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] rounded-xs"
-                        >
-                          {item.metricTickers[1]}
-                        </button>
-                        <span>: {item.metricValue}</span>
-                      </>
-                    ) : item.metricTickers && item.metricTickers.length === 1 && item.metricValue ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handlePopulateTickerInput(item.metricTickers![0])}
-                          title={`Populate ticker input with ${item.metricTickers[0]}`}
-                          aria-label={`Populate ticker input with ${item.metricTickers[0]}`}
-                          className="text-[#3498db] hover:text-[#ff9900] focus-visible:text-[#ff9900] font-bold cursor-pointer transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] rounded-xs"
-                        >
-                          {item.metricTickers[0]}
-                        </button>
-                        <span> {item.metricValue}</span>
-                      </>
-                    ) : (
-                      item.metricLabel
-                    )}
-                  </div>
-                </div>
+                  item={item}
+                  onPopulateTicker={handlePopulateTickerInput}
+                />
               ))}
             </div>
           )}
 
-          <div className="pt-2.5 border-t border-[#2e2e2e] text-xs text-zinc-300 leading-relaxed">
+          <div className="pt-2.5 border-t border-[#2e2e2e] text-xs text-zinc-300 leading-relaxed max-w-3xl">
             Correlation does not establish causation, does not predict future performance, and low historical correlation does not guarantee diversification during future market stress.
           </div>
         </div>

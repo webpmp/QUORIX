@@ -916,3 +916,59 @@ test('computeResponsiveChartWidth adapts cleanly across desktop, tablet, mobile,
   assert.equal(computeResponsiveChartWidth(null, 680), 680);
   assert.equal(computeResponsiveChartWidth(0, 520), 520);
 });
+
+test('CorrelationAnalyzerScreen renders frozen top controls wrapper with sticky classes and no overflow-hidden', () => {
+  const dates = buildTradingDates(40);
+  const returnsA = Array.from({ length: 39 }, (_, i) => (i % 2 === 0 ? 0.01 : -0.01));
+  const returnsB = Array.from({ length: 39 }, (_, i) => (i % 3 === 0 ? -0.015 : 0.012));
+  const sA = buildSeriesFromReturns('AAPL', 'Apple Inc.', dates, returnsA);
+  const sB = buildSeriesFromReturns('MSFT', 'Microsoft Corp.', dates, returnsB);
+
+  const html = renderToStaticMarkup(
+    React.createElement(CorrelationAnalyzerScreen, {
+      stocks: {},
+      initialSymbols: ['AAPL', 'MSFT'],
+      initialSeriesMap: { AAPL: sA, MSFT: sB },
+    })
+  );
+
+  // Wrapper asserts
+  assert.ok(
+    html.includes('sticky') && html.includes('z-30') && html.includes('bg-black'),
+    'Frozen wrapper must include sticky, z-30, and bg-black'
+  );
+  assert.ok(
+    html.includes('lg:[@media(min-height:800px)]:sticky'),
+    'Frozen wrapper must be enabled conditionally via min-height 800px on lg+'
+  );
+  assert.ok(
+    html.includes('lg:[@media(min-height:800px)]:-top-4'),
+    'Frozen wrapper must use -top-4 to cover scroller padding when sticky'
+  );
+
+  // Content inside frozen block: Header card and SECURITY SELECTION
+  const headerIdx = html.indexOf('CORRELATION ANALYZER');
+  const secSelectIdx = html.indexOf('SECURITY SELECTION');
+  const matrixIdx = html.indexOf('CORRELATION MATRIX');
+  const pairwiseIdx = html.indexOf('PAIRWISE COMPARISON');
+  const insightsIdx = html.indexOf('CORRELATION INSIGHTS');
+
+  assert.ok(headerIdx !== -1, 'Header must be rendered');
+  assert.ok(secSelectIdx !== -1, 'Security selection must be rendered');
+  assert.ok(matrixIdx !== -1, 'Matrix must be rendered');
+  assert.ok(pairwiseIdx !== -1, 'Pairwise comparison must be rendered');
+  assert.ok(insightsIdx !== -1, 'Insights must be rendered');
+
+  // Verify order: header -> security selection -> matrix -> pairwise -> insights
+  assert.ok(headerIdx < secSelectIdx);
+  assert.ok(secSelectIdx < matrixIdx);
+  assert.ok(matrixIdx < pairwiseIdx);
+  assert.ok(pairwiseIdx < insightsIdx);
+
+  // Assert that matrix and subsequent sections are outside the frozen wrapper
+  // The frozen wrapper ends after security selection and before the matrix
+  const frozenWrapperEnd = html.indexOf('SECURITY SELECTION');
+  const matrixTableIdx = html.indexOf('CORRELATION MATRIX');
+  assert.ok(matrixTableIdx > frozenWrapperEnd);
+});
+
