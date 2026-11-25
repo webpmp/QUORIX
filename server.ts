@@ -29,6 +29,7 @@ import {
   parseBisPolicyCsv,
   shiftIsoDate,
 } from "./src/utils/fxAnalytics";
+import { COMMAND_DEFINITIONS } from "./src/utils/commandParser";
 import {
   ThreeSpreadError,
   clearThreeSpreadCache,
@@ -774,7 +775,8 @@ const COMPANY_NAME_TO_TICKER: Record<string, string> = {
   "10Y": "TNX",
 };
 
-const TICKER_STOP_WORDS = new Set([
+export const TICKER_STOP_WORDS: Set<string> = new Set([
+  ...COMMAND_DEFINITIONS.map((cmd) => cmd.code.toUpperCase().trim()),
   "A", "I", "AM", "AN", "AS", "AT", "BE", "BY", "DO", "GO", "HE", "IF", "IN", "IS", "IT",
   "ME", "MY", "NO", "OF", "ON", "OR", "SO", "TO", "UP", "US", "WE",
   "AND", "ARE", "BUT", "CAN", "DID", "FOR", "GET", "HAS", "HAD", "HER", "HIM", "HIS", "HOW",
@@ -799,7 +801,7 @@ const TICKER_STOP_WORDS = new Set([
   "YIELD", "YIELDS",
 ]);
 
-function extractTickersFromCommand(command: string, fallbackTicker?: string): string[] {
+export function extractTickersFromCommand(command: string, fallbackTicker?: string): string[] {
   const found: string[] = [];
   const add = (sym: string) => {
     const clean = sym.toUpperCase().replace(/^\$/, "");
@@ -1339,7 +1341,7 @@ app.post("/api/terminal/analyze", async (req, res) => {
     - Market Sentiment (Positive, Negative, or Neutral)
     Only provide factual news that fits current market conditions. Use Google Search grounding for real-time headlines.`;
   } else {
-    // General terminal prompt or conversation (BWRITE / HELP)
+    // General terminal prompt or conversation (ASK / HELP)
     prompt = `You are interpreting a QUORIX terminal command/query: "${command}".
     If it represents a stock analysis, analyze it in a highly sophisticated financial context.
     If it's a general question or financial theory request, give a precise tabular or list breakdown of the core mechanics.
@@ -4845,7 +4847,14 @@ async function startServer() {
   process.once("SIGINT", shutdown);
 }
 
-startServer().catch((err) => {
-  console.error("Failed to start QUORIX server:", err);
-  process.exit(1);
-});
+const isDirectRun = Boolean(
+  process.argv[1] &&
+    (process.argv[1].endsWith("server.ts") || process.argv[1].endsWith("server.cjs") || process.argv[1].endsWith("server.js"))
+);
+
+if (isDirectRun && process.env.NODE_ENV !== "test") {
+  startServer().catch((err) => {
+    console.error("Failed to start QUORIX server:", err);
+    process.exit(1);
+  });
+}
