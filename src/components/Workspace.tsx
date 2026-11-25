@@ -25,6 +25,7 @@ import {
   type HistoricalPriceBar,
 } from '../utils/historicalPricing';
 import NewsPaywallBadge from './NewsPaywallBadge';
+import NewsCard, { cleanHeadline, cleanSummary, formatDisplayTime } from './NewsCard';
 import {
   formatNewsSourceLabel,
   isNewsItemPaywalled,
@@ -205,63 +206,6 @@ function findMentionedTickers(title: string, stocks: Record<string, any>): strin
     }
   });
   return found;
-}
-
-function formatDisplayTime(dateStr?: string) {
-  if (!dateStr) return '';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return dateStr;
-  }
-}
-
-function cleanHeadline(title: string): string {
-  if (!title) return '';
-  // Clean off trailing sources like: " - Al Jazeera", " - Reuters", " - WSJ", " | Associated Press", etc.
-  let cleaned = title.replace(/\s*[-|]\s*[^-|]+$/, '').trim();
-  if (cleaned.length < 10) {
-    return title;
-  }
-  return cleaned;
-}
-
-function cleanSummary(rawSummary?: string, headline?: string): string {
-  if (!rawSummary || typeof rawSummary !== 'string') return '';
-  // 1. Strip HTML tags
-  let cleaned = rawSummary.replace(/<[^>]*>/g, ' ');
-  // 2. Decode common HTML entities
-  cleaned = cleaned
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (_, dec) => {
-      try {
-        return String.fromCharCode(parseInt(dec, 10));
-      } catch {
-        return '';
-      }
-    });
-  // 3. Normalize whitespace and trim
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
-  if (!cleaned) return '';
-
-  // 4. Do not display if it merely repeats the headline
-  if (headline) {
-    const normSummary = cleaned.toLowerCase().replace(/[^\w\s]/g, '').trim();
-    const normHeadline = headline.toLowerCase().replace(/[^\w\s]/g, '').trim();
-    if (normSummary === normHeadline || (normHeadline.length > 15 && normSummary.startsWith(normHeadline))) {
-      return '';
-    }
-  }
-
-  return cleaned;
 }
 
 function getRelatedTickers(title: string, content: string, stocks: Record<string, any>): string[] {
@@ -1271,57 +1215,13 @@ export default function Workspace({
               }
               return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {tickerNews.map((item, idx) => {
-                    const displayTime = formatDisplayTime(item.publishedAt || item.time);
-                    const cleanedTitle = cleanHeadline(item.title);
-                    const sourceLabel = formatNewsSourceLabel(item.source);
-                    const paywalled = isNewsItemPaywalled(item);
-                    const cleanedItemSummary = cleanSummary(item.content, cleanedTitle);
-                    return (
-                      <div key={item.id || idx} className="bg-[#010101] border border-[#3a3a3a] hover:border-[#333] p-2.5 rounded flex items-start justify-between gap-3 text-xs/relaxed transition-all font-mono">
-                        <div className="min-w-0 flex-1 leading-snug break-words">
-                          <a
-                            href={item.url || 'https://www.reuters.com'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-zinc-100 hover:text-[#00ff00] text-sm md:text-base font-bold leading-snug hover:underline break-words"
-                          >
-                            {cleanedTitle}
-                          </a>
-                          {sourceLabel && (
-                            <>
-                              {' '}
-                              <span className="text-xs text-[#ff9900] font-extrabold uppercase ml-1.5 select-none">—{' '}</span>
-                              <a
-                                href={item.url || 'https://www.reuters.com'}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-[#ff9900] font-extrabold uppercase hover:text-[#00ff00] hover:underline select-none"
-                              >
-                                [{sourceLabel}]
-                              </a>
-                            </>
-                          )}
-                          {paywalled && (
-                            <>
-                              {' '}
-                              <NewsPaywallBadge className="ml-1" />
-                            </>
-                          )}
-                          {cleanedItemSummary && (
-                            <p className="text-xs text-zinc-300 font-normal font-sans mt-1 line-clamp-2">
-                              {cleanedItemSummary}
-                            </p>
-                          )}
-                        </div>
-                        {displayTime && (
-                          <span className="text-xs text-zinc-300 font-mono uppercase shrink-0 whitespace-nowrap pt-0.5">
-                            {displayTime}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {tickerNews.map((item, idx) => (
+                    <NewsCard
+                      key={item.id || idx}
+                      item={item}
+                      showTickers={false}
+                    />
+                  ))}
                 </div>
               );
             })()}
@@ -1633,10 +1533,6 @@ export default function Workspace({
             ) : newsArticles.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {newsArticles.map((item, idx) => {
-                  const displayTime = formatDisplayTime(item.publishedAt || item.time);
-                  const cleanedTitle = cleanHeadline(item.title);
-                  const sourceLabel = formatNewsSourceLabel(item.source);
-                  const paywalled = isNewsItemPaywalled(item);
                   const apiTickers: string[] = Array.isArray(item.relatedTickers)
                     ? item.relatedTickers.filter((t: string) => /^[A-Z0-9-]{1,6}$/.test(t) && !t.includes('.'))
                     : [];
@@ -1645,81 +1541,13 @@ export default function Workspace({
                     : getRelatedTickers(item.title, item.content || '', stocks);
 
                   return (
-                    <div key={item.id || idx} className="bg-black border border-[#151515] hover:border-[#333] p-4 rounded transition-all flex flex-col justify-between font-mono">
-                      <div>
-                        {/* Linked headline, source attribution, and paywall indicator on first line, timestamp on second line */}
-                        <div className="mb-2 leading-snug break-words">
-                          <a 
-                            href={item.url || 'https://www.reuters.com'} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-white hover:text-[#00ff00] text-sm md:text-base font-bold leading-snug hover:underline break-words"
-                          >
-                            {cleanedTitle}
-                          </a>
-                          {sourceLabel && (
-                            <>
-                              {' '}
-                              <span className="text-xs text-[#ff9900] font-extrabold uppercase ml-1.5 select-none">—{' '}</span>
-                              <a 
-                                href={item.url || 'https://www.reuters.com'} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-xs text-[#ff9900] font-extrabold uppercase hover:text-[#00ff00] hover:underline select-none"
-                              >
-                                [{sourceLabel}]
-                              </a>
-                            </>
-                          )}
-                          {paywalled && (
-                            <>
-                              {' '}
-                              <NewsPaywallBadge className="ml-1" />
-                            </>
-                          )}
-                          {displayTime && (
-                            <div className="text-xs text-zinc-300 font-mono mt-1">
-                              {displayTime}
-                            </div>
-                          )}
-                        </div>
-                        {item.content && (
-                          <p className="text-xs md:text-sm text-zinc-300 font-normal font-sans mb-3 line-clamp-3">
-                            {item.content}
-                          </p>
-                        )}
-                      </div>
-                      
-                      {/* Tickers, Sentiment below the content */}
-                      <div className="space-y-1.5 mt-2 pt-2 border-t border-[#151515] text-xs">
-                        {/* Related Tickers row */}
-                        <div className="flex flex-wrap items-center gap-1.5 text-sm text-zinc-300">
-                          {relatedTickers.map((t, tIdx) => (
-                            <React.Fragment key={t}>
-                              {tIdx > 0 && <span className="text-zinc-300">, </span>}
-                              <span
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (onSelectTicker) {
-                                    onSelectTicker(t);
-                                  }
-                                }}
-                                className="text-[#3498db] hover:text-[#00ff00] hover:underline cursor-pointer font-bold"
-                              >
-                                {t}
-                              </span>
-                            </React.Fragment>
-                          ))}
-                        </div>
-
-                        {/* Sentiment temporarily disabled until accuracy is improved
-                        <div className={item.sentiment === 'positive' ? 'text-[#00ff00] font-bold' : item.sentiment === 'negative' ? 'text-[#ff4444] font-bold' : 'text-zinc-300 font-bold'}>
-                          {item.sentiment ? item.sentiment.toUpperCase() : 'NEUTRAL'}
-                        </div>
-                        */}
-                      </div>
-                    </div>
+                    <NewsCard
+                      key={item.id || idx}
+                      item={item}
+                      showTickers={true}
+                      relatedTickers={relatedTickers}
+                      onSelectTicker={onSelectTicker}
+                    />
                   );
                 })}
               </div>

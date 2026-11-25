@@ -72,6 +72,7 @@ export interface NewsItem {
   url?: string;
   publishedAt?: string;
   paywalled?: boolean;
+  relatedTickers?: string[];
 }
 
 export interface EconomicIndicator {
