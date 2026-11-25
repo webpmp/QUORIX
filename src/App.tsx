@@ -76,6 +76,7 @@ export default function App() {
   const [selectedTicker, setSelectedTicker] = useState<string>('AAPL');
   const [selectedCurrency, setSelectedCurrency] = useState<string | null>(null);
   const [selectedEcoCategory, setSelectedEcoCategory] = useState<string | null>(null);
+  const [newsHubFilterTicker, setNewsHubFilterTicker] = useState<string | null>(null);
   const [activeScreen, setActiveScreen] = useState<string>('GP');
 
   const [fredEconomicsStatus, setFredEconomicsStatus] = useState<FredFeedStatus>({
@@ -351,10 +352,28 @@ export default function App() {
       if (parsed.screen === 'ECO') {
         setSelectedEcoCategory(null);
       }
+      if (parsed.screen === 'NEWS') {
+        setNewsHubFilterTicker(null);
+      }
       setActiveScreen(parsed.screen);
       if (parsed.screen === 'ASK') {
         setCurrentCommand('');
         setFocusAskQuorixSignal((n) => n + 1);
+      } else if (
+        parsed.screen === 'GP' ||
+        parsed.screen === 'HP' ||
+        parsed.screen === 'INST' ||
+        parsed.screen === 'POLY' ||
+        parsed.screen === 'DES' ||
+        parsed.screen === 'ANR'
+      ) {
+        const sym = (selectedTicker || '').trim().toUpperCase();
+        const cmd = sym ? `${parsed.screen} ${sym}` : parsed.screen;
+        lastPrefilledCommandRef.current = cmd;
+        setCurrentCommand(cmd);
+      } else if (parsed.screen === 'NEWS') {
+        lastPrefilledCommandRef.current = 'NEWS';
+        setCurrentCommand('NEWS');
       }
       return;
     }
@@ -374,6 +393,27 @@ export default function App() {
       if (targetScreen === 'CRNC') {
         setSelectedCurrency(ticker);
         setActiveScreen('CRNC');
+        return;
+      }
+
+      // Special handling for News Hub filter: "NEWS <TICKER>"
+      if (targetScreen === 'NEWS') {
+        setNewsHubFilterTicker(ticker);
+        setActiveScreen('NEWS');
+        setTickerCommandSubmissionSignal({ id: Date.now(), screen: 'NEWS', ticker });
+        if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker) || stocks[ticker]) {
+          setSelectedTicker(ticker);
+          ensureTickerSlot(ticker, false);
+          fetchLiveQuote(ticker, false, true);
+        } else {
+          void searchAndAddTrackedEquity(ticker).then((res) => {
+            if (executionToken !== activeValidationTokenRef.current) return;
+            if (res?.accepted && res.stock) {
+              const resolvedSym = res.stock.symbol || ticker;
+              setSelectedTicker(resolvedSym);
+            }
+          });
+        }
         return;
       }
 
@@ -442,12 +482,24 @@ export default function App() {
     }
   };
 
-  // Keep search input prepopulated when on NEWS HUB, GRAPH PRICE, HISTORICAL PRICING, INSTITUTIONAL ACTIVITY, POLYMARKET SCREENER, SECURITY ANALYTICS, or CURRENCIES with active ticker/currency
+  // Keep search input prepopulated when on NEWS HUB, GRAPH PRICE, HISTORICAL PRICING, INSTITUTIONAL ACTIVITY, POLYMARKET SCREENER, SECURITY ANALYTICS, ANALYST RECS, or CURRENCIES with active ticker/currency
   useEffect(() => {
-    if (activeScreen === 'NEWS' || activeScreen === 'GP' || activeScreen === 'HP' || activeScreen === 'INST' || activeScreen === 'POLY' || activeScreen === 'DES') {
+    if (activeScreen === 'NEWS') {
+      const sym = (newsHubFilterTicker || '').trim().toUpperCase();
+      const cmd = sym ? `NEWS ${sym}` : 'NEWS';
+      lastPrefilledCommandRef.current = cmd;
+      setCurrentCommand(cmd);
+    } else if (
+      activeScreen === 'GP' ||
+      activeScreen === 'HP' ||
+      activeScreen === 'INST' ||
+      activeScreen === 'POLY' ||
+      activeScreen === 'DES' ||
+      activeScreen === 'ANR'
+    ) {
       const sym = (selectedTicker || '').trim().toUpperCase();
       const prefix = activeScreen;
-      const cmd = sym ? `${prefix} ${sym}` : '';
+      const cmd = sym ? `${prefix} ${sym}` : prefix;
       lastPrefilledCommandRef.current = cmd;
       setCurrentCommand(cmd);
     } else if (activeScreen === 'CRNC') {
@@ -466,7 +518,7 @@ export default function App() {
       }
       lastPrefilledCommandRef.current = null;
     }
-  }, [activeScreen, selectedTicker, selectedCurrency, selectedEcoCategory]);
+  }, [activeScreen, selectedTicker, selectedCurrency, selectedEcoCategory, newsHubFilterTicker]);
 
   const handleSelectTicker = (ticker: string) => {
     const sym = normalizeTickerSymbol(ticker);
@@ -541,6 +593,11 @@ export default function App() {
           fredEconomicsStatus={fredEconomicsStatus}
           fredCurrenciesStatus={fredCurrenciesStatus}
           selectedEcoCategory={selectedEcoCategory}
+          newsHubFilterTicker={newsHubFilterTicker}
+          onClearNewsHubFilter={() => {
+            setNewsHubFilterTicker(null);
+            setCurrentCommand('NEWS');
+          }}
           onRefreshEconomics={() => fetchFredEconomics(true)}
           onRefreshCurrencies={() => fetchFredCurrencies(true)}
           onExecuteCommand={(cmd) => {

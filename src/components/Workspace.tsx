@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   StockData,
   EconomicIndicator,
@@ -9,6 +9,10 @@ import {
 import { FredFeedStatus } from '../App';
 import ChartWidget from './ChartWidget';
 import ErrorBoundary from './ErrorBoundary';
+import {
+  scoreArticleForTicker,
+  getActiveTickerGroup,
+} from '../utils/gpNewsRelevance';
 import CorrelationAnalyzerScreen from './CorrelationAnalyzerScreen';
 import { CurrenciesScreen } from './CurrenciesScreen';
 import { InsiderTradingPanel } from './InsiderTradingPanel';
@@ -50,6 +54,8 @@ interface WorkspaceProps {
   fredEconomicsStatus?: FredFeedStatus;
   fredCurrenciesStatus?: FredFeedStatus;
   selectedEcoCategory?: string | null;
+  newsHubFilterTicker?: string | null;
+  onClearNewsHubFilter?: () => void;
   onRefreshEconomics?: () => void;
   onRefreshCurrencies?: () => void;
   onExecuteCommand: (cmd: string) => void;
@@ -306,6 +312,8 @@ export default function Workspace({
   fredEconomicsStatus,
   fredCurrenciesStatus,
   selectedEcoCategory = null,
+  newsHubFilterTicker = null,
+  onClearNewsHubFilter,
   onRefreshEconomics,
   onRefreshCurrencies,
   onExecuteCommand,
@@ -406,9 +414,12 @@ export default function Workspace({
   const [anrLoading, setAnrLoading] = useState(false);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsArticles, setNewsArticles] = useState<any[]>([]);
+  // Dedicated GRAPH PRICE news pool (isolated from newsArticles to support GOOG/GOOGL dual-symbol merge)
+  const [gpNewsArticles, setGpNewsArticles] = useState<any[]>([]);
   const [, setPaywallSyncVersion] = useState<number>(0);
   const [lastRefreshed, setLastRefreshed] = useState<number>(0);
   const lastNewsTickerRef = useRef<string>('');
+  const newsRequestIdRef = useRef<number>(0);
 
   // Historical Price (HP) expanded hourly history state & per-symbol client cache (5-minute TTL)
   interface HpCacheEntry {
@@ -722,10 +733,22 @@ export default function Workspace({
 
   // Fetch or simulate server-side description on ticker search, and fetch initial/ticker news
   useEffect(() => {
+    const isNewTicker = lastNewsTickerRef.current !== selectedTicker;
+
     if (lastRefreshed === 0) {
+      if (activeScreen === 'NEWS' && !newsHubFilterTicker) {
+        fetchAggregatedNews('', false);
+      } else {
+        fetchAggregatedNews(selectedTicker);
+      }
+    } else if (activeScreen === 'GP' && isNewTicker) {
+      setGpNewsArticles([]);
       fetchAggregatedNews(selectedTicker);
-    } else if ((activeScreen === 'GP' || activeScreen === 'NEWS') && lastNewsTickerRef.current !== selectedTicker) {
-      fetchAggregatedNews(selectedTicker);
+    } else if (activeScreen === 'NEWS') {
+      const targetNewsTicker = newsHubFilterTicker || '';
+      if (lastNewsTickerRef.current !== targetNewsTicker) {
+        fetchAggregatedNews(targetNewsTicker);
+      }
     }
 
     if (activeScreen === 'DES') {
@@ -738,10 +761,10 @@ export default function Workspace({
       const oneHourInMs = 60 * 60 * 1000;
 
       if (lastRefreshed > 0 && isMarketActive && Date.now() - lastRefreshed >= oneHourInMs) {
-        fetchAggregatedNews(selectedTicker);
+        fetchAggregatedNews(newsHubFilterTicker || '');
       }
     }
-  }, [selectedTicker, activeScreen, lastRefreshed]);
+  }, [selectedTicker, activeScreen, lastRefreshed, newsHubFilterTicker]);
 
   // Load expanded hourly Historical Price archive on demand when HP screen is active (per-symbol cached)
   useEffect(() => {
@@ -872,20 +895,20 @@ export default function Workspace({
         const oneHourInMs = 60 * 60 * 1000;
         
         if (isMarketActive && Date.now() - lastRefreshed >= oneHourInMs) {
-          fetchAggregatedNews(selectedTicker);
+          fetchAggregatedNews(newsHubFilterTicker || '');
         }
       }
     }, 60000);
     return () => clearInterval(interval);
-  }, [activeScreen, lastRefreshed, selectedTicker]);
+  }, [activeScreen, lastRefreshed, selectedTicker, newsHubFilterTicker]);
 
   useEffect(() => {
     const handleForceNewsRefresh = () => {
-      fetchAggregatedNews(selectedTicker, true);
+      fetchAggregatedNews(activeScreen === 'NEWS' ? (newsHubFilterTicker || '') : selectedTicker, true);
     };
     window.addEventListener('quorix-news-refresh', handleForceNewsRefresh);
     return () => window.removeEventListener('quorix-news-refresh', handleForceNewsRefresh);
-  }, [selectedTicker]);
+  }, [selectedTicker, activeScreen, newsHubFilterTicker]);
 
   useEffect(() => {
     return subscribePaywallUpdates(() => {
@@ -925,22 +948,111 @@ export default function Workspace({
 
   const fetchAggregatedNews = async (targetTicker = selectedTicker, force = false) => {
     lastNewsTickerRef.current = targetTicker;
+    const currentRequestId = ++newsRequestIdRef.current;
     setNewsLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (targetTicker) params.set('ticker', targetTicker);
-      if (force) params.set('force', 'true');
-      const query = params.toString() ? `?${params.toString()}` : '';
-      const response = await fetch(`/api/news/ticker${query}`, {
-        cache: 'no-store',
-        headers: { Accept: 'application/json' },
-      });
-      const contentType = (response.headers.get('content-type') || '').toLowerCase();
-      const rawText = await response.text();
-      if (!response.ok || !contentType.includes('application/json') || rawText.trimStart().startsWith('<')) {
-        throw new Error(!response.ok ? `HTTP ${response.status}` : 'Non-JSON response from news endpoint');
+      const fetchEndpoint = async (tickerSymbol: string) => {
+        const params = new URLSearchParams();
+        if (tickerSymbol) params.set('ticker', tickerSymbol);
+        if (force) params.set('force', 'true');
+        const query = params.toString() ? `?${params.toString()}` : '';
+        const fetchUrl = `/api/news/ticker${query}`;
+        const response = await fetch(fetchUrl, {
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+        });
+        const contentType = (response.headers.get('content-type') || '').toLowerCase();
+        const rawText = await response.text();
+        if (!response.ok || !contentType.includes('application/json') || rawText.trimStart().startsWith('<')) {
+          throw new Error(!response.ok ? `HTTP ${response.status}` : 'Non-JSON response from news endpoint');
+        }
+        return JSON.parse(rawText);
+      };
+
+      // Standard single-endpoint fetch for general newsArticles (used by NEWS HUB)
+      const data = await fetchEndpoint(targetTicker);
+
+      // Dedicated fetch and merge for GRAPH PRICE if targetTicker belongs to GOOG / GOOGL alias group
+      const gpGroup = getActiveTickerGroup(targetTicker);
+      let rawGpArticles: any[] = [];
+      if (gpGroup.length > 1) {
+        const settled = await Promise.allSettled(gpGroup.map((sym) => fetchEndpoint(sym)));
+        settled.forEach((res) => {
+          if (res.status === 'fulfilled' && res.value?.success && Array.isArray(res.value?.data)) {
+            rawGpArticles.push(...res.value.data);
+          }
+        });
+      } else if (data?.success && Array.isArray(data?.data)) {
+        rawGpArticles = [...data.data];
       }
-      const data = JSON.parse(rawText);
+
+      // Ignore late responses if user already initiated a newer news request
+      if (currentRequestId !== newsRequestIdRef.current) {
+        return;
+      }
+
+      const processRawArticles = (rawList: any[]) => {
+        const processed = rawList.map((item: any, idx: number) => {
+          let publishedAt = item.publishedAt;
+          if (!publishedAt) {
+            publishedAt = new Date(Date.now() - idx * 15 * 60 * 1000).toISOString();
+          }
+          return { ...item, publishedAt };
+        });
+
+        // Deduplicate by URL and title word overlap
+        const unique: any[] = [];
+        const seenUrls = new Set<string>();
+        for (const art of processed) {
+          if (art.url && seenUrls.has(art.url)) continue;
+          let isDup = false;
+          for (const existing of unique) {
+            const getWords = (t: string) =>
+              t
+                .toLowerCase()
+                .replace(/[^\w\s]/g, '')
+                .split(/\s+/)
+                .filter(
+                  (w) =>
+                    w.length > 3 &&
+                    ![
+                      'with',
+                      'that',
+                      'from',
+                      'this',
+                      'have',
+                      'been',
+                      'about',
+                      'will',
+                      'after',
+                      'over',
+                      'amid',
+                      'says',
+                      'near',
+                      'under',
+                      'into',
+                    ].includes(w)
+                );
+
+            const w1 = getWords(art.title || '');
+            const w2 = getWords(existing.title || '');
+            if (w1.length > 0 && w2.length > 0) {
+              const common = w1.filter((w) => w2.includes(w));
+              const overlap = common.length / Math.min(w1.length, w2.length);
+              if (overlap > 0.5) {
+                isDup = true;
+                break;
+              }
+            }
+          }
+          if (!isDup) {
+            if (art.url) seenUrls.add(art.url);
+            unique.push(art);
+          }
+        }
+        return unique;
+      };
+
       if (data.success && Array.isArray(data.data)) {
         // Map missing fields and ensure ISO publishedAt timestamp exists
         const processed = data.data.map((item: any, idx: number) => {
@@ -1022,11 +1134,24 @@ export default function Workspace({
       } else {
         setNewsArticles([]);
       }
+
+      // Process and store dedicated GRAPH PRICE pool (with dual GOOG/GOOGL merge if applicable)
+      if (rawGpArticles.length > 0) {
+        const uniqueGpArticles = processRawArticles(rawGpArticles);
+        syncNewsPaywallStatuses(uniqueGpArticles);
+        setGpNewsArticles(uniqueGpArticles);
+      } else {
+        setGpNewsArticles([]);
+      }
     } catch (err) {
+      if (currentRequestId !== newsRequestIdRef.current) return;
       console.error('Failed to load aggregated news:', err);
       setNewsArticles([]);
+      setGpNewsArticles([]);
     } finally {
-      setNewsLoading(false);
+      if (currentRequestId === newsRequestIdRef.current) {
+        setNewsLoading(false);
+      }
     }
   };
 
@@ -1145,34 +1270,71 @@ export default function Workspace({
     await submitAiPrompt(userMsg);
   };
 
-  const getTickerNews = () => {
-    const pool = newsArticles.length > 0 ? newsArticles : [];
+  const tickerNews = useMemo(() => {
     const now = Date.now();
     const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000;
+    const companyName = currentStock?.name;
 
-    const filtered = pool.filter((item) => {
-      const related = getRelatedTickers(item.title, item.content || '', stocks);
-      const upperTicker = selectedTicker.toUpperCase();
-      const hasApiTicker = Array.isArray(item.relatedTickers) &&
-                           item.relatedTickers.some((t: string) => t.toUpperCase() === upperTicker);
-      const isForTicker = hasApiTicker ||
-                          related.includes(selectedTicker) ||
-                          (item.symbol && item.symbol.toUpperCase() === upperTicker) ||
-                          (item.title && item.title.toUpperCase().includes(upperTicker));
+    const scoredItems: Array<{ item: any; tier: 1 | 2 }> = [];
 
-      if (!isForTicker) return false;
-
-      if (!item.publishedAt) return false;
+    for (const item of gpNewsArticles) {
+      if (!item.publishedAt) {
+        continue;
+      }
       try {
         const pubTime = new Date(item.publishedAt).getTime();
-        return pubTime >= twentyFourHoursAgo && pubTime <= now + 5 * 60 * 1000;
+        // Rolling 24-hour window filter with 5m future-skew buffer
+        if (isNaN(pubTime) || pubTime < twentyFourHoursAgo || pubTime > now + 5 * 60 * 1000) {
+          continue;
+        }
       } catch {
-        return false;
+        continue;
       }
+
+      const tier = scoreArticleForTicker(item, selectedTicker, companyName);
+      if (tier === 1 || tier === 2) {
+        scoredItems.push({ item, tier });
+      }
+    }
+
+    // Sort by tier ascending (Tier 1 first), then recency descending (newest first)
+    scoredItems.sort((a, b) => {
+      if (a.tier !== b.tier) {
+        return a.tier - b.tier;
+      }
+      const timeA = new Date(a.item.publishedAt || 0).getTime();
+      const timeB = new Date(b.item.publishedAt || 0).getTime();
+      return timeB - timeA;
     });
 
-    return filtered.slice(0, 4);
-  };
+    return scoredItems.slice(0, 4).map((entry) => entry.item);
+  }, [gpNewsArticles, selectedTicker, currentStock?.name]);
+
+  // Filtered news articles for NEWS HUB when filtered by ticker (e.g. NEWS GOOG, NEWS AAPL)
+  const filteredNewsHubArticles = useMemo(() => {
+    if (!newsHubFilterTicker) return null;
+    const companyName = stocks[newsHubFilterTicker]?.name;
+
+    const scored: Array<{ item: any; tier: 1 | 2 }> = [];
+    for (const item of newsArticles) {
+      const tier = scoreArticleForTicker(item, newsHubFilterTicker, companyName);
+      if (tier === 1 || tier === 2) {
+        scored.push({ item, tier });
+      }
+    }
+
+    // Sort by tier ascending (Tier 1 first), then newest first (recency descending)
+    scored.sort((a, b) => {
+      if (a.tier !== b.tier) {
+        return a.tier - b.tier;
+      }
+      const timeA = new Date(a.item.publishedAt || 0).getTime();
+      const timeB = new Date(b.item.publishedAt || 0).getTime();
+      return timeB - timeA;
+    });
+
+    return scored.map((s) => s.item);
+  }, [newsArticles, newsHubFilterTicker, stocks]);
 
   return (
     <div className={`flex-1 bg-[#010101] p-4 font-mono text-zinc-300 relative select-text ${
@@ -1204,27 +1366,21 @@ export default function Workspace({
                 <RefreshCw size={10} className="animate-spin text-[#ff9900]" />
                 <span>REFRESHING FEEDS...</span>
               </div>
-            ) : (() => {
-              const tickerNews = getTickerNews();
-              if (tickerNews.length === 0) {
-                return (
-                  <div className="text-center py-4 text-zinc-300 text-xs uppercase font-bold tracking-wider">
-                    no recent headlines
-                  </div>
-                );
-              }
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {tickerNews.map((item, idx) => (
-                    <NewsCard
-                      key={item.id || idx}
-                      item={item}
-                      showTickers={false}
-                    />
-                  ))}
-                </div>
-              );
-            })()}
+            ) : tickerNews.length === 0 ? (
+              <div className="text-center py-4 text-zinc-300 text-xs uppercase font-bold tracking-wider">
+                NO RECENT HEADLINES SPECIFICALLY ABOUT {selectedTicker}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {tickerNews.map((item, idx) => (
+                  <NewsCard
+                    key={item.id || idx}
+                    item={item}
+                    showTickers={false}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Insider Trading (3spread SEC Form 3/4/5) */}
@@ -1503,9 +1659,12 @@ export default function Workspace({
       })()}
 
       {/* 5. NEWS: CENTRAL SECURITIES NEWS GROUND-TRUTH FEED */}
-      {activeScreen === 'NEWS' && (
+      {activeScreen === 'NEWS' && (() => {
+        const displayedNewsArticles = filteredNewsHubArticles !== null ? filteredNewsHubArticles : newsArticles;
+
+        return (
         <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl">
-          <div className="border-b border-[#333] pb-2 mb-4 flex justify-between items-center">
+          <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2">
             <span className="text-white text-md font-bold uppercase tracking-wider">
               NEWS HUB
             </span>
@@ -1514,7 +1673,7 @@ export default function Workspace({
                 LAST REFRESHED: {lastRefreshed > 0 ? new Date(lastRefreshed).toLocaleTimeString() : 'NEVER'}
               </span>
               <button 
-                onClick={() => fetchAggregatedNews(selectedTicker, true)} 
+                onClick={() => fetchAggregatedNews(newsHubFilterTicker || '', true)} 
                 disabled={newsLoading}
                 className="text-zinc-300 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
                 title="Refresh news"
@@ -1525,14 +1684,31 @@ export default function Workspace({
           </div>
 
           <div className="space-y-4">
+            {newsHubFilterTicker && (
+              <div className="flex justify-end items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-[#ff9900]/15 border border-[#ff9900] text-[#ff9900] text-xs font-bold uppercase tracking-wider">
+                  FILTERED: {newsHubFilterTicker} · {displayedNewsArticles.length} {displayedNewsArticles.length === 1 ? 'ITEM' : 'ITEMS'}
+                </span>
+                {onClearNewsHubFilter && (
+                  <button
+                    type="button"
+                    onClick={onClearNewsHubFilter}
+                    className="px-2 py-0.5 rounded bg-black border border-[#333] hover:border-[#ff9900] hover:text-[#ff9900] text-zinc-300 text-xs font-bold uppercase transition-colors cursor-pointer"
+                  >
+                    SHOW ALL
+                  </button>
+                )}
+              </div>
+            )}
+
             {newsLoading ? (
               <div className="flex flex-col items-center py-12 space-y-2 text-zinc-300 text-xs bg-black border border-[#333] rounded">
                 <RefreshCw className="animate-spin text-[#3498db]" size={20} />
                 <span>SYNCING WITH REAL-TIME WEB GROUNDING ENGINE...</span>
               </div>
-            ) : newsArticles.length > 0 ? (
+            ) : displayedNewsArticles.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {newsArticles.map((item, idx) => {
+                {displayedNewsArticles.map((item, idx) => {
                   const apiTickers: string[] = Array.isArray(item.relatedTickers)
                     ? item.relatedTickers.filter((t: string) => /^[A-Z0-9-]{1,6}$/.test(t) && !t.includes('.'))
                     : [];
@@ -1553,12 +1729,15 @@ export default function Workspace({
               </div>
             ) : (
               <div className="text-center py-12 text-zinc-300 text-xs bg-black border border-[#333] rounded font-mono">
-                NO RECENT WORLD OR BUSINESS NEWS POPULATED.
+                {newsHubFilterTicker
+                  ? `NO RECENT HEADLINES SPECIFICALLY ABOUT ${newsHubFilterTicker}.`
+                  : 'NO RECENT WORLD OR BUSINESS NEWS POPULATED.'}
               </div>
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* 6. CRNC: FX MARKET INTELLIGENCE WORKSPACE (FRED H.10 + BIS) */}
       {activeScreen === 'CRNC' && (
