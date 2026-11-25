@@ -134,18 +134,46 @@ export function parseAnrTable(lines: string[]): {
 }
 
 /**
+ * Sanitizes an external URL to allow only safe http(s) links.
+ * Rejects javascript:, data:, and malformed or non-http protocols.
+ */
+export function sanitizeHeadlineUrl(rawUrl: unknown): string | null {
+  if (typeof rawUrl !== 'string') return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed || /[\u0000-\u001F\u007F]/.test(trimmed)) return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+export interface DesHeadlineItem {
+  date?: string;
+  source?: string;
+  title: string;
+  url?: string;
+}
+
+/**
  * Render structured DES (Security Analytics) Report
  */
 interface StructuredDesReportProps {
   rawText: string;
   onSelectTicker?: (ticker: string) => void;
   quoteStrip?: React.ReactNode;
+  headlines?: DesHeadlineItem[];
 }
 
 export const StructuredDesReport: React.FC<StructuredDesReportProps> = ({
   rawText,
   onSelectTicker,
   quoteStrip,
+  headlines = [],
 }) => {
   if (!rawText.trim()) return null;
 
@@ -326,6 +354,24 @@ export const StructuredDesReport: React.FC<StructuredDesReportProps> = ({
                     const match = cleaned.match(/^(\[\d{4}-\d{2}-\d{2}\]|\[RECENT\])\s*([^:]+):\s*(.*)$/);
                     if (match) {
                       const [, date, publisher, headline] = match;
+
+                      // Match structured headline: prefer positional index (stable 1-to-1 match with server output),
+                      // falling back to title/source matching if indices don't align
+                      const matchedItem =
+                        headlines[lIdx] ||
+                        headlines.find((h) => {
+                          const hTitle = (h.title || '').trim().toLowerCase();
+                          const targetTitle = headline.trim().toLowerCase();
+                          return (
+                            hTitle === targetTitle ||
+                            targetTitle.includes(hTitle) ||
+                            hTitle.includes(targetTitle)
+                          );
+                        });
+
+                      const rawLink = matchedItem?.url;
+                      const safeUrl = sanitizeHeadlineUrl(rawLink);
+
                       return (
                         <li key={lIdx} className="flex items-baseline gap-2">
                           <span className="text-zinc-400 font-mono text-xs tabular-nums shrink-0">
@@ -334,7 +380,18 @@ export const StructuredDesReport: React.FC<StructuredDesReportProps> = ({
                           <span className="text-zinc-300 font-semibold shrink-0">
                             {publisher}:
                           </span>
-                          <span className="text-zinc-200">{headline}</span>
+                          {safeUrl ? (
+                            <a
+                              href={safeUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-zinc-200 hover:text-[#00ff00] hover:underline transition-colors"
+                            >
+                              {headline}
+                            </a>
+                          ) : (
+                            <span className="text-zinc-200">{headline}</span>
+                          )}
                         </li>
                       );
                     }

@@ -411,6 +411,7 @@ export default function Workspace({
 
   // Screen-specific loading states for server-side AI contents
   const [desData, setDesData] = useState<string>('');
+  const [desHeadlines, setDesHeadlines] = useState<Array<{ date?: string; source?: string; title: string; url?: string }>>([]);
   const [anrData, setAnrData] = useState<string>('');
   const [desLoading, setDesLoading] = useState(false);
   const [anrLoading, setAnrLoading] = useState(false);
@@ -754,7 +755,10 @@ export default function Workspace({
     }
 
     if (activeScreen === 'DES') {
-      fetchScreenData('DES', selectedTicker, setDesData, setDesLoading);
+      if (isNewTicker) {
+        setDesHeadlines([]);
+      }
+      fetchScreenData('DES', selectedTicker, setDesData, setDesLoading, setDesHeadlines);
     } else if (activeScreen === 'ANR') {
       fetchScreenData('ANR', selectedTicker, setAnrData, setAnrLoading);
     } else if (activeScreen === 'NEWS') {
@@ -922,9 +926,11 @@ export default function Workspace({
     screenKey: string,
     ticker: string,
     setDataFn: (val: string) => void,
-    setLoadingFn: (val: boolean) => void
+    setLoadingFn: (val: boolean) => void,
+    setHeadlinesFn?: (headlines: Array<{ date?: string; source?: string; title: string; url?: string }>) => void
   ) => {
     setLoadingFn(true);
+    if (setHeadlinesFn) setHeadlinesFn([]);
     try {
       const response = await fetch('/api/terminal/analyze', {
         method: 'POST',
@@ -938,6 +944,9 @@ export default function Workspace({
       const data = await response.json();
       if (data.success) {
         setDataFn(data.output);
+        if (setHeadlinesFn && Array.isArray(data.headlines)) {
+          setHeadlinesFn(data.headlines);
+        }
       } else {
         setDataFn(data.output || 'LIVE AI ANALYSIS UNAVAILABLE. CHECK GEMINI_API_KEY.');
       }
@@ -1620,10 +1629,10 @@ export default function Workspace({
                         <CompanyLogo symbol={currentStock.symbol} size={32} className="shrink-0" />
                         <span className="text-zinc-200 font-sans font-bold text-base tracking-wide">{title}</span>
                       </div>
-                      <StructuredDesReport rawText={body} onSelectTicker={onSelectTicker} quoteStrip={quoteStripElement} />
+                      <StructuredDesReport rawText={body} onSelectTicker={onSelectTicker} quoteStrip={quoteStripElement} headlines={desHeadlines} />
                     </>
                   ) : (
-                    <StructuredDesReport rawText={desData} onSelectTicker={onSelectTicker} quoteStrip={quoteStripElement} />
+                    <StructuredDesReport rawText={desData} onSelectTicker={onSelectTicker} quoteStrip={quoteStripElement} headlines={desHeadlines} />
                   )}
                 </div>
               </div>

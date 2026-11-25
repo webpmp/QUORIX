@@ -952,6 +952,7 @@ function formatDescribeReport(sym: string, summary: any, chart: any, newsItems: 
   const links: Array<{ title: string; url: string }> = [
     { title: `Yahoo Finance: ${sym}`, url: `https://finance.yahoo.com/quote/${encodeURIComponent(mapToYahooSymbol(sym))}` },
   ];
+  const headlines: Array<{ date: string; source: string; title: string; url: string }> = [];
 
   if (newsItems.length > 0) {
     lines.push("");
@@ -960,9 +961,15 @@ function formatDescribeReport(sym: string, summary: any, chart: any, newsItems: 
       const ts = item.providerPublishTime
         ? new Date(item.providerPublishTime * 1000).toISOString().slice(0, 10)
         : "RECENT";
-      lines.push(`  • [${ts}] ${item.publisher || "MarketWire"}: ${item.title}`);
-      if (item.link) {
-        links.push({ title: `${item.publisher || "News"}: ${item.title}`, url: item.link });
+      const publisher = item.publisher || "MarketWire";
+      const title = item.title || "";
+      const link = typeof item.link === "string" ? item.link : "";
+      lines.push(`  • [${ts}] ${publisher}: ${title}`);
+      if (link) {
+        links.push({ title: `${publisher}: ${title}`, url: link });
+        headlines.push({ date: ts, source: publisher, title, url: link });
+      } else {
+        headlines.push({ date: ts, source: publisher, title, url: "" });
       }
     }
   }
@@ -970,7 +977,7 @@ function formatDescribeReport(sym: string, summary: any, chart: any, newsItems: 
   lines.push("");
   lines.push(`SOURCE: YAHOO FINANCE LIVE STREAM`);
 
-  return { output: lines.join("\n"), links };
+  return { output: lines.join("\n"), links, headlines };
 }
 
 function formatAnalystReport(sym: string, summary: any, chart: any) {
@@ -1384,6 +1391,7 @@ app.post("/api/terminal/analyze", async (req, res) => {
         success: true,
         output: text,
         links,
+        headlines: [],
         modelUsed: "gemini-4-hydrogen",
         timestamp: new Date().toISOString(),
       });
@@ -1414,6 +1422,7 @@ app.post("/api/terminal/analyze", async (req, res) => {
       success: true,
       output: fallback.output,
       links: fallback.links,
+      headlines: (fallback as any).headlines || [],
       modelUsed: "existing-apis-fallback",
       timestamp: new Date().toISOString(),
     });
