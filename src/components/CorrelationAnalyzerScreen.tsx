@@ -40,6 +40,7 @@ import {
   fetchSecurityDailyHistory,
 } from '../utils/dailyHistoryClient';
 import { InfoTooltipIcon, TerminalTooltip } from './TerminalTooltip';
+import ExplainerButton from './ExplainerButton';
 
 const CORR_TOOLTIPS = {
   lookbackPeriod: 'Historical period used for correlation calculations.',
@@ -1357,14 +1358,11 @@ export default function CorrelationAnalyzerScreen({
             CORRELATION ANALYZER
           </h1>
           <div className="flex items-center gap-2 shrink-0">
-            <InfoTooltipIcon
+            <ExplainerButton
               label="How do I use the CORR Workspace?"
               ariaText={CORR_USAGE_ARIA_TEXT}
-              content={CORR_USAGE_TOOLTIP_CONTENT}
+              text={CORR_USAGE_TOOLTIP_CONTENT}
               maxWidth={400}
-              size={13}
-              scrollable={true}
-              buttonClassName="p-1.5 rounded bg-[#0c0c0c] border border-[#333] hover:border-[#ff9900] text-zinc-300 hover:text-[#ff9900] focus:text-[#ff9900] focus:border-[#ff9900] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ff9900] inline-flex items-center justify-center transition-colors cursor-help shrink-0"
             />
             <button
               type="button"
