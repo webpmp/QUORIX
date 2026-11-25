@@ -115,6 +115,12 @@ export type ParsedCommandResult =
 
 const TICKER_CMD_RE = /^(?:[A-Z]{1,5}(?:[.-][A-Z0-9]{1,4})?|[0-9]{3,5}\.[A-Z]{1,3})$/;
 
+export function formatCommandInput(codeOrPhrase: string): string {
+  const trimmed = (codeOrPhrase || '').trim();
+  if (!trimmed) return '';
+  return `${trimmed} `;
+}
+
 export function parseCommandLineInput(rawInput: string): ParsedCommandResult {
   const trimmed = rawInput.trim();
   if (!trimmed) {

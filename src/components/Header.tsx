@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { extractRecognizedCommandPrefix } from '../utils/commandParser';
+import { extractRecognizedCommandPrefix, formatCommandInput } from '../utils/commandParser';
 
 interface HeaderProps {
   currentCommand: string;
@@ -54,6 +54,18 @@ export default function Header({
   const formRef = useRef<HTMLFormElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const pendingHistorySubmitRef = useRef<boolean>(false);
+  const prevCommandRef = useRef<string>(currentCommand);
+
+  // When a command code is placed into the input programmatically, ensure caret is at the end
+  useLayoutEffect(() => {
+    if (prevCommandRef.current !== currentCommand) {
+      prevCommandRef.current = currentCommand;
+      if (document.activeElement === inputRef.current && inputRef.current) {
+        const len = currentCommand.length;
+        inputRef.current.setSelectionRange(len, len);
+      }
+    }
+  }, [currentCommand]);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -207,6 +219,11 @@ export default function Header({
               {(() => {
                 const prefixMatch = extractRecognizedCommandPrefix(currentCommand);
                 if (prefixMatch && prefixMatch.prefix) {
+                  const hasTrailingSpace = prefixMatch.remainder.length > 0 && /^\s/.test(prefixMatch.remainder);
+                  const badgeInsetClass = hasTrailingSpace
+                    ? 'left-[-4px] right-[-4px]'
+                    : 'left-[-4px] right-0';
+
                   return (
                     <div
                       aria-hidden="true"
@@ -216,7 +233,7 @@ export default function Header({
                         {/* Invisible character sizing anchor matching input typography */}
                         <span className="invisible select-none">{prefixMatch.prefix}</span>
                         {/* Perfectly centered visual badge with balanced padding and full border visibility */}
-                        <span className="absolute inset-x-[-4px] top-1/2 -translate-y-1/2 flex items-center justify-center bg-black border border-[#3a3a3a] rounded text-xs text-[#ff9900] font-bold leading-none px-1.5 h-[18px]">
+                        <span className={`absolute ${badgeInsetClass} top-1/2 -translate-y-1/2 flex items-center justify-center bg-black border border-[#3a3a3a] rounded text-xs text-[#ff9900] font-bold leading-none px-1.5 h-[18px]`}>
                           {prefixMatch.prefix}
                         </span>
                       </span>

@@ -80,4 +80,44 @@ assert.equal(extractRecognizedCommandPrefix('NEWSPAPER AAPL'), null);
 // "ASKS" should NOT match "ASK"
 assert.equal(extractRecognizedCommandPrefix('ASKS'), null);
 
-console.log('✓ All 14 command prefix styling tests passed!');
+// 6. Caret and Trailing-Space Helper Tests
+const { formatCommandInput, parseCommandLineInput } = await import('../src/utils/commandParser');
+
+// (a) Selecting a command sets the input value to "<CODE> "
+assert.equal(formatCommandInput('ECO'), 'ECO ');
+assert.equal(formatCommandInput('CORR'), 'CORR ');
+assert.equal(formatCommandInput('INST'), 'INST ');
+assert.equal(formatCommandInput('PRM'), 'PRM ');
+assert.equal(formatCommandInput('GP'), 'GP ');
+assert.equal(formatCommandInput('  GP  '), 'GP ');
+
+// (b) Parser treats "ECO " and "ECO" identically
+const parsedNoSpace = parseCommandLineInput('ECO');
+const parsedWithSpace = parseCommandLineInput('ECO ');
+assert.deepStrictEqual(parsedWithSpace, parsedNoSpace);
+assert.equal(parsedWithSpace.type, 'SCREEN');
+assert.equal(parsedWithSpace.screen, 'ECO');
+
+// (c) Commands with trailing space submit and parse without errors for all 14 commands
+for (const code of ALL_14_COMMANDS) {
+  const p1 = parseCommandLineInput(code);
+  const p2 = parseCommandLineInput(`${code} `);
+  assert.deepStrictEqual(p2, p1, `Trailing space mismatch for command: ${code}`);
+}
+
+// (d) Ticker commands with trailing space parse identically
+const pCorr1 = parseCommandLineInput('CORR AAPL MSFT');
+const pCorr2 = parseCommandLineInput('CORR AAPL MSFT ');
+assert.deepStrictEqual(pCorr2, pCorr1);
+
+// (e) Prefix match detects trailing space for overhang styling
+const prefixNoSpace = extractRecognizedCommandPrefix('ECO');
+assert(prefixNoSpace !== null);
+assert.equal(prefixNoSpace.remainder, '');
+
+const prefixWithSpace = extractRecognizedCommandPrefix('ECO ');
+assert(prefixWithSpace !== null);
+assert.equal(prefixWithSpace.remainder, ' ');
+assert.equal(/^\s/.test(prefixWithSpace.remainder), true);
+
+console.log('✓ All 14 command prefix styling and caret spacing tests passed!');

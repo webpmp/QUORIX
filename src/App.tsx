@@ -20,7 +20,7 @@ import {
   resolveEquitySearch,
   savePersistedTrackedTickers,
 } from './utils/equityValidation';
-import { parseCommandLineInput } from './utils/commandParser';
+import { parseCommandLineInput, formatCommandInput, extractRecognizedCommandPrefix } from './utils/commandParser';
 
 export interface FredFeedStatus {
   loading: boolean;
@@ -432,6 +432,14 @@ export default function App() {
     if (screenCode === 'ASK' || screenCode === 'BWRITE') {
       setFocusAskQuorixSignal((n) => n + 1);
     }
+    const formatted = formatCommandInput(screenCode);
+    setCurrentCommand(formatted);
+    const terminalInput = document.getElementById('terminal-input') as HTMLInputElement | null;
+    if (terminalInput) {
+      terminalInput.focus();
+      const len = formatted.length;
+      terminalInput.setSelectionRange(len, len);
+    }
   };
 
   // Keep search input prepopulated when on NEWS HUB, GRAPH PRICE, HISTORICAL PRICING, INSTITUTIONAL ACTIVITY, POLYMARKET SCREENER, SECURITY ANALYTICS, or CURRENCIES with active ticker/currency
@@ -444,12 +452,12 @@ export default function App() {
       setCurrentCommand(cmd);
     } else if (activeScreen === 'CRNC') {
       const code = (selectedCurrency || '').trim().toUpperCase();
-      const cmd = code ? `CRNC ${code}` : 'CRNC';
+      const cmd = code ? `CRNC ${code}` : 'CRNC ';
       lastPrefilledCommandRef.current = cmd;
       setCurrentCommand(cmd);
     } else if (activeScreen === 'ECO') {
       const cat = (selectedEcoCategory || '').trim().toUpperCase();
-      const cmd = cat ? `ECO ${cat}` : 'ECO';
+      const cmd = cat ? `ECO ${cat}` : 'ECO ';
       lastPrefilledCommandRef.current = cmd;
       setCurrentCommand(cmd);
     } else {
@@ -536,7 +544,18 @@ export default function App() {
           onRefreshEconomics={() => fetchFredEconomics(true)}
           onRefreshCurrencies={() => fetchFredCurrencies(true)}
           onExecuteCommand={(cmd) => {
-            setCurrentCommand(cmd);
+            const trimmed = cmd.trim();
+            const prefixMatch = extractRecognizedCommandPrefix(trimmed);
+            const formatted = prefixMatch && !trimmed.includes(' ')
+              ? formatCommandInput(trimmed)
+              : cmd;
+            setCurrentCommand(formatted);
+            const terminalInput = document.getElementById('terminal-input') as HTMLInputElement | null;
+            if (terminalInput) {
+              terminalInput.focus();
+              const len = formatted.length;
+              terminalInput.setSelectionRange(len, len);
+            }
           }}
           onSelectScreen={handleSelectScreen}
           onSelectTicker={(ticker) => {
