@@ -35,6 +35,7 @@ import {
 } from '../utils/institutionalActivity';
 import SectorRotationPanel from './SectorRotationPanel';
 import TerminalSelect from './TerminalSelect';
+import CompanyLogo from './CompanyLogo';
 
 interface InstitutionalActivityScreenProps {
   selectedTicker: string;
@@ -640,10 +641,6 @@ export default function InstitutionalActivityScreen({
 
   const holdingsTotalPages = Math.max(1, Math.ceil(holdingsTotalRows / 50));
   const changesTotalPages = Math.max(1, Math.ceil(changesTotalRows / 50));
-  const holdingsNoticeText = useMemo(
-    () => formatHoldingsLimitationsNotice(holdingsLimitations),
-    [holdingsLimitations]
-  );
 
   return (
     <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl select-text flex flex-col lg:flex-1 lg:min-h-0 lg:overflow-hidden font-mono text-xs text-zinc-200">
@@ -857,8 +854,8 @@ export default function InstitutionalActivityScreen({
                   </div>
                 </div>
 
-                {/* Quick Ticker Filter Strip */}
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                {/* Quick Ticker Filter Strip & Resolved Issuer Summary */}
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs min-h-[52px]">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-zinc-300 font-bold uppercase">QUICK TICKER:</span>
                     {quickTickers.map((sym) => {
@@ -888,22 +885,38 @@ export default function InstitutionalActivityScreen({
                   </div>
 
                   {holdingsResolved && (holdingsResolved.companyName || holdingsResolved.cusip) && (
-                    <div className="text-zinc-300 flex flex-wrap items-center gap-2">
-                      <span className="text-zinc-100 font-bold">
-                        {holdingsResolved.companyName || holdingsResolved.ticker}
-                      </span>
-                      {holdingsResolved.ticker && (
-                        <button
-                          type="button"
-                          onClick={() => onSelectTicker?.(holdingsResolved.ticker!)}
-                          className="text-[#3498db] hover:underline font-bold cursor-pointer"
-                          title={`Open ${holdingsResolved.ticker} chart`}
+                    <div className="flex items-center gap-3 text-zinc-300 ml-auto text-right">
+                      <div className="flex flex-col items-end justify-center min-w-0">
+                        <span
+                          className="text-zinc-100 font-bold truncate max-w-[240px] sm:max-w-[340px] md:max-w-[420px]"
+                          title={holdingsResolved.companyName || holdingsResolved.ticker || ''}
                         >
-                          {holdingsResolved.ticker}
-                        </button>
-                      )}
-                      {holdingsResolved.cusip && (
-                        <span className="text-zinc-300">CUSIP: {holdingsResolved.cusip}</span>
+                          {holdingsResolved.companyName || holdingsResolved.ticker}
+                        </span>
+                        <div className="flex items-center justify-end gap-1.5 text-xs text-zinc-300 mt-0.5">
+                          {holdingsResolved.ticker && (
+                            <button
+                              type="button"
+                              onClick={() => onSelectTicker?.(holdingsResolved.ticker!)}
+                              className="text-[#3498db] hover:underline font-bold cursor-pointer"
+                              title={`Open ${holdingsResolved.ticker} chart`}
+                            >
+                              {holdingsResolved.ticker}
+                            </button>
+                          )}
+                          {holdingsResolved.ticker && holdingsResolved.cusip && (
+                            <span className="text-zinc-400">·</span>
+                          )}
+                          {holdingsResolved.cusip && (
+                            <span className="text-zinc-300">CUSIP: {holdingsResolved.cusip}</span>
+                          )}
+                        </div>
+                      </div>
+                      {holdingsResolved.ticker && (
+                        <CompanyLogo
+                          symbol={holdingsResolved.ticker}
+                          size={48}
+                        />
                       )}
                     </div>
                   )}

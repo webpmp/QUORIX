@@ -411,7 +411,7 @@ test('threeSpreadService input sanitizers reject malformed identifiers', () => {
   assert.equal(sanitizePeriodInput('not-a-date'), '');
 });
 
-test('InstitutionalActivityScreen places DELAYED 13F DISCLOSURE next to PROVIDER: 3SPREAD and hides disclosure copy until tooltip opens', () => {
+test('InstitutionalActivityScreen renders clean header without PROVIDER: 3SPREAD or DELAYED 13F DISCLOSURE badge', () => {
   const html = renderToStaticMarkup(
     React.createElement(InstitutionalActivityScreen, {
       selectedTicker: 'AAPL',
@@ -421,12 +421,10 @@ test('InstitutionalActivityScreen places DELAYED 13F DISCLOSURE next to PROVIDER
 
   assert.match(html, /text-white text-md font-bold uppercase tracking-wider">INSTITUTIONAL ACTIVITY MONITOR<\/span>/);
   assert.doesNotMatch(html, /INST - INSTITUTIONAL ACTIVITY MONITOR/);
-  assert.match(html, /PROVIDER: 3SPREAD/);
-  assert.match(
-    html,
-    /PROVIDER: 3SPREAD<\/span><span[^>]*>\|<\/span><button[^>]*type="button"[^>]*aria-expanded="false"[^>]*>.*?DELAYED 13F DISCLOSURE<\/span><\/button>/
-  );
-  // Explanatory disclosure copy must not be permanently visible in the workspace
+  // Regression guard: PROVIDER: 3SPREAD, DELAYED 13F DISCLOSURE badge, and tooltip triggers must not be in the header
+  assert.doesNotMatch(html, /PROVIDER:\s*3SPREAD/i);
+  assert.doesNotMatch(html, /DELAYED 13F DISCLOSURE/i);
+  // Explanatory disclosure copy must not be present in the header
   assert.doesNotMatch(
     html,
     /Institutional holdings reflect quarterly SEC Form 13F filings via 3spread/

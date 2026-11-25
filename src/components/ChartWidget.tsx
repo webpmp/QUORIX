@@ -62,6 +62,7 @@ import {
   type ChartPanelId,
   type ZoomableChartPanelId,
 } from '../utils/chartFocus';
+import CompanyLogo, { isCompanyEquitySymbol } from './CompanyLogo';
 
 interface ChartWidgetProps {
   stock: StockData;
@@ -1829,6 +1830,14 @@ export default function ChartWidget({
       {/* Chart Headers */}
       <div className="flex flex-col sm:flex-row items-baseline sm:items-center justify-between border-b border-[#333] pb-2 mb-3">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
+          {isCompanyEquitySymbol(stock.symbol) && (
+            <div className="w-8 h-8 min-w-[32px] min-h-[32px] shrink-0 flex items-center justify-center">
+              <CompanyLogo
+                symbol={stock.symbol}
+                size={32}
+              />
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm font-extrabold uppercase tracking-wider leading-tight min-w-0">
             <span className="text-[#ff9900]">{stock.symbol}</span>
             {stock.name && stock.name !== stock.symbol && (

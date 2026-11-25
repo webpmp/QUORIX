@@ -38,6 +38,8 @@ import {
 } from '../utils/newsPaywall';
 import { normalizeEcoCategory, ECO_RELEASE_CATEGORIES } from '../utils/ecoReleaseFilter';
 import { Send, AlertCircle, RefreshCw, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import CompanyLogo, { isCompanyEquitySymbol, splitReportTitleAndBody } from './CompanyLogo';
+import { StructuredDesReport, StructuredAnrReport } from '../utils/reportFormatting';
 
 interface WorkspaceProps {
   activeScreen: string;
@@ -1338,7 +1340,7 @@ export default function Workspace({
 
   return (
     <div className={`flex-1 bg-[#010101] p-4 font-mono text-zinc-300 relative select-text ${
-      activeScreen === 'ASK' || activeScreen === 'BWRITE' || activeScreen === 'ECO' || activeScreen === 'HP'
+      activeScreen === 'ASK' || activeScreen === 'BWRITE' || activeScreen === 'ECO' || activeScreen === 'HP' || activeScreen === 'DES'
         ? 'flex flex-col overflow-hidden min-h-0'
         : activeScreen === 'POLY'
         ? 'flex flex-col overflow-y-auto lg:overflow-hidden min-h-0'
@@ -1445,6 +1447,9 @@ export default function Workspace({
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-lg">
             <div className="shrink-0 border-b border-[#333] pb-2 mb-2.5 flex flex-wrap justify-between items-center gap-2 select-none">
               <div className="flex flex-wrap items-center gap-2.5">
+                {isCompanyEquitySymbol(currentStock.symbol) && (
+                  <CompanyLogo symbol={currentStock.symbol} size={28} className="shrink-0" />
+                )}
                 <span className="text-white text-md font-bold uppercase tracking-wider">
                   {currentStock.symbol} Historical Price Log
                 </span>
@@ -1559,12 +1564,11 @@ export default function Workspace({
 
       {/* 3. DES: INTEL BIOGRAPHY AND DESCRIPTION OVERVIEWS */}
       {activeScreen === 'DES' && (
-        <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl">
-          <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl">
+          <div className="shrink-0 border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2 select-none">
             <span className="text-white text-md font-bold uppercase tracking-wider">
               Description Summary
             </span>
-            {renderTextSizeControl()}
           </div>
 
           {desLoading ? (
@@ -1572,13 +1576,11 @@ export default function Workspace({
               <RefreshCw className="animate-spin text-[#3498db]" size={20} />
               <span>COUPLING DIRECTLY WITH AI DECODER STACKS...</span>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className={`bg-black border border-[#333] p-4 rounded text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed ${activeBwriteFont.body}`}>
-                {desData}
-              </div>
+          ) : (() => {
+            const { title, body } = splitReportTitleAndBody(desData);
+            const showLogoHeader = Boolean(title && isCompanyEquitySymbol(currentStock.symbol));
 
-              {/* Live quote matrix */}
+            const quoteStripElement = (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="bg-[#050505] border border-[#333] p-3 rounded">
                   <span className="text-zinc-300 block text-xs font-bold uppercase">Last Price</span>
@@ -1607,8 +1609,26 @@ export default function Workspace({
                   </span>
                 </div>
               </div>
-            </div>
-          )}
+            );
+
+            return (
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <div className="bg-black border border-[#333] p-4 rounded text-zinc-300 font-sans leading-relaxed text-xs">
+                  {showLogoHeader ? (
+                    <>
+                      <div className="flex items-center gap-3 pb-3 border-b border-[#2e2e2e]">
+                        <CompanyLogo symbol={currentStock.symbol} size={32} className="shrink-0" />
+                        <span className="text-zinc-200 font-sans font-bold text-base tracking-wide">{title}</span>
+                      </div>
+                      <StructuredDesReport rawText={body} onSelectTicker={onSelectTicker} quoteStrip={quoteStripElement} />
+                    </>
+                  ) : (
+                    <StructuredDesReport rawText={desData} onSelectTicker={onSelectTicker} quoteStrip={quoteStripElement} />
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -1617,11 +1637,10 @@ export default function Workspace({
         const anrConsensus = getAnrConsensusRating(anrData);
         return (
         <div className="bg-[#050505] border border-[#333] rounded p-4 animate-fade-in shadow-xl">
-          <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2">
+          <div className="border-b border-[#333] pb-2 mb-4 flex flex-wrap justify-between items-center gap-2 select-none">
             <span className="text-white text-md font-bold uppercase tracking-wider">
               Analyst Consensus Rating
             </span>
-            {renderTextSizeControl()}
           </div>
 
           {anrLoading ? (
@@ -1629,31 +1648,29 @@ export default function Workspace({
               <RefreshCw className="animate-spin text-[#ff9900]" size={20} />
               <span>COLLECTING BUY/SELL CONSENSUS CHANNELS...</span>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className={`bg-black border border-[#333] p-4 rounded text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed ${activeBwriteFont.body}`}>
-                {anrData.split('\n').map((line, lineIdx, arr) => {
-                  const recMatch = line.match(/^(RECOMMENDATION\s*:\s*)([A-Z0-9_/ -]+?)(\s*\|\s*.*|$)/i);
-                  return (
-                    <React.Fragment key={lineIdx}>
-                      {recMatch && anrConsensus.label ? (
-                        <>
-                          {recMatch[1]}
-                          <span className={`font-bold uppercase font-mono tracking-wider ${anrConsensus.colorClass}`}>
-                            {anrConsensus.label}
-                          </span>
-                          {recMatch[3]}
-                        </>
-                      ) : (
-                        line
-                      )}
-                      {lineIdx < arr.length - 1 ? '\n' : ''}
-                    </React.Fragment>
-                  );
-                })}
+          ) : (() => {
+            const { title, body } = splitReportTitleAndBody(anrData);
+            const showLogoHeader = Boolean(title && isCompanyEquitySymbol(currentStock.symbol));
+
+            return (
+              <div className="space-y-4">
+                <div className="bg-black border border-[#333] p-4 rounded text-zinc-300 font-sans leading-relaxed text-xs">
+                  {showLogoHeader && (
+                    <div className="flex items-center gap-3 pb-3 border-b border-[#2e2e2e]">
+                      <CompanyLogo symbol={currentStock.symbol} size={32} className="shrink-0" />
+                      <span className="text-zinc-200 font-sans font-bold text-base tracking-wide">{title}</span>
+                    </div>
+                  )}
+                  <StructuredAnrReport
+                    rawText={showLogoHeader ? body : anrData}
+                    consensusLabel={anrConsensus.label}
+                    consensusColorClass={anrConsensus.colorClass}
+                    onSelectTicker={onSelectTicker}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
         );
       })()}
