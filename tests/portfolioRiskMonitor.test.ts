@@ -736,3 +736,76 @@ test('IndustryAllocationPieChart builds proportional slices matching table data 
   assert.equal(higherCashSlices[1].portfolioWeightPct, 15); // $30k / $200k = 15%
   assert.equal(higherCashSlices[2].portfolioWeightPct, 5); // $10k / $200k = 5%
 });
+
+test('PRM layout and Workspace scroller integration matches CORR pattern', () => {
+  // 1. Workspace gives PRM the single overflow-y-auto wrapper (not flex flex-col overflow-hidden)
+  const workspacePrmHtml = renderToStaticMarkup(
+    React.createElement(Workspace, {
+      activeScreen: 'PRM',
+      selectedTicker: 'AAPL',
+      stocks: {},
+      trackedTickers: ['AAPL'],
+      corrSeedTicker: null,
+      currencies: [],
+      selectedCurrency: 'USD',
+      onSelectCurrency: () => {},
+      economics: null,
+      fredMacroMetrics: null,
+      fredReleases: [],
+      news: [],
+      newsLoading: false,
+      onSelectTicker: () => {},
+      onTickTimeChange: () => {},
+      onExecuteCommand: () => {},
+    })
+  );
+
+  // The workspace root scroller must have overflow-y-auto and must NOT have overflow-hidden
+  assert.ok(
+    workspacePrmHtml.includes('overflow-y-auto'),
+    'Workspace wrapper for PRM must have overflow-y-auto'
+  );
+  assert.ok(
+    !workspacePrmHtml.includes('flex flex-col overflow-hidden min-h-0'),
+    'Workspace wrapper for PRM must not be in the overflow-hidden group'
+  );
+
+  // 2. PRM Screen root and sticky header
+  const prmHtml = renderToStaticMarkup(
+    React.createElement(PortfolioRiskMonitorScreen, {
+      stocks: {},
+    })
+  );
+
+  // PRM root has space-y-4 animate-fade-in font-mono text-zinc-300
+  assert.ok(
+    prmHtml.includes('space-y-4 animate-fade-in font-mono text-zinc-300'),
+    'PRM root must match CORR root layout class'
+  );
+
+  // PRM root must NOT have flex flex-col flex-1 min-h-0 overflow-hidden
+  assert.ok(
+    !prmHtml.includes('flex flex-col flex-1 min-h-0 font-mono text-zinc-200 animate-fade-in overflow-hidden'),
+    'PRM root must not have overflow-hidden'
+  );
+
+  // Inner nested scroller must NOT be present
+  assert.ok(
+    !prmHtml.includes('flex-1 min-h-0 overflow-y-auto space-y-4 pt-4 pr-1'),
+    'PRM must not have nested overflow-y-auto scroller'
+  );
+
+  // StickyScreenHeader wrapper classes are present on the header
+  assert.ok(
+    prmHtml.includes('lg:[@media(min-height:800px)]:sticky'),
+    'PRM header must include responsive sticky class'
+  );
+  assert.ok(
+    prmHtml.includes('lg:[@media(min-height:800px)]:-top-4'),
+    'PRM header must include top offset to cover scroller padding'
+  );
+  assert.ok(
+    prmHtml.includes('z-30 bg-black'),
+    'PRM header must include z-30 bg-black'
+  );
+});

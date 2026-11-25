@@ -1176,7 +1176,7 @@ export default function Workspace({
 
   return (
     <div className={`flex-1 bg-[#010101] p-4 font-mono text-zinc-300 relative select-text ${
-      activeScreen === 'ASK' || activeScreen === 'BWRITE' || activeScreen === 'ECO' || activeScreen === 'PRM' || activeScreen === 'HP'
+      activeScreen === 'ASK' || activeScreen === 'BWRITE' || activeScreen === 'ECO' || activeScreen === 'HP'
         ? 'flex flex-col overflow-hidden min-h-0'
         : activeScreen === 'POLY'
         ? 'flex flex-col overflow-y-auto lg:overflow-hidden min-h-0'

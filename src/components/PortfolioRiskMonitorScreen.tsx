@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   BookOpen,
@@ -58,6 +58,7 @@ import {
   getIndustryColorMap,
 } from './IndustryAllocationPieChart';
 import { InfoTooltipIcon, TerminalTooltip } from './TerminalTooltip';
+import StickyScreenHeader from './StickyScreenHeader';
 
 export interface PortfolioRiskMonitorScreenProps {
   stocks: Record<string, StockData>;
@@ -571,230 +572,262 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
     setManagerOpen(true);
   };
 
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [headerHeight, setHeaderHeight] = useState<number>(180);
+
+  useEffect(() => {
+    if (!headerRef.current || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const h = Math.round(entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height);
+        if (h > 0) setHeaderHeight(h);
+      }
+    });
+    observer.observe(headerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   const jumpToSection = (sectionId: string) => {
     if (typeof document === 'undefined') return;
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const el = document.getElementById(sectionId);
+    if (!el) return;
+
+    // Check if sticky freeze is active (min-width: 1024px and min-height: 800px)
+    const isSticky =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(min-width: 1024px) and (min-height: 800px)').matches;
+
+    // Nearest overflow-y ancestor is the workspace scroller
+    const scroller = el.closest('.overflow-y-auto');
+    if (scroller && isSticky) {
+      const scrollerRect = scroller.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const offset = elRect.top - scrollerRect.top + scroller.scrollTop - (headerHeight + 16);
+      scroller.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+    } else {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   const isEmptyPortfolio =
     !activePortfolio || (activePortfolio.holdings.length === 0 && activePortfolio.cashBalance <= 0);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 font-mono text-zinc-200 animate-fade-in overflow-hidden">
-      {/* Top Workspace Header & Controls (Fixed / Non-shrinking) */}
-      <div className="shrink-0 bg-[#050505] border border-[#3a3a3a] rounded p-3.5 space-y-3 z-10 shadow-lg">
-        <div className="border-b border-[#3a3a3a] pb-2.5">
-          <h1 className="text-white text-md font-bold uppercase tracking-wider">
-            PORTFOLIO RISK MONITOR
-          </h1>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-[#3a3a3a] pb-2.5">
-          {activePortfolio && (
-            <div className="flex items-center gap-1.5">
-              <TerminalSelect
-                aria-label="Select portfolio"
-                sizeVariant="base"
-                value={activePortfolio.id}
-                onChange={(e) =>
-                  setStore((prev) => ({ ...prev, activePortfolioId: e.target.value }))
-                }
-                className="text-zinc-100 font-bold max-w-[220px] sm:max-w-xs truncate"
-              >
-                {store.portfolios.map((pf) => (
-                  <option key={pf.id} value={pf.id}>
-                    {pf.name} ({pf.holdings.length})
-                  </option>
-                ))}
-              </TerminalSelect>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => openManager('manual')}
-              className="min-h-8 px-3 py-1.5 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
-            >
-              <Plus size={11} />
-              <span>ADD HOLDING</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => openManager('csv')}
-              className="min-h-8 px-3 py-1.5 rounded bg-black border border-[#3a3a3a] hover:border-[#ff9900] text-zinc-200 hover:text-[#ff9900] font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
-            >
-              <FileSpreadsheet size={11} />
-              <span>CSV IMPORT</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => openManager('watchlist')}
-              className="min-h-8 px-3 py-1.5 rounded bg-black border border-[#3a3a3a] hover:border-[#3498db] text-zinc-200 hover:text-[#3498db] font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
-            >
-              <Layers size={11} />
-              <span>WATCHLIST</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => openManager('portfolios')}
-              className="min-h-8 px-3 py-1.5 rounded bg-black border border-[#3a3a3a] hover:border-zinc-500 text-zinc-300 hover:text-white font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
-            >
-              <FolderPlus size={11} />
-              <span>PORTFOLIOS</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setThresholdsOpen((prev) => !prev)}
-              className={`min-h-8 px-3 py-1.5 rounded border font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer ${
-                thresholdsOpen
-                  ? 'bg-[#1a1a1a] border-[#ff9900] text-[#ff9900]'
-                  : 'bg-black border-[#3a3a3a] text-zinc-300 hover:text-white hover:border-[#ff9900]'
-              }`}
-            >
-              <SlidersHorizontal size={12} />
-              <span>THRESHOLDS</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => openGlossary('risk-assessment')}
-              className="min-h-8 px-3 py-1.5 rounded bg-black border border-[#3a3a3a] hover:border-[#ff9900] text-zinc-300 hover:text-white font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
-            >
-              <BookOpen size={12} />
-              <span>GLOSSARY</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => void refreshPortfolioMarketData(true)}
-              disabled={isLoadingData || holdingTickers.length === 0}
-              aria-label="Refresh portfolio market prices and history"
-              title="Refresh market prices & historical returns"
-              className="min-h-8 px-2.5 py-1.5 rounded bg-black border border-[#3a3a3a] hover:border-[#00ff00] text-zinc-300 hover:text-[#00ff00] disabled:opacity-40 inline-flex items-center justify-center leading-none transition-colors cursor-pointer"
-            >
-              <RefreshCw size={11} className={isLoadingData ? 'animate-spin' : ''} />
-            </button>
+    <div className="space-y-4 animate-fade-in font-mono text-zinc-300">
+      {/* Top Workspace Header & Controls (Sticky Screen Header) */}
+      <StickyScreenHeader headerRef={headerRef}>
+        <div className="bg-[#050505] border border-[#3a3a3a] rounded px-3 py-2.5 space-y-2.5">
+          <div className="border-b border-[#3a3a3a] pb-2">
+            <h1 className="text-white text-md font-bold uppercase tracking-wider">
+              PORTFOLIO RISK MONITOR
+            </h1>
           </div>
-        </div>
 
-        {/* Lookback Selector + Section Anchors */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-zinc-300 uppercase font-bold mr-1">RISK LOOKBACK:</span>
-            {LOOKBACK_PERIODS.map((p) => (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#3a3a3a] pb-2">
+            {activePortfolio && (
+              <div className="flex items-center gap-1.5">
+                <TerminalSelect
+                  aria-label="Select portfolio"
+                  sizeVariant="base"
+                  value={activePortfolio.id}
+                  onChange={(e) =>
+                    setStore((prev) => ({ ...prev, activePortfolioId: e.target.value }))
+                  }
+                  className="text-zinc-100 font-bold max-w-[220px] sm:max-w-xs truncate"
+                >
+                  {store.portfolios.map((pf) => (
+                    <option key={pf.id} value={pf.id}>
+                      {pf.name} ({pf.holdings.length})
+                    </option>
+                  ))}
+                </TerminalSelect>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
-                key={p.id}
                 type="button"
-                onClick={() => setLookback(p.id)}
-                className={`min-h-8 px-2.5 py-1 rounded text-xs font-bold uppercase border transition-colors cursor-pointer inline-flex items-center justify-center leading-none ${
-                  lookback === p.id
-                    ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
-                    : 'bg-black border-[#3a3a3a] text-zinc-300 hover:text-zinc-200 hover:border-[#444]'
+                onClick={() => openManager('manual')}
+                className="min-h-7 px-2.5 py-1 rounded bg-[#ff9900] hover:bg-amber-500 text-black font-extrabold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
+              >
+                <Plus size={11} />
+                <span>ADD HOLDING</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openManager('csv')}
+                className="min-h-7 px-2.5 py-1 rounded bg-black border border-[#3a3a3a] hover:border-[#ff9900] text-zinc-200 hover:text-[#ff9900] font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
+              >
+                <FileSpreadsheet size={11} />
+                <span>CSV IMPORT</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openManager('watchlist')}
+                className="min-h-7 px-2.5 py-1 rounded bg-black border border-[#3a3a3a] hover:border-[#3498db] text-zinc-200 hover:text-[#3498db] font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
+              >
+                <Layers size={11} />
+                <span>WATCHLIST</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openManager('portfolios')}
+                className="min-h-7 px-2.5 py-1 rounded bg-black border border-[#3a3a3a] hover:border-zinc-500 text-zinc-300 hover:text-white font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
+              >
+                <FolderPlus size={11} />
+                <span>PORTFOLIOS</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setThresholdsOpen((prev) => !prev)}
+                className={`min-h-7 px-2.5 py-1 rounded border font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer ${
+                  thresholdsOpen
+                    ? 'bg-[#1a1a1a] border-[#ff9900] text-[#ff9900]'
+                    : 'bg-black border-[#3a3a3a] text-zinc-300 hover:text-white hover:border-[#ff9900]'
                 }`}
               >
-                {p.shortLabel}
+                <SlidersHorizontal size={12} />
+                <span>THRESHOLDS</span>
               </button>
-            ))}
-            {isLoadingData && (
-              <span className="text-xs text-[#ff9900] ml-2 inline-flex items-center gap-1">
-                <RefreshCw size={10} className="animate-spin" />
-                SYNCING MARKET DATA...
-              </span>
+              <button
+                type="button"
+                onClick={() => openGlossary('risk-assessment')}
+                className="min-h-7 px-2.5 py-1 rounded bg-black border border-[#3a3a3a] hover:border-[#ff9900] text-zinc-300 hover:text-white font-bold text-xs uppercase inline-flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer"
+              >
+                <BookOpen size={12} />
+                <span>GLOSSARY</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void refreshPortfolioMarketData(true)}
+                disabled={isLoadingData || holdingTickers.length === 0}
+                aria-label="Refresh portfolio market prices and history"
+                title="Refresh market prices & historical returns"
+                className="min-h-7 px-2.5 py-1 rounded bg-black border border-[#3a3a3a] hover:border-[#00ff00] text-zinc-300 hover:text-[#00ff00] disabled:opacity-40 inline-flex items-center justify-center leading-none transition-colors cursor-pointer"
+              >
+                <RefreshCw size={11} className={isLoadingData ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
+
+          {/* Lookback Selector + Section Anchors */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-zinc-300 uppercase font-bold mr-1">RISK LOOKBACK:</span>
+              {LOOKBACK_PERIODS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setLookback(p.id)}
+                  className={`min-h-7 px-2 py-0.5 rounded text-xs font-bold uppercase border transition-colors cursor-pointer inline-flex items-center justify-center leading-none ${
+                    lookback === p.id
+                      ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
+                      : 'bg-black border-[#3a3a3a] text-zinc-300 hover:text-zinc-200 hover:border-[#444]'
+                  }`}
+                >
+                  {p.shortLabel}
+                </button>
+              ))}
+              {isLoadingData && (
+                <span className="text-xs text-[#ff9900] ml-2 inline-flex items-center gap-1">
+                  <RefreshCw size={10} className="animate-spin" />
+                  SYNCING MARKET DATA...
+                </span>
+              )}
+            </div>
+
+            {!isEmptyPortfolio && (
+              <div className="flex flex-wrap items-center gap-1">
+                {PRM_SECTIONS.map((sec) => (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    onClick={() => jumpToSection(sec.id)}
+                    className="min-h-7 px-2 py-0.5 rounded bg-black border border-[#3a3a3a] hover:border-[#ff9900] text-xs text-zinc-300 hover:text-[#ff9900] uppercase font-bold transition-colors cursor-pointer inline-flex items-center justify-center"
+                  >
+                    {sec.label}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
-          {!isEmptyPortfolio && (
-            <div className="flex flex-wrap items-center gap-1">
-              {PRM_SECTIONS.map((sec) => (
-                <button
-                  key={sec.id}
-                  type="button"
-                  onClick={() => jumpToSection(sec.id)}
-                  className="min-h-8 px-2.5 py-1 rounded bg-black border border-[#3a3a3a] hover:border-[#ff9900] text-xs text-zinc-300 hover:text-[#ff9900] uppercase font-bold transition-colors cursor-pointer inline-flex items-center justify-center"
-                >
-                  {sec.label}
-                </button>
+          {/* Configurable Risk Thresholds Bar */}
+          {thresholdsOpen && (
+            <div className="border-t border-[#3a3a3a] pt-2.5 grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+              {[
+                {
+                  key: 'maxSinglePositionPct' as const,
+                  label: 'Max Single Pos (%)',
+                  min: 5,
+                  max: 80,
+                  step: 1,
+                },
+                {
+                  key: 'minPositionPct' as const,
+                  label: 'Underallocated (%)',
+                  min: 0.5,
+                  max: 15,
+                  step: 0.5,
+                },
+                {
+                  key: 'maxTop5Pct' as const,
+                  label: 'Max Top-5 (%)',
+                  min: 20,
+                  max: 95,
+                  step: 5,
+                },
+                {
+                  key: 'maxSectorPct' as const,
+                  label: 'Max Sector (%)',
+                  min: 10,
+                  max: 80,
+                  step: 5,
+                },
+                {
+                  key: 'highCorrelationThreshold' as const,
+                  label: 'High Corr (r)',
+                  min: 0.4,
+                  max: 0.95,
+                  step: 0.05,
+                },
+              ].map((item) => (
+                <label key={item.key} className="bg-black border border-[#3a3a3a] rounded p-1.5 space-y-1">
+                  <span className="block text-zinc-300 uppercase font-bold">{item.label}</span>
+                  <input
+                    type="number"
+                    min={item.min}
+                    max={item.max}
+                    step={item.step}
+                    value={thresholds[item.key]}
+                    onChange={(e) => {
+                      const num = Number(e.target.value);
+                      if (Number.isFinite(num)) {
+                        setThresholds((prev) => ({
+                          ...prev,
+                          [item.key]: Math.min(item.max, Math.max(item.min, num)),
+                        }));
+                      }
+                    }}
+                    className="w-full bg-[#080808] border border-[#333] focus:border-[#ff9900] rounded px-2 py-0.5 text-xs text-zinc-100 tabular-nums outline-none"
+                  />
+                </label>
               ))}
+              <div className="col-span-2 sm:col-span-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setThresholds({ ...DEFAULT_PORTFOLIO_THRESHOLDS })}
+                  className="text-xs text-zinc-300 hover:text-[#ff9900] uppercase font-bold cursor-pointer"
+                >
+                  RESET DEFAULTS
+                </button>
+              </div>
             </div>
           )}
         </div>
+      </StickyScreenHeader>
 
-        {/* Configurable Risk Thresholds Bar */}
-        {thresholdsOpen && (
-          <div className="border-t border-[#3a3a3a] pt-3 grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
-            {[
-              {
-                key: 'maxSinglePositionPct' as const,
-                label: 'Max Single Pos (%)',
-                min: 5,
-                max: 80,
-                step: 1,
-              },
-              {
-                key: 'minPositionPct' as const,
-                label: 'Underallocated (%)',
-                min: 0.5,
-                max: 15,
-                step: 0.5,
-              },
-              {
-                key: 'maxTop5Pct' as const,
-                label: 'Max Top-5 (%)',
-                min: 20,
-                max: 95,
-                step: 5,
-              },
-              {
-                key: 'maxSectorPct' as const,
-                label: 'Max Sector (%)',
-                min: 10,
-                max: 80,
-                step: 5,
-              },
-              {
-                key: 'highCorrelationThreshold' as const,
-                label: 'High Corr (r)',
-                min: 0.4,
-                max: 0.95,
-                step: 0.05,
-              },
-            ].map((item) => (
-              <label key={item.key} className="bg-black border border-[#3a3a3a] rounded p-2 space-y-1">
-                <span className="block text-zinc-300 uppercase font-bold">{item.label}</span>
-                <input
-                  type="number"
-                  min={item.min}
-                  max={item.max}
-                  step={item.step}
-                  value={thresholds[item.key]}
-                  onChange={(e) => {
-                    const num = Number(e.target.value);
-                    if (Number.isFinite(num)) {
-                      setThresholds((prev) => ({
-                        ...prev,
-                        [item.key]: Math.min(item.max, Math.max(item.min, num)),
-                      }));
-                    }
-                  }}
-                  className="w-full bg-[#080808] border border-[#333] focus:border-[#ff9900] rounded px-2 py-1 text-xs text-zinc-100 tabular-nums outline-none"
-                />
-              </label>
-            ))}
-            <div className="col-span-2 sm:col-span-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setThresholds({ ...DEFAULT_PORTFOLIO_THRESHOLDS })}
-                className="text-xs text-zinc-300 hover:text-[#ff9900] uppercase font-bold cursor-pointer"
-              >
-                RESET DEFAULTS
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Scrollable Content Container */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pt-4 pr-1">
-        {loadError && (
+      {loadError && (
         <div className="bg-black border border-[#ff4444]/40 rounded px-3 py-2 text-[13px] text-[#ff4444] flex items-center gap-2">
           <AlertCircle size={13} className="shrink-0" />
           <span>{loadError}</span>
@@ -2583,7 +2616,6 @@ export const PortfolioRiskMonitorScreen: React.FC<PortfolioRiskMonitorScreenProp
           </section>
         </div>
       )}
-      </div>
 
       <PortfolioGlossaryModal
         isOpen={glossaryOpen}

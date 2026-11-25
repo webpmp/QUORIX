@@ -42,6 +42,7 @@ import {
 import { InfoTooltipIcon, TerminalTooltip } from './TerminalTooltip';
 import ExplainerButton from './ExplainerButton';
 import InsightRow from './InsightRow';
+import StickyScreenHeader from './StickyScreenHeader';
 
 const CORR_TOOLTIPS = {
   lookbackPeriod: 'Historical period used for correlation calculations.',
@@ -1357,7 +1358,7 @@ export default function CorrelationAnalyzerScreen({
        * Uses top-[-1rem] -mt-4 pt-4 to fully cover the scroller's top padding (no peek gap).
        * Tightened paddings/gaps keep vertical height compact (~260-280px / <30% of 900px).
        * ==================================================================== */}
-      <div className="lg:[@media(min-height:800px)]:sticky lg:[@media(min-height:800px)]:-top-4 lg:[@media(min-height:800px)]:-mt-4 lg:[@media(min-height:800px)]:pt-4 z-30 bg-black space-y-2.5 pb-2.5">
+      <StickyScreenHeader className="space-y-2.5">
         {/* ====================================================================
          * HEADER & ACTIVE CONFIGURATION BAR
          * ==================================================================== */}
@@ -1711,7 +1712,7 @@ export default function CorrelationAnalyzerScreen({
             </div>
           )}
         </div>
-      </div>
+      </StickyScreenHeader>
 
       {/* ====================================================================
        * ALERTS: API ERRORS, COVERAGE LIMITATIONS, UNADJUSTED CLOSE NOTICE
