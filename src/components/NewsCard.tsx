@@ -14,36 +14,70 @@ export function formatDisplayTime(dateStr?: string): string {
   }
 }
 
-export function cleanHeadline(title: string): string {
-  if (!title) return '';
-  // Clean off trailing sources like: " - Al Jazeera", " - Reuters", " - WSJ", " | Associated Press", etc.
-  const cleaned = title.replace(/\s*[-|]\s*[^-|]+$/, '').trim();
-  if (cleaned.length < 10) {
-    return title;
-  }
-  return cleaned;
-}
-
-export function cleanSummary(rawSummary?: string, headline?: string): string {
-  if (!rawSummary || typeof rawSummary !== 'string') return '';
-  // 1. Strip HTML tags
-  let cleaned = rawSummary.replace(/<[^>]*>/g, ' ');
-  // 2. Decode common HTML entities
-  cleaned = cleaned
+export function decodeHtmlEntities(text: string): string {
+  if (!text) return '';
+  return text
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    .replace(/&#0*39;/g, "'")
     .replace(/&apos;/g, "'")
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, ' ')
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
     .replace(/&#(\d+);/g, (_, dec) => {
       try {
         return String.fromCharCode(parseInt(dec, 10));
       } catch {
         return '';
       }
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
+      try {
+        return String.fromCharCode(parseInt(hex, 16));
+      } catch {
+        return '';
+      }
     });
+}
+
+export function cleanHeadline(title: string, source?: string): string {
+  if (!title) return '';
+  const decoded = decodeHtmlEntities(title).trim();
+  // Strip trailing source only when separated by whitespace on both sides (" - ", " – ", " — ", " | ")
+  // AND the trailing segment is at the end of the title.
+  // When source is provided, strip only if trailing segment matches source (or vice-versa).
+  const match = decoded.match(/^(.*?)\s+[-–—|]\s+([^-–—|]+)$/);
+  if (match) {
+    const trailingSource = match[2].trim();
+    if (!source) {
+      return match[1].trim();
+    }
+    const cleanSource = source.replace(/\s*Business\b/gi, '').trim().toLowerCase();
+    const sourceTokens = cleanSource.split(/[^a-z0-9]+/).filter(Boolean);
+    const trailingLower = trailingSource.toLowerCase();
+
+    const matchesSource =
+      trailingLower.includes(cleanSource) ||
+      cleanSource.includes(trailingLower) ||
+      (sourceTokens.length > 0 && sourceTokens.some((tok) => tok.length >= 3 && trailingLower.includes(tok)));
+
+    if (matchesSource) {
+      return match[1].trim();
+    }
+  }
+  return decoded;
+}
+
+export const cleanTitle = cleanHeadline;
+
+export function cleanSummary(rawSummary?: string, headline?: string): string {
+  if (!rawSummary || typeof rawSummary !== 'string') return '';
+  // 1. Strip HTML tags
+  let cleaned = rawSummary.replace(/<[^>]*>/g, ' ');
+  // 2. Decode common HTML entities
+  cleaned = decodeHtmlEntities(cleaned);
   // 3. Normalize whitespace and trim
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   if (!cleaned) return '';
@@ -76,7 +110,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
   className = '',
 }) => {
   const displayTime = formatDisplayTime(item.publishedAt || item.time);
-  const cleanedTitle = cleanHeadline(item.title);
+  const cleanedTitle = cleanHeadline(item.title, item.source);
   const sourceLabel = formatNewsSourceLabel(item.source);
   const paywalled = isNewsItemPaywalled(item);
   const cleanedItemSummary = cleanSummary(item.content, cleanedTitle);
