@@ -1,52 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StockData } from '../types';
-
-function getMarketTimeDetails() {
-  try {
-    const etString = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    const etDate = new Date(etString);
-    const day = etDate.getDay();
-    const hours = etDate.getHours();
-    const minutes = etDate.getMinutes();
-    const totalMinutes = hours * 60 + minutes;
-
-    const isWeekend = day === 0 || day === 6;
-    if (isWeekend) {
-      return { isWeekend: true, isPreMarket: false, isCoreHours: false, isAfterHours: false };
-    }
-
-    const isPreMarket = (totalMinutes >= 4 * 60) && (totalMinutes < 9 * 60 + 30);
-    const isCoreHours = (totalMinutes >= 9 * 60 + 30) && (totalMinutes < 16 * 60);
-    const isAfterHours = (totalMinutes >= 16 * 60) && (totalMinutes < 20 * 60);
-
-    return {
-      isWeekend,
-      isPreMarket,
-      isCoreHours,
-      isAfterHours
-    };
-  } catch (err) {
-    const date = new Date();
-    const day = date.getDay();
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const totalMinutes = hours * 60 + minutes;
-    const isWeekend = day === 0 || day === 6;
-    if (isWeekend) {
-      return { isWeekend: true, isPreMarket: false, isCoreHours: false, isAfterHours: false };
-    }
-    const isPreMarket = (totalMinutes >= 4 * 60) && (totalMinutes < 9 * 60 + 30);
-    const isCoreHours = (totalMinutes >= 9 * 60 + 30) && (totalMinutes < 16 * 60);
-    const isAfterHours = (totalMinutes >= 16 * 60) && (totalMinutes < 20 * 60);
-
-    return {
-      isWeekend,
-      isPreMarket,
-      isCoreHours,
-      isAfterHours
-    };
-  }
-}
+import { getMarketTimeDetails, getMarketStatusBadgeStyle } from '../utils/marketHours';
 
 interface TickerTapeProps {
   stocks: Record<string, StockData>;
@@ -97,26 +51,14 @@ export default function TickerTape({ stocks, onSelectTicker }: TickerTapeProps) 
     };
   }, []);
 
+  const badgeStyle = getMarketStatusBadgeStyle(marketDetails.status);
+
   return (
     <div className="bg-[#1a1a1a] border-b border-[#333] select-none text-xs font-mono py-1 px-3 whitespace-nowrap overflow-hidden flex items-center gap-6 text-[#d4d4d4] shadow-inner">
       <div className="flex items-center space-x-2 shrink-0 bg-[#1a1a1a]">
-        {marketDetails.isCoreHours ? (
-          <span className="text-xs bg-[#ff9900] text-black px-1.5 py-0.5 font-extrabold uppercase rounded-sm">
-            INDEX TAPE
-          </span>
-        ) : marketDetails.isAfterHours ? (
-          <span className="text-xs bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-extrabold border border-indigo-500/30 uppercase">
-            AFTER HOURS ACTIVE
-          </span>
-        ) : marketDetails.isPreMarket ? (
-          <span className="text-xs bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-extrabold border border-amber-500/30 uppercase">
-            PRE-MARKET ACTIVE
-          </span>
-        ) : (
-          <span className="text-xs bg-red-950/80 text-red-400 border border-red-800/60 px-1.5 py-0.5 font-extrabold uppercase rounded-sm">
-            MARKET CLOSED
-          </span>
-        )}
+        <span className={badgeStyle.className}>
+          {badgeStyle.text}
+        </span>
       </div>
       <div className="flex space-x-6 items-center flex-1 min-w-0 overflow-x-auto overflow-y-hidden scrollbar-none">
         {TAPE_ITEMS.map((item) => {

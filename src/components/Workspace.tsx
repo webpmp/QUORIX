@@ -132,42 +132,7 @@ function createInitialDiagnosticsState(): Record<DiagnosticProviderId, Diagnosti
   };
 }
 
-function getMarketTimeDetails(): { isPreMarket: boolean; isCoreHours: boolean; isAfterHours: boolean; isWeekend: boolean } {
-  try {
-    const etString = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    const etDate = new Date(etString);
-    const day = etDate.getDay();
-    const hours = etDate.getHours();
-    const minutes = etDate.getMinutes();
-    const totalMinutes = hours * 60 + minutes;
-
-    const isWeekend = day === 0 || day === 6;
-    
-    // Pre-market: 4:00 AM to 9:30 AM ET -> 240 mins to 570 mins
-    const isPreMarket = !isWeekend && (totalMinutes >= 4 * 60) && (totalMinutes < 9 * 60 + 30);
-    
-    // Core: 9:30 AM to 4:00 PM ET -> 570 mins to 960 mins
-    const isCoreHours = !isWeekend && (totalMinutes >= 9 * 60 + 30) && (totalMinutes < 16 * 60);
-    
-    // After hours: 4:00 PM to 8:00 PM ET -> 960 mins to 1200 mins
-    const isAfterHours = !isWeekend && (totalMinutes >= 16 * 60) && (totalMinutes < 20 * 60);
-
-    return { isPreMarket, isCoreHours, isAfterHours, isWeekend };
-  } catch (err) {
-    const date = new Date();
-    const day = date.getDay();
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const totalMinutes = hours * 60 + minutes;
-    const isWeekend = day === 0 || day === 6;
-    
-    const isPreMarket = !isWeekend && (totalMinutes >= 4 * 60) && (totalMinutes < 9 * 60 + 30);
-    const isCoreHours = !isWeekend && (totalMinutes >= 9 * 60 + 30) && (totalMinutes < 16 * 60);
-    const isAfterHours = !isWeekend && (totalMinutes >= 16 * 60) && (totalMinutes < 20 * 60);
-
-    return { isPreMarket, isCoreHours, isAfterHours, isWeekend };
-  }
-}
+import { getMarketTimeDetails } from '../utils/marketHours';
 
 function getAnrConsensusRating(reportText: string): { label: string; colorClass: string } {
   if (!reportText) {
