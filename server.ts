@@ -49,6 +49,12 @@ import {
   clearSectorRotationCache,
   getSectorRotationData,
 } from "./src/server/sectorRotationService";
+import {
+  getCongressTradingStatus,
+  initializeCongressionalTradingService,
+  queryCongressTrades,
+  runIngestionBackfill,
+} from "./src/server/congressionalTradingService";
 import { newsPaywallService } from "./src/server/newsPaywallService";
 import {
   filterPolymarketEventsByTicker,
@@ -1066,7 +1072,7 @@ function formatAnalystReport(sym: string, summary: any, chart: any) {
   };
 }
 
-async function runExistingApiFallback(params: {
+export async function runExistingApiFallback(params: {
   command: string;
   screen?: string;
   ticker?: string;
@@ -1185,6 +1191,27 @@ async function runExistingApiFallback(params: {
     ]);
     if (summary || chart) {
       return formatDescribeReport(sym, summary, chart, search.news);
+    }
+
+    // When explicitly on the DES screen and no company profile exists from Yahoo,
+    // show a clean short notice instead of dumping market-wide benchmarks and FRED data
+    if (screen === "DES") {
+      const lines: string[] = [];
+      lines.push(`${sym.toUpperCase()}`);
+      lines.push("=".repeat(72));
+      lines.push(`No company profile available for ${sym.toUpperCase()} yet.`);
+      lines.push("");
+      lines.push("SOURCE: LIVE MARKET DISCLOSURE DATA");
+
+      return {
+        output: lines.join("\n"),
+        links: [
+          {
+            title: `Yahoo Finance: ${sym.toUpperCase()}`,
+            url: `https://finance.yahoo.com/quote/${encodeURIComponent(mapToYahooSymbol(sym))}`,
+          },
+        ],
+      };
     }
   }
 
@@ -1810,17 +1837,18 @@ app.get("/api/alpha-vantage/quote", async (req, res) => {
           const price = typeof meta.regularMarketPrice === 'number' && Number.isFinite(meta.regularMarketPrice)
             ? meta.regularMarketPrice
             : 0;
-          const prevClose =
+          const rawPrevClose =
             typeof meta.regularMarketPreviousClose === 'number'
               ? meta.regularMarketPreviousClose
               : typeof meta.previousClose === 'number'
               ? meta.previousClose
               : typeof meta.chartPreviousClose === 'number'
               ? meta.chartPreviousClose
-              : price;
+              : null;
+          const prevClose = rawPrevClose !== null ? rawPrevClose : 0;
           const decimals = cacheKey === 'TNX' ? 3 : 2;
-          const change = price > 0 || prevClose > 0 ? parseFloat((price - prevClose).toFixed(decimals)) : 0;
-          const changePercent = prevClose > 0 && price > 0 ? parseFloat(((change / prevClose) * 100).toFixed(2)) : 0;
+          const change = rawPrevClose !== null && price > 0 ? parseFloat((price - rawPrevClose).toFixed(decimals)) : 0;
+          const changePercent = rawPrevClose !== null && rawPrevClose > 0 && price > 0 ? parseFloat(((change / rawPrevClose) * 100).toFixed(2)) : 0;
           const history = extractYahooBars(result, '1h', 40);
 
           const regularStart = meta.currentTradingPeriod?.regular?.start;
@@ -4797,6 +4825,83 @@ app.get("/api/insiders", async (req, res) => {
   }
 });
 
+// Congressional Trading Routes
+app.get("/api/congress/status", async (req, res) => {
+  try {
+    const refresh = req.query.refresh === "true" || req.query.checkIndex === "true";
+    if (refresh) {
+      const result = await runIngestionBackfill({ forceCheckIndex: false });
+      const status = getCongressTradingStatus();
+      return res.json({
+        ...status,
+        indexCheckRan: result.indexCheckRan,
+        newFilingsFound: result.newFilingsFound,
+        cooldownActive: result.cooldownActive,
+        cooldownRemainingSeconds: result.cooldownRemainingSeconds,
+      });
+    }
+
+    const status = getCongressTradingStatus();
+    return res.json(status);
+  } catch (err) {
+    console.error("Congress status endpoint error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to retrieve Congressional trading status.",
+    });
+  }
+});
+
+app.get("/api/congress/trades", (req, res) => {
+  try {
+    const party = typeof req.query.party === "string" ? req.query.party : undefined;
+    const type = typeof req.query.type === "string" ? req.query.type : undefined;
+    const owner = typeof req.query.owner === "string" ? req.query.owner : undefined;
+    const ticker = typeof req.query.ticker === "string" ? req.query.ticker : undefined;
+    const politician = typeof req.query.politician === "string" ? req.query.politician : undefined;
+    const assetGroup = typeof req.query.assetGroup === "string" ? req.query.assetGroup : undefined;
+    const dateFrom = typeof req.query.dateFrom === "string" ? req.query.dateFrom : undefined;
+    const dateTo = typeof req.query.dateTo === "string" ? req.query.dateTo : undefined;
+    const sortBy =
+      req.query.sortBy === "transactionDate" || req.query.sortBy === "amount"
+        ? req.query.sortBy
+        : "disclosureDate";
+    const sortDir = req.query.sortDir === "asc" ? "asc" : "desc";
+    const page = req.query.page ? parseInt(String(req.query.page), 10) : 1;
+    const pageSize = req.query.pageSize ? parseInt(String(req.query.pageSize), 10) : 50;
+
+    const data = queryCongressTrades({
+      party,
+      type,
+      owner,
+      ticker,
+      politician,
+      assetGroup,
+      dateFrom,
+      dateTo,
+      sortBy,
+      sortDir,
+      page,
+      pageSize,
+    });
+
+    return res.json(data);
+  } catch (err) {
+    console.error("Congress trades endpoint error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to query Congressional trades.",
+      trades: [],
+      totalTrades: 0,
+      page: 1,
+      pageSize: 50,
+      totalPages: 1,
+      isStale: true,
+      lastUpdated: null,
+    });
+  }
+});
+
 // Configure Vite integration for develop and static assets for build
 
 async function startServer() {
@@ -4841,6 +4946,8 @@ async function startServer() {
 
   const httpServer = app.listen(PORT, "0.0.0.0", () => {
     console.log(`QUORIX server running on http://localhost:${PORT}`);
+    // Initialize background congressional trading ingest
+    initializeCongressionalTradingService();
   });
 
   const shutdown = () => {

@@ -163,6 +163,15 @@ The Institutional Activity Monitor provides visibility into institutional owners
 - **Multi-Period Accumulation Screener**: Identify securities experiencing sustained institutional accumulation across consecutive reporting cycles.
 - **Investor Profiles**: Inspect institutional investment managers, total 13F portfolio values, top holdings, and concentration metrics.
 - **Sector Rotation Analysis**: Evaluate institutional cohort capital rotation across all 11 GICS sectors.
+- **Congressional Trading Monitor (`CONGRESS` Tab)**: Feed of U.S. House of Representatives STOCK Act Periodic Transaction Reports (PTRs).
+  - **Parsed Digital Filings**: Full transaction extraction including ticker symbol, raw asset description, transaction type (Buy, Sell, Exchange), execution date (`TX DATE`), notification date (`NOTIFIED`), filing date (`FILED`), reporting gap days (`GAP`), amount range, and owner type.
+  - **Single Header Refresh & Unified Timestamp**: Controlled exclusively by the main INST header `REFRESH` button and header timestamp (showing updated time with amber `STALE` indicator when > 24 hours old).
+  - **Date Anomaly Indicators**: Dates as filed that occur in the future or after disclosure dates feature a focused amber warning icon with an accessible tooltip detailing the exact filed date and reason.
+  - **Derivative Identification**: Call and put options are highlighted with dedicated purple `OPTION` badges.
+  - **Scanned Filing Links**: Direct links to official House Clerk PDF records for paper filings without embedded text streams.
+  - **Legislator Enrichment**: Enriched with party affiliation and district details via `unitedstates/congress-legislators` (CC0 Public Domain).
+  - **Asset Grouping & Filtering**: Filter between Equities & ETFs and Fixed Income & Other, or filter by specific ticker, party, owner, and date ranges.
+  - **Compliance & Legal Notice**: Sourced under Title I of the Ethics in Government Act (5 U.S.C. app. § 105). Disclosures arrive up to 45 days after trade execution (members must report within 30 days of notification and no later than 45 days after the trade). Amounts are statutory ranges, not exact figures. Disclosed transactions are public records and imply no wrongdoing. Not investment advice. Disclosures do not require a 3spread API key. Sourced exclusively from the U.S. House of Representatives; U.S. Senate disclosures are excluded.
 - **Disclosure Timing**: Institutional holdings reflect quarterly SEC Form 13F filings. Institutional investment managers have up to 45 days after the end of each calendar quarter to file Form 13F with the SEC. Data reflects filed holdings, not real-time trading activity.
 
 <!-- TODO: screenshot of INST with 48px logo and holdings table -->

@@ -71,6 +71,7 @@ interface ChartWidgetProps {
   initialCustomMacdZoom?: number | null;
   initialCustomAtrZoom?: number | null;
   initialCustomObvZoom?: number | null;
+  initialResolvedEmptyKey?: string | null;
 }
 
 type ChartType = 'candle' | 'line' | 'area';
@@ -104,6 +105,7 @@ export default function ChartWidget({
   initialCustomMacdZoom = null,
   initialCustomAtrZoom = null,
   initialCustomObvZoom = null,
+  initialResolvedEmptyKey = null,
 }: ChartWidgetProps) {
   const [chartType, setChartType] = useState<ChartType>('candle');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -114,7 +116,7 @@ export default function ChartWidget({
     key: string;
     bars: HistoryBar[];
   } | null>(null);
-  const [resolvedEmptyKey, setResolvedEmptyKey] = useState<string | null>(null);
+  const [resolvedEmptyKey, setResolvedEmptyKey] = useState<string | null>(initialResolvedEmptyKey);
   const [historyLoadingKey, setHistoryLoadingKey] = useState<string | null>(null);
   const chartStackRef = useRef<HTMLDivElement | null>(null);
   const chartPanelRef = useRef<HTMLDivElement | null>(null);
@@ -2641,17 +2643,33 @@ export default function ChartWidget({
           ) : (
             <div
               style={{ height: BASE_PRICE_HEIGHT }}
-              className="flex flex-col items-center justify-center text-center text-zinc-300 font-mono select-none"
+              className="flex flex-col items-center justify-center text-center text-zinc-300 font-mono select-none px-4"
             >
-              <p className="text-xs text-zinc-300">
-                NO HISTORICAL DATA AVAILABLE FOR
-              </p>
-              <div className="text-white font-extrabold text-xl sm:text-2xl tracking-wider mt-1.5 mb-2">
-                {stock.symbol}
-              </div>
-              <div className="text-xs text-zinc-300">
-                DATA PROVIDERS: LIVE YAHOO FINANCE / ALPHA VANTAGE
-              </div>
+              {typeof stock.price === 'number' && stock.price > 0 && Array.isArray(stock.history) && stock.history.length === 0 ? (
+                <>
+                  <p className="text-xs text-zinc-300 max-w-md">
+                    No price history yet for {stock.symbol}. This can happen with when-issued or newly listed tickers.
+                  </p>
+                  <div className="text-white font-extrabold text-xl sm:text-2xl tracking-wider mt-1.5 mb-2">
+                    {stock.symbol}
+                  </div>
+                  <div className="text-xs text-zinc-400">
+                    DATA PROVIDERS: LIVE YAHOO FINANCE / ALPHA VANTAGE
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-zinc-300">
+                    NO HISTORICAL DATA AVAILABLE FOR
+                  </p>
+                  <div className="text-white font-extrabold text-xl sm:text-2xl tracking-wider mt-1.5 mb-2">
+                    {stock.symbol}
+                  </div>
+                  <div className="text-xs text-zinc-300">
+                    DATA PROVIDERS: LIVE YAHOO FINANCE / ALPHA VANTAGE
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

@@ -232,5 +232,27 @@ assert.match(
 );
 console.log('✓ Dot notation shares cache entry with hyphenated form');
 
+// 11. Monogram fallback for when-issued / missing logos (e.g. HONAV)
+logoStatusCache.set('HONAV', 'monogram');
+const honavLogoHtml = renderToStaticMarkup(
+  React.createElement(CompanyLogo, { symbol: 'HONAV', size: 32 })
+);
+assert.match(
+  honavLogoHtml,
+  /company-logo-monogram/,
+  'When image requests fail or monogram is cached, CompanyLogo must render monogram'
+);
+assert.match(
+  honavLogoHtml,
+  />HO</,
+  'HONAV monogram must display HO initials'
+);
+assert.equal(
+  honavLogoHtml.includes('img'),
+  false,
+  'Monogram element must never render a broken <img> tag'
+);
+console.log('✓ HONAV monogram fallback verified with zero broken-image artifacts');
+
 clearLogoStatusCache();
 console.log('All CompanyLogo unit tests passed successfully!');

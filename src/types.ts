@@ -627,3 +627,93 @@ export interface PortfolioSecurityMetadata {
 }
 
 
+
+// Congressional Trading Data Types
+export type CongressParty = 'Democrat' | 'Republican' | 'Independent' | 'Other' | 'Unknown';
+export type CongressOwnerType = 'self' | 'spouse' | 'joint' | 'dependent' | 'other';
+export type CongressTxType = 'BUY' | 'SELL' | 'EXCHANGE' | 'OTHER';
+export type CongressAssetGroup = 'EQUITIES' | 'FIXED_INCOME_OTHER';
+export type CongressParseStatus = 'parsed_fully' | 'scanned_unparsed' | 'failed';
+
+export interface CongressTradeRecord {
+  id: string; // unique composite key: docId-rowId or hash
+  internalTxId?: string; // internal 10-digit transaction ID if present (e.g. 2000134514)
+  docId: string;
+  year: string;
+  politicianName: string;
+  bioguideId?: string;
+  party: CongressParty;
+  state: string;
+  district: number;
+  stateDistrict: string; // e.g. "MO04"
+  filingDate: string; // YYYY-MM-DD
+  transactionDate: string; // YYYY-MM-DD
+  disclosureDate: string; // YYYY-MM-DD (Notification Date from PDF)
+  notificationDate: string; // YYYY-MM-DD (Explicit alias for Notification Date)
+  reportingGapDays: number; // Measured from filingDate to transactionDate
+  dateAnomaly?: boolean;
+  dateAnomalyReason?: string;
+  isOption?: boolean;
+  ticker: string | null;
+  rawAssetDescription: string;
+  assetTypeCode: string | null; // e.g. "ST", "GS", "OT", "PS"
+  assetGroup: CongressAssetGroup;
+  txType: CongressTxType;
+  txTypeRaw: string; // e.g. "P", "S", "S (partial)", "E", "Unknown"
+  owner: CongressOwnerType;
+  ownerRaw: string; // e.g. "SP", "JT", "DC", "self"
+  amountRange: string; // e.g. "$1,001 - $15,000" or exact "$15.00"
+  amountMin: number; // For sorting only
+  amountMax: number; // For sorting only
+  isExactAmount?: boolean;
+  filingStatus?: string; // e.g. "New", "Amended"
+  subholding?: string;
+  location?: string;
+  description?: string;
+  comment?: string;
+  filingUrl: string;
+  isAmended: boolean;
+  parseStatus: CongressParseStatus;
+}
+
+export interface CongressStatusResponse {
+  success: boolean;
+  isBackfilling: boolean;
+  backfillProgress: {
+    processedFilings: number;
+    totalFilings: number;
+    percentComplete: number;
+  };
+  lastUpdated: string | null;
+  lastIndexCheck: string | null;
+  isStale: boolean;
+  totalParsedFilings: number;
+  totalScannedFilings: number;
+  totalFailedFilings: number;
+  totalTransactions: number;
+  totalAFilingsIgnored: number;
+  indexCheckRan?: boolean;
+  newFilingsFound?: number;
+  cooldownActive?: boolean;
+  cooldownRemainingSeconds?: number;
+}
+
+export interface CongressTradesResponse {
+  success: boolean;
+  trades: CongressTradeRecord[];
+  totalTrades: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  isStale: boolean;
+  lastUpdated: string | null;
+  scannedFilings?: Array<{
+    docId: string;
+    year: string;
+    politicianName: string;
+    stateDistrict: string;
+    filingDate: string;
+    filingUrl: string;
+  }>;
+}
+
