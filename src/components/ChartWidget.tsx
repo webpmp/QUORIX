@@ -63,6 +63,7 @@ import {
   type ZoomableChartPanelId,
 } from '../utils/chartFocus';
 import CompanyLogo, { isCompanyEquitySymbol } from './CompanyLogo';
+import StickyScreenHeader from './StickyScreenHeader';
 
 interface ChartWidgetProps {
   stock: StockData;
@@ -1825,203 +1826,217 @@ export default function ChartWidget({
     'absolute top-1 left-[74px] right-2 flex items-center justify-between gap-2 text-xs leading-tight font-bold uppercase select-none pointer-events-none';
 
   return (
-    <div
-      tabIndex={0}
-      className="bg-[#010101] border border-[#333] rounded p-3.5 text-xs font-mono select-none focus:outline-none"
-    >
-      {/* Chart Headers */}
-      <div className="flex flex-col sm:flex-row items-baseline sm:items-center justify-between border-b border-[#333] pb-2 mb-3">
-        <div className="flex flex-wrap items-center gap-2 min-w-0">
-          {isCompanyEquitySymbol(stock.symbol) && (
-            <div className="w-8 h-8 min-w-[32px] min-h-[32px] shrink-0 flex items-center justify-center">
-              <CompanyLogo
-                symbol={stock.symbol}
-                size={32}
-              />
+    <>
+      {/* 1. STICKY SCREEN HEADER: Identity row + stats grid */}
+      <StickyScreenHeader>
+        <div className="bg-[#010101] border border-[#333] rounded p-3.5 text-xs font-mono select-none">
+          {/* Identity Row */}
+          <div className="flex items-center gap-2 min-w-0 border-b border-[#333] pb-2 mb-3">
+            {isCompanyEquitySymbol(stock.symbol) && (
+              <div className="w-8 h-8 min-w-[32px] min-h-[32px] shrink-0 flex items-center justify-center">
+                <CompanyLogo
+                  symbol={stock.symbol}
+                  size={32}
+                />
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm font-extrabold uppercase tracking-wider leading-tight min-w-0">
+              <span className="text-[#ff9900]">{stock.symbol}</span>
+              {stock.name && stock.name !== stock.symbol && (
+                <>
+                  <span className="text-zinc-300 font-normal">|</span>
+                  <span className="text-white truncate max-w-[260px] sm:max-w-none">{stock.name}</span>
+                </>
+              )}
+              {stock.exchange && (
+                <>
+                  <span className="text-zinc-300 font-normal">|</span>
+                  <span className="text-zinc-300 text-xs sm:text-xs font-bold">{stock.exchange}</span>
+                </>
+              )}
             </div>
-          )}
-          <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm font-extrabold uppercase tracking-wider leading-tight min-w-0">
-            <span className="text-[#ff9900]">{stock.symbol}</span>
-            {stock.name && stock.name !== stock.symbol && (
-              <>
-                <span className="text-zinc-300 font-normal">|</span>
-                <span className="text-white truncate max-w-[260px] sm:max-w-none">{stock.name}</span>
-              </>
-            )}
-            {stock.exchange && (
-              <>
-                <span className="text-zinc-300 font-normal">|</span>
-                <span className="text-zinc-300 text-xs sm:text-xs font-bold">{stock.exchange}</span>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Options Row */}
-        <div className="flex flex-wrap items-center gap-1.5 mt-2 sm:mt-0">
-          <div className="flex rounded bg-black border border-[#333] overflow-hidden mr-1">
-            {(['5m', '15m', '30m', '1h', '1D', '1W', '1M'] as IntervalType[]).map((int) => (
-              <button
-                key={int}
-                type="button"
-                onClick={() => setInterval(int)}
-                className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-all cursor-pointer border-r border-[#3a3a3a] last:border-0 ${
-                  interval === int
-                    ? 'bg-[#00ff00] text-black font-extrabold'
-                    : 'text-zinc-300 hover:text-white hover:bg-zinc-900'
-                }`}
-                title={
-                  int === '5m'
-                    ? 'Last 5 Minutes (Today)'
-                    : int === '15m'
-                    ? 'Last 15 Minutes (Today)'
-                    : int === '30m'
-                    ? 'Last 30 Minutes (Today)'
-                    : int === '1h'
-                    ? 'Last 60 Minutes (Today)'
-                    : int === '1D'
-                    ? 'Current Day (Today)'
-                    : int === '1W'
-                    ? 'Last 7 Days'
-                    : 'Last 30/31 Days'
-                }
-              >
-                {int.toUpperCase()}
-              </button>
-            ))}
           </div>
 
-          <div className="flex rounded bg-black border border-[#333] overflow-hidden mr-1">
-            <button
-              type="button"
-              onClick={() => setChartType('candle')}
-              className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-colors cursor-pointer ${
-                chartType === 'candle' ? 'bg-[#ff9900] text-black' : 'text-zinc-300 hover:text-white'
-              }`}
-            >
-              CANDLES
-            </button>
-            <button
-              type="button"
-              onClick={() => setChartType('line')}
-              className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-colors cursor-pointer ${
-                chartType === 'line' ? 'bg-[#ff9900] text-black' : 'text-zinc-300 hover:text-white'
-              }`}
-            >
-              LINE
-            </button>
-            <button
-              type="button"
-              onClick={() => setChartType('area')}
-              className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-colors cursor-pointer ${
-                chartType === 'area' ? 'bg-[#ff9900] text-black' : 'text-zinc-300 hover:text-white'
-              }`}
-            >
-              AREA
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsStudiesModalOpen(true)}
-            className="px-3 py-1 rounded border border-[#3498db] bg-[#0a1931]/60 hover:bg-[#3498db] text-[#3498db] hover:text-black text-xs sm:text-xs font-extrabold transition-colors cursor-pointer whitespace-nowrap shrink-0"
-            title="Choose overlays, momentum oscillators, and volatility studies"
-          >
-            STUDIES ({activeStudies.length})
-          </button>
-        </div>
-      </div>
-
-      {/* Top statistics summary (Interactive hover feedback) */}
-      <div className={`grid gap-2 bg-[#050505] border border-[#333] p-2 rounded mb-3 text-xs tabular-nums ${statsColClass}`}>
-        <div className="min-w-0">
-          <span className="text-zinc-300 font-bold block truncate">
-            LAST PRICE
-          </span>
-          <span className="text-[#3498db] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
-            {typeof displayData.close === 'number' ? `$${displayData.close.toFixed(2)}` : '--'}
-          </span>
-        </div>
-        <div className="min-w-0">
-          <span className="text-zinc-300 font-bold block truncate">
-            EXT HOURS
-          </span>
-          {typeof stock.extHoursPrice === 'number' && stock.extHoursPrice > 0 ? (
-            <>
-              <span className="text-white text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
-                ${stock.extHoursPrice.toFixed(2)}
+          {/* Top statistics summary (Interactive hover feedback) */}
+          <div className={`grid gap-2 bg-[#050505] border border-[#333] p-2 rounded text-xs tabular-nums ${statsColClass}`}>
+            <div className="min-w-0">
+              <span className="text-zinc-300 font-bold block truncate">
+                LAST PRICE
               </span>
-              {typeof stock.extHoursChange === 'number' &&
-                typeof stock.extHoursChangePercent === 'number' && (
-                  <span
-                    className={`text-xs font-bold block truncate ${
-                      stock.extHoursChange > 0
-                        ? 'text-[#00ff00]'
-                        : stock.extHoursChange < 0
-                        ? 'text-[#ff4444]'
-                        : 'text-zinc-300'
-                    }`}
-                  >
-                    {stock.extHoursChange > 0 ? '+' : ''}
-                    {stock.extHoursChange.toFixed(2)} ({stock.extHoursChangePercent > 0 ? '+' : ''}
-                    {stock.extHoursChangePercent.toFixed(2)}%)
+              <span className="text-[#3498db] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
+                {typeof displayData.close === 'number' ? `$${displayData.close.toFixed(2)}` : '--'}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-zinc-300 font-bold block truncate">
+                EXT HOURS
+              </span>
+              {typeof stock.extHoursPrice === 'number' && stock.extHoursPrice > 0 ? (
+                <>
+                  <span className="text-white text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
+                    ${stock.extHoursPrice.toFixed(2)}
                   </span>
-                )}
-            </>
-          ) : (
-            <span className="text-zinc-300 text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5">--</span>
-          )}
+                  {typeof stock.extHoursChange === 'number' &&
+                    typeof stock.extHoursChangePercent === 'number' && (
+                      <span
+                        className={`text-xs font-bold block truncate ${
+                          stock.extHoursChange > 0
+                            ? 'text-[#00ff00]'
+                            : stock.extHoursChange < 0
+                            ? 'text-[#ff4444]'
+                            : 'text-zinc-300'
+                        }`}
+                      >
+                        {stock.extHoursChange > 0 ? '+' : ''}
+                        {stock.extHoursChange.toFixed(2)} ({stock.extHoursChangePercent > 0 ? '+' : ''}
+                        {stock.extHoursChangePercent.toFixed(2)}%)
+                      </span>
+                    )}
+                </>
+              ) : (
+                <span className="text-zinc-300 text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5">--</span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <span className="text-zinc-300 font-bold block truncate">OPEN</span>
+              <span className="text-[#ff9900] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
+                {typeof displayData.open === 'number' ? `$${displayData.open.toFixed(2)}` : '--'}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-zinc-300 font-bold block truncate">HIGH</span>
+              <span className="text-[#00ff00] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
+                {typeof displayData.high === 'number' ? `$${displayData.high.toFixed(2)}` : '--'}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-zinc-300 font-bold block truncate">LOW</span>
+              <span className="text-[#ff4444] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
+                {typeof displayData.low === 'number' ? `$${displayData.low.toFixed(2)}` : '--'}
+              </span>
+            </div>
+            {showVolumeStudy && (
+              <div className="min-w-0">
+                <span className="text-zinc-300 font-bold block truncate">DAY TOTAL</span>
+                <span className="text-white text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
+                  {typeof stock.volume === 'number' && stock.volume > 0 ? stock.volume.toLocaleString() : '--'}
+                </span>
+                <span className="text-xs text-zinc-300 font-bold block truncate">
+                  BAR VOLUME: {typeof displayData.volume === 'number' ? displayData.volume.toLocaleString() : '--'}
+                </span>
+              </div>
+            )}
+            {showRsiStudy && (
+              <div className="min-w-0">
+                <span className="text-zinc-300 font-bold block truncate">RSI (14)</span>
+                <span
+                  className={`text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate ${
+                    typeof currentRsi === 'number' && !isNaN(currentRsi)
+                      ? currentRsi >= 70
+                        ? 'text-[#ff4444]'
+                        : currentRsi <= 30
+                        ? 'text-[#00ff00]'
+                        : 'text-[#9b59b6]'
+                      : 'text-zinc-300'
+                  }`}
+                >
+                  {typeof currentRsi === 'number' && !isNaN(currentRsi)
+                    ? `${currentRsi.toFixed(1)} ${currentRsi >= 70 ? 'OB' : currentRsi <= 30 ? 'OS' : ''}`
+                    : '--'}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="min-w-0">
-          <span className="text-zinc-300 font-bold block truncate">OPEN</span>
-          <span className="text-[#ff9900] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
-            {typeof displayData.open === 'number' ? `$${displayData.open.toFixed(2)}` : '--'}
-          </span>
-        </div>
-        <div className="min-w-0">
-          <span className="text-zinc-300 font-bold block truncate">HIGH</span>
-          <span className="text-[#00ff00] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
-            {typeof displayData.high === 'number' ? `$${displayData.high.toFixed(2)}` : '--'}
-          </span>
-        </div>
-        <div className="min-w-0">
-          <span className="text-zinc-300 font-bold block truncate">LOW</span>
-          <span className="text-[#ff4444] text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
-            {typeof displayData.low === 'number' ? `$${displayData.low.toFixed(2)}` : '--'}
-          </span>
-        </div>
-        {showVolumeStudy && (
-          <div className="min-w-0">
-            <span className="text-zinc-300 font-bold block truncate">DAY TOTAL</span>
-            <span className="text-white text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
-              {typeof stock.volume === 'number' && stock.volume > 0 ? stock.volume.toLocaleString() : '--'}
-            </span>
-            <span className="text-xs text-zinc-300 font-bold block truncate">
-              BAR VOLUME: {typeof displayData.volume === 'number' ? displayData.volume.toLocaleString() : '--'}
+      </StickyScreenHeader>
+
+      {/* 2. CHART CARD: Controls + chart panels (scrolls normally) */}
+      <div
+        tabIndex={0}
+        className="bg-[#010101] border border-[#333] rounded p-3.5 text-xs font-mono select-none focus:outline-none"
+      >
+        {/* Price Chart Header Row (Title on left, controls on right in one horizontal row) */}
+        <div className="flex items-center justify-between gap-3 pb-2 mb-3 border-b border-[#333] min-w-0">
+          <div className="flex items-center gap-2 shrink-0 select-none">
+            <span className="text-white text-xs sm:text-sm font-bold uppercase tracking-wider">
+              PRICE CHART
             </span>
           </div>
-        )}
-        {showRsiStudy && (
-          <div className="min-w-0">
-            <span className="text-zinc-300 font-bold block truncate">RSI (14)</span>
-            <span
-              className={`text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate ${
-                typeof currentRsi === 'number' && !isNaN(currentRsi)
-                  ? currentRsi >= 70
-                    ? 'text-[#ff4444]'
-                    : currentRsi <= 30
-                    ? 'text-[#00ff00]'
-                    : 'text-[#9b59b6]'
-                  : 'text-zinc-300'
-              }`}
+
+          {/* Controls Group: Timeframe, chart type, STUDIES (single horizontal row, overflow-x-auto on narrow viewports) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 max-w-full justify-end">
+            <div className="flex rounded bg-black border border-[#333] overflow-hidden shrink-0">
+              {(['5m', '15m', '30m', '1h', '1D', '1W', '1M'] as IntervalType[]).map((int) => (
+                <button
+                  key={int}
+                  type="button"
+                  onClick={() => setInterval(int)}
+                  className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-all cursor-pointer border-r border-[#3a3a3a] last:border-0 ${
+                    interval === int
+                      ? 'bg-[#00ff00] text-black font-extrabold'
+                      : 'text-zinc-300 hover:text-white hover:bg-zinc-900'
+                  }`}
+                  title={
+                    int === '5m'
+                      ? 'Last 5 Minutes (Today)'
+                      : int === '15m'
+                      ? 'Last 15 Minutes (Today)'
+                      : int === '30m'
+                      ? 'Last 30 Minutes (Today)'
+                      : int === '1h'
+                      ? 'Last 60 Minutes (Today)'
+                      : int === '1D'
+                      ? 'Current Day (Today)'
+                      : int === '1W'
+                      ? 'Last 7 Days'
+                      : 'Last 30/31 Days'
+                  }
+                >
+                  {int.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex rounded bg-black border border-[#333] overflow-hidden shrink-0">
+              <button
+                type="button"
+                onClick={() => setChartType('candle')}
+                className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-colors cursor-pointer ${
+                  chartType === 'candle' ? 'bg-[#ff9900] text-black' : 'text-zinc-300 hover:text-white'
+                }`}
+              >
+                CANDLES
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartType('line')}
+                className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-colors cursor-pointer ${
+                  chartType === 'line' ? 'bg-[#ff9900] text-black' : 'text-zinc-300 hover:text-white'
+                }`}
+              >
+                LINE
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartType('area')}
+                className={`px-2.5 py-1 text-xs sm:text-xs font-bold transition-colors cursor-pointer ${
+                  chartType === 'area' ? 'bg-[#ff9900] text-black' : 'text-zinc-300 hover:text-white'
+                }`}
+              >
+                AREA
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsStudiesModalOpen(true)}
+              className="px-3 py-1 rounded border border-[#3498db] bg-[#0a1931]/60 hover:bg-[#3498db] text-[#3498db] hover:text-black text-xs sm:text-xs font-extrabold transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Choose overlays, momentum oscillators, and volatility studies"
             >
-              {typeof currentRsi === 'number' && !isNaN(currentRsi)
-                ? `${currentRsi.toFixed(1)} ${currentRsi >= 70 ? 'OB' : currentRsi <= 30 ? 'OS' : ''}`
-                : '--'}
-            </span>
+              STUDIES ({activeStudies.length})
+            </button>
           </div>
-        )}
-      </div>
+        </div>
 
       {/* Primary SVG Stack Wrapper */}
       <div
@@ -2612,7 +2627,7 @@ export default function ChartWidget({
           </svg>
           <div className={PRICE_VOL_PANEL_HEADER_CLASS}>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 min-w-0">
-              <span className="text-zinc-300">PRICE CHART</span>
+              <span className="text-zinc-300">PRICE HISTORY</span>
               {activeOverlayItems.map((item) => (
                 <span key={item.id} className={`${item.colorClass} tabular-nums`}>
                   {item.label}: {typeof item.val === 'number' ? item.val.toFixed(2) : '--'}
@@ -2637,7 +2652,7 @@ export default function ChartWidget({
           ) : chartDataPhase === 'pending' ? (
             <div style={{ height: BASE_PRICE_HEIGHT }} className="relative w-full">
               <div className={CHART_PANEL_HEADER_CLASS}>
-                <span className="text-zinc-300">PRICE CHART</span>
+                <span className="text-zinc-300">PRICE HISTORY</span>
               </div>
             </div>
           ) : (
@@ -4279,6 +4294,7 @@ export default function ChartWidget({
         onResetDefaults={handleResetStudies}
         onClearAll={handleClearStudies}
       />
-    </div>
+      </div>
+    </>
   );
 }
