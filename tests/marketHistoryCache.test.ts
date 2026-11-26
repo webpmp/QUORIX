@@ -191,3 +191,76 @@ test('ChartWidget renders full SVG chart immediately when ticker history is cach
   assert.equal(html.includes('$234.56'), true);
   assert.equal(html.includes('<svg'), true);
 });
+
+test('ChartWidget displays custom message for when-issued / newly listed tickers with price but no history', () => {
+  clearMarketHistoryCache();
+
+  const whenIssuedStock = makeStock({
+    symbol: 'HONAV',
+    name: 'Honeywell Aerospace Inc.',
+    exchange: 'NASDAQ',
+    price: 221.01,
+    open: 229.75,
+    high: 238.19,
+    low: 206.01,
+    prevClose: 0,
+    volume: 3494110,
+    history: [],
+  });
+
+  const html = renderToStaticMarkup(
+    React.createElement(ChartWidget, {
+      stock: whenIssuedStock,
+      initialResolvedEmptyKey: 'HONAV:1h',
+    })
+  );
+
+  // Assert header contains ticker, company name, and exchange
+  assert.equal(html.includes('HONAV'), true);
+  assert.equal(html.includes('Honeywell Aerospace Inc.'), true);
+  assert.equal(html.includes('NASDAQ'), true);
+
+  // Assert quote strip displays last price
+  assert.equal(html.includes('$221.01'), true);
+
+  // Assert custom empty state message
+  assert.equal(
+    html.includes('No price history yet for HONAV. This can happen with when-issued or newly listed tickers.'),
+    true,
+    'Must display when-issued custom message'
+  );
+  assert.equal(
+    html.includes('NO HISTORICAL DATA AVAILABLE FOR'),
+    false,
+    'Must not display generic NO HISTORICAL DATA AVAILABLE'
+  );
+});
+
+test('ChartWidget displays standard NO HISTORICAL DATA AVAILABLE message for normal tickers without history or quote', () => {
+  clearMarketHistoryCache();
+
+  const normalStock = makeStock({
+    symbol: 'XYZ',
+    name: 'XYZ Corp',
+    price: 0,
+    history: [],
+  });
+
+  const html = renderToStaticMarkup(
+    React.createElement(ChartWidget, {
+      stock: normalStock,
+      initialResolvedEmptyKey: 'XYZ:1h',
+    })
+  );
+
+  assert.equal(
+    html.includes('NO HISTORICAL DATA AVAILABLE FOR'),
+    true,
+    'Normal zero-quote ticker should display standard message'
+  );
+  assert.equal(
+    html.includes('No price history yet for'),
+    false,
+    'Normal zero-quote ticker should not display when-issued message'
+  );
+});

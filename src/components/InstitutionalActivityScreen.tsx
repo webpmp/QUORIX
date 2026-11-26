@@ -34,8 +34,13 @@ import {
   formatSignedPercent,
 } from '../utils/institutionalActivity';
 import SectorRotationPanel from './SectorRotationPanel';
+import CongressionalTradingPanel, {
+  CongressionalTradingPanelRef,
+  CongressTradingPanelStatusUpdate,
+} from './CongressionalTradingPanel';
 import TerminalSelect from './TerminalSelect';
 import CompanyLogo from './CompanyLogo';
+import { Landmark } from 'lucide-react';
 
 interface InstitutionalActivityScreenProps {
   selectedTicker: string;
@@ -43,7 +48,7 @@ interface InstitutionalActivityScreenProps {
   onSelectTicker?: (ticker: string) => void;
 }
 
-type InstitutionalTab = 'HOLDINGS' | 'ACCUMULATION' | 'INVESTORS' | 'CHANGES' | 'SECTOR_ROTATION';
+type InstitutionalTab = 'HOLDINGS' | 'ACCUMULATION' | 'INVESTORS' | 'CHANGES' | 'SECTOR_ROTATION' | 'CONGRESS';
 
 const EXCLUDED_QUICK_TICKERS = new Set(['SPX', 'DJI', 'IXIC', 'GC', 'CL', 'TNX', 'BTC']);
 
@@ -122,6 +127,11 @@ export default function InstitutionalActivityScreen({
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>('');
+
+  // Congress tab status & refresh integration
+  const congressPanelRef = useRef<CongressionalTradingPanelRef | null>(null);
+  const [congressStatus, setCongressStatus] = useState<CongressTradingPanelStatusUpdate | null>(null);
+  const [congressFeedbackMessage, setCongressFeedbackMessage] = useState<string | null>(null);
 
   // Section A: Institutional Holdings state
   const [activeHoldingsQuery, setActiveHoldingsQuery] = useState<{
@@ -595,8 +605,33 @@ export default function InstitutionalActivityScreen({
     setActiveTab('HOLDINGS');
   };
 
-  const handleGlobalRefresh = () => {
-    if (activeTab === 'HOLDINGS') void fetchHoldings(true);
+  const handleGlobalRefresh = async () => {
+    if (activeTab === 'CONGRESS') {
+      if (congressPanelRef.current) {
+        const result = await congressPanelRef.current.refresh();
+        if (result.indexCheckRan) {
+          if (result.newFilingsFound === 0) {
+            setCongressFeedbackMessage('UP TO DATE');
+          } else {
+            setCongressFeedbackMessage(`ADDED ${result.newFilingsFound} NEW`);
+          }
+        } else if (result.cooldownActive || result.lastIndexCheck) {
+          const checkTime = result.lastIndexCheck ? new Date(result.lastIndexCheck).getTime() : 0;
+          if (checkTime > 0) {
+            const diffSec = Math.max(1, Math.round((Date.now() - checkTime) / 1000));
+            if (diffSec < 60) {
+              setCongressFeedbackMessage(`CHECKED ${diffSec}s AGO`);
+            } else {
+              const diffMin = Math.round(diffSec / 60);
+              setCongressFeedbackMessage(`CHECKED ${diffMin}m AGO`);
+            }
+          } else {
+            setCongressFeedbackMessage('CHECKED JUST NOW');
+          }
+        }
+        setTimeout(() => setCongressFeedbackMessage(null), 3000);
+      }
+    } else if (activeTab === 'HOLDINGS') void fetchHoldings(true);
     else if (activeTab === 'ACCUMULATION') void fetchAccumulation(true);
     else if (activeTab === 'INVESTORS') {
       void fetchManagers(undefined, true);
@@ -625,8 +660,33 @@ export default function InstitutionalActivityScreen({
     });
   }, [investorProfile, profileHoldingsFilter, profileStatusFilter]);
 
+  const isCongressLoading =
+    Boolean(congressStatus?.isLoading) || Boolean(congressStatus?.isBackfilling);
+
   const isAnyLoading =
-    holdingsLoading || accLoading || managersLoading || profileLoading || changesLoading || sectorLoading;
+    activeTab === 'CONGRESS'
+      ? isCongressLoading
+      : holdingsLoading ||
+        accLoading ||
+        managersLoading ||
+        profileLoading ||
+        changesLoading ||
+        sectorLoading;
+
+  // Determine Congress cache age and stale marker (> 24 hours)
+  const isCongressStale = useMemo(() => {
+    if (!congressStatus?.lastUpdated) return false;
+    const cacheTime = new Date(congressStatus.lastUpdated).getTime();
+    if (Number.isNaN(cacheTime)) return false;
+    return Date.now() - cacheTime > 24 * 60 * 60 * 1000;
+  }, [congressStatus?.lastUpdated]);
+
+  const congressTimestampDisplay = useMemo(() => {
+    if (!congressStatus?.lastUpdated) return null;
+    const d = new Date(congressStatus.lastUpdated);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleTimeString();
+  }, [congressStatus?.lastUpdated]);
 
   const activeReportingPeriodDisplay =
     activeTab === 'HOLDINGS'
@@ -651,15 +711,43 @@ export default function InstitutionalActivityScreen({
             INSTITUTIONAL ACTIVITY MONITOR
           </span>
           <span className="text-xs text-zinc-300 block">
-            FORM 13F INSTITUTIONAL HOLDINGS, MULTI-MANAGER ACCUMULATION &amp; POSITION CHANGES
+            {activeTab === 'CONGRESS'
+              ? 'HOUSE PERIODIC TRANSACTION REPORTS (STOCK ACT FINANCIAL DISCLOSURES)'
+              : 'FORM 13F INSTITUTIONAL HOLDINGS, MULTI-MANAGER ACCUMULATION & POSITION CHANGES'}
           </span>
         </div>
 
         <div className="flex flex-col items-start md:items-end gap-1 text-xs text-zinc-300">
           {/* Metadata & Sync Row */}
           <div className="flex flex-wrap items-center gap-2">
-            {lastRefreshedAt && (
-              <span className="tabular-nums text-zinc-300">SYNC: {lastRefreshedAt}</span>
+            {activeTab === 'CONGRESS' ? (
+              <>
+                {congressTimestampDisplay && (
+                  <span className="tabular-nums text-zinc-300">
+                    UPDATED {congressTimestampDisplay}
+                  </span>
+                )}
+                {isCongressStale && (
+                  <span className="px-2 py-0.5 rounded border border-amber-500/40 bg-amber-950/30 text-amber-400 text-xs font-bold uppercase">
+                    STALE
+                  </span>
+                )}
+                {congressFeedbackMessage && !isCongressLoading && (
+                  <span
+                    className={`px-2 py-0.5 rounded border text-xs font-bold uppercase ${
+                      congressFeedbackMessage.startsWith('CHECKED')
+                        ? 'border-amber-500/40 bg-amber-950/30 text-amber-400'
+                        : 'border-[#00ff00]/40 bg-[#00ff00]/10 text-[#00ff00]'
+                    }`}
+                  >
+                    {congressFeedbackMessage}
+                  </span>
+                )}
+              </>
+            ) : (
+              lastRefreshedAt && (
+                <span className="tabular-nums text-zinc-300">SYNC: {lastRefreshedAt}</span>
+              )
             )}
             <button
               type="button"
@@ -684,6 +772,7 @@ export default function InstitutionalActivityScreen({
               { id: 'INVESTORS', label: 'INVESTOR PROFILES', icon: Building2 },
               { id: 'CHANGES', label: 'POSITION CHANGES', icon: Activity },
               { id: 'SECTOR_ROTATION', label: 'SECTOR ROTATION', icon: Compass },
+              { id: 'CONGRESS', label: 'CONGRESS', icon: Landmark },
             ] as const
           ).map((tab) => {
             const Icon = tab.icon;
@@ -706,7 +795,7 @@ export default function InstitutionalActivityScreen({
           })}
         </div>
 
-        {availablePeriods.length > 0 && (
+        {activeTab !== 'CONGRESS' && availablePeriods.length > 0 && (
           <div className="flex items-center gap-1.5 shrink-0 select-none">
             <label htmlFor="inst-period-select" className="text-zinc-300 font-bold uppercase text-xs">
               REPORTING PERIOD:
@@ -733,7 +822,7 @@ export default function InstitutionalActivityScreen({
       </div>
 
       {/* 4. SERVER API KEY MISSING OR RATE-LIMIT STATE */}
-      {requiresKey && activeTab !== 'SECTOR_ROTATION' ? (
+      {requiresKey && activeTab !== 'SECTOR_ROTATION' && activeTab !== 'CONGRESS' ? (
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="max-w-xl w-full bg-black border border-[#333] rounded p-5 space-y-3">
             <div className="flex items-center gap-2 text-[#ff9900] text-xs font-bold uppercase tracking-wider">
@@ -1987,6 +2076,18 @@ export default function InstitutionalActivityScreen({
               onInspectSecurity={openSecurityHoldingsFromTable}
               onInspectInvestor={openInvestorProfileFromTable}
               onSelectEtfTicker={onSelectTicker}
+            />
+          )}
+
+          {/* ============================================================== */}
+          {/* SECTION F: CONGRESSIONAL TRADING                               */}
+          {/* ============================================================== */}
+          {activeTab === 'CONGRESS' && (
+            <CongressionalTradingPanel
+              ref={congressPanelRef}
+              selectedTicker={selectedTicker}
+              onSelectTicker={onSelectTicker}
+              onStatusUpdate={(s) => setCongressStatus(s)}
             />
           )}
         </div>

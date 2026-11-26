@@ -69,6 +69,15 @@ The Institutional Activity Monitor communicates through server-side 3spread API 
 - `GET /v1/institutional-holdings/{filing_id}` - Detailed 13F filing contents
 - `GET /v1/institutional-holdings/holdings` - Granular institutional holding positions
 
+### Congressional Trading Disclosures (House Clerk & STOCK Act)
+The Congressional Trading feed (`CONGRESS` tab in `INST`) ingests Periodic Transaction Reports (PTRs) from the Office of the Clerk of the U.S. House of Representatives. Disclosures are cached locally at `.cache/congress-trades.json` with a 6-hour TTL:
+- `GET /api/congress/trades` - Filterable and paginated congressional trade feed (filters: party, type, owner, ticker, politician, assetGroup, date range)
+- `GET /api/congress/status` - Ingestion backfill progress, last updated timestamp, stale indicator, and document counts
+- **Data Source**: House Clerk Public Disclosure Index (`financial-pdfs/{year}FD.zip`) and document archives (`ptr-pdfs/{year}/{docid}.pdf`).
+- **Enrichment**: Curated subset of `unitedstates/congress-legislators` (CC0 1.0 Universal Public Domain) providing bioguide IDs, party affiliation, and district matching.
+- **Controls & UI**: Unified with the main INST header controls — the header `REFRESH` button triggers a sync with "UP TO DATE" status confirmation and disabled spinner during active ingestion. Header timestamp reflects the Congress cache state with an amber `STALE` badge when older than 24 hours. Table columns include `NOTIFIED`, `FILED`, and `GAP` with tooltips explaining the 30-day notification / 45-day overall statutory deadlines.
+- **Data Notice**: Disclosures arrive up to 45 days after execution. Amounts are statutory ranges, not exact figures. Sourced for personal, non-commercial research under Title I of the Ethics in Government Act (5 U.S.C. app. § 105). Senate disclosures are excluded due to commercial use restrictions under 5 U.S.C. app. § 105(c).
+
 ### Insider Ownership Disclosures (SEC EDGAR)
 Graph Price (`GP`) retrieves public SEC insider ownership disclosures (Forms 3, 4, and 5) directly from SEC EDGAR. These filings provide transparency into reported transactions by corporate insiders and do not require user API credentials.
 

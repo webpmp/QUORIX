@@ -135,6 +135,14 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
     }
   };
 
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    // If the image loaded as an empty/transparent 0x0 or 1x1 placeholder, treat as failure
+    if (img.naturalWidth <= 1 || img.naturalHeight <= 1) {
+      handleImageError();
+    }
+  };
+
   // Base dimensions and styling
   const containerStyle: React.CSSProperties = {
     width: `${size}px`,
@@ -175,6 +183,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
         loading="lazy"
         decoding="async"
         className="w-full h-full object-contain block"
+        onLoad={handleImageLoad}
         onError={handleImageError}
       />
     </div>
