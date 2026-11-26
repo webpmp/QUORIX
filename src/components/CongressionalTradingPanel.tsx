@@ -52,6 +52,9 @@ interface CongressionalTradingPanelProps {
   onSelectTicker?: (ticker: string) => void;
   initialTrades?: CongressTradeRecord[];
   onStatusUpdate?: (status: CongressTradingPanelStatusUpdate) => void;
+  initialSearchQuery?: string;
+  searchSubmissionSignal?: { id: number; query: string } | null;
+  onSearchQueryChange?: (query: string) => void;
 }
 
 function getSafeExternalUrl(raw?: string | null): string | null {
@@ -98,11 +101,14 @@ const CongressionalTradingPanel = forwardRef<CongressionalTradingPanelRef, Congr
       onSelectTicker,
       initialTrades,
       onStatusUpdate,
+      initialSearchQuery,
+      searchSubmissionSignal,
+      onSearchQueryChange,
     }: CongressionalTradingPanelProps,
     ref
   ) {
     // Query & Filter states
-    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [searchQuery, setSearchQuery] = useState<string>(initialSearchQuery || '');
     const [partyFilter, setPartyFilter] = useState<string>('ALL');
     const [typeFilter, setTypeFilter] = useState<string>('ALL');
     const [ownerFilter, setOwnerFilter] = useState<string>('ALL');
@@ -264,6 +270,22 @@ const CongressionalTradingPanel = forwardRef<CongressionalTradingPanelRef, Congr
       void fetchTrades();
     }, [fetchStatus, fetchTrades]);
 
+    // Handle explicit search query updates from command submission signal
+    useEffect(() => {
+      if (searchSubmissionSignal && typeof searchSubmissionSignal.query === 'string') {
+        setSearchQuery(searchSubmissionSignal.query);
+        setPage(1);
+      }
+    }, [searchSubmissionSignal]);
+
+    const handleSearchChange = (val: string) => {
+      setSearchQuery(val);
+      setPage(1);
+      if (onSearchQueryChange) {
+        onSearchQueryChange(val);
+      }
+    };
+
     // Periodic polling for status when backfilling
     useEffect(() => {
       if (status?.isBackfilling) {
@@ -407,10 +429,7 @@ const CongressionalTradingPanel = forwardRef<CongressionalTradingPanelRef, Congr
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="SEARCH POLITICIAN..."
               className="w-full bg-black border border-[#3a3a3a] hover:border-[#ff9900] focus:border-[#ff9900] rounded pl-7 pr-2 py-1 text-xs text-zinc-100 outline-none placeholder:text-zinc-400"
             />

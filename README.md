@@ -68,6 +68,7 @@ Enter any command into the top command prompt (`>`) and press **Enter** or click
 | `DES` | Security Analytics | Corporate profile, valuation fundamentals, and executive bio |
 | `ANR` | Analyst Recs | Street consensus ratings, breakdown, and price target expectations |
 | `INST` | Institutional Activity | Institutional Form 13F holdings, accumulation screening, and investor profiles |
+| `CON` | Congressional Trading | Opens Institutional Activity Monitor (`CONGRESS` tab) filtered by politician name |
 | `CRNC` | Currencies (FX) | Foreign exchange rates and cross-rate analysis via FRED |
 | `ECO` | Economic Indicator | Macroeconomic indicator dashboard and release calendar via FRED |
 | `POLY` | Polymarket Screener | Live prediction market odds, volumes, liquidity, and spreads |
@@ -82,6 +83,8 @@ Enter any command into the top command prompt (`>`) and press **Enter** or click
   - `NEWS META` sets the active ticker to Meta and displays Meta-filtered news.
   - `ANR GOOG` sets the active ticker to Alphabet and displays Analyst Recommendations.
   - `POLY TSLA` sets the active ticker to Tesla and displays related prediction markets.
+- **Subcommands with Arguments**:
+  - `CON [politician name]` (e.g., `CON Pelosi`, `CON Nancy Pelosi`, `CON Schumer`) directly opens the Institutional Activity Monitor to its `CONGRESS` tab and filters congressional trading records by politician name.
 - **Command Without Ticker**: Submitting a screen code alone inherits the current global active ticker:
   - Submitting `GP` while Meta is active displays Graph Price for Meta.
   - Submitting `ANR` while Meta is active displays Analyst Recommendations for Meta.

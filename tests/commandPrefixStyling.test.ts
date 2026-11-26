@@ -51,6 +51,31 @@ for (const code of ALL_14_COMMANDS) {
   assert.equal(resLower.commandCode, code);
 }
 
+// 1.1 Verify CON command prefix extraction and politician argument styling
+const conPelosi = extractRecognizedCommandPrefix('CON Pelosi');
+assert(conPelosi !== null, 'Failed to recognize CON Pelosi prefix');
+assert.equal(conPelosi.prefix, 'CON');
+assert.equal(conPelosi.remainder, ' Pelosi');
+assert.equal(conPelosi.commandCode, 'CON');
+
+const conNancy = extractRecognizedCommandPrefix('CON Nancy Pelosi');
+assert(conNancy !== null, 'Failed to recognize multi-word CON Nancy Pelosi prefix');
+assert.equal(conNancy.prefix, 'CON');
+assert.equal(conNancy.remainder, ' Nancy Pelosi');
+assert.equal(conNancy.commandCode, 'CON');
+
+const conLower = extractRecognizedCommandPrefix('con Nancy Pelosi');
+assert(conLower !== null, 'Failed to recognize lowercase con prefix');
+assert.equal(conLower.prefix, 'con');
+assert.equal(conLower.remainder, ' Nancy Pelosi');
+assert.equal(conLower.commandCode, 'CON');
+
+const conStandalone = extractRecognizedCommandPrefix('CON');
+assert(conStandalone !== null, 'Failed to recognize standalone CON prefix');
+assert.equal(conStandalone.prefix, 'CON');
+assert.equal(conStandalone.remainder, '');
+assert.equal(conStandalone.commandCode, 'CON');
+
 // 2. Multi-word command aliases (e.g., "GRAPH PRICE AAPL", "SECURITY ANALYTICS NVDA")
 const multiWordRes = extractRecognizedCommandPrefix('GRAPH PRICE AAPL');
 assert(multiWordRes !== null);

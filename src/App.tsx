@@ -96,6 +96,8 @@ export default function App() {
   // Custom global command input state
   const [currentCommand, setCurrentCommand] = useState<string>('');
   const [tickerCommandSubmissionSignal, setTickerCommandSubmissionSignal] = useState<{ id: number; screen: string; ticker: string } | null>(null);
+  const [congressSubmissionSignal, setCongressSubmissionSignal] = useState<{ id: number; politician: string } | null>(null);
+  const [activeInstTab, setActiveInstTab] = useState<string>('HOLDINGS');
   const [pendingAiQuery, setPendingAiQuery] = useState<{ id: number; text: string } | null>(null);
   const [askPrefillPrompt, setAskPrefillPrompt] = useState<{ id: number; text: string } | null>(null);
   const [corrSeedTicker, setCorrSeedTicker] = useState<{ id: number; symbol: string } | null>(null);
@@ -348,6 +350,16 @@ export default function App() {
       return;
     }
 
+    if (parsed.type === 'CONGRESS_SEARCH') {
+      setActiveScreen('INST');
+      setActiveInstTab('CONGRESS');
+      setCongressSubmissionSignal({ id: Date.now(), politician: parsed.politician });
+      const cmd = parsed.politician ? `CON ${parsed.politician}` : 'CON';
+      lastPrefilledCommandRef.current = cmd;
+      setCurrentCommand(cmd);
+      return;
+    }
+
     if (parsed.type === 'SCREEN') {
       if (parsed.screen === 'ECO') {
         setSelectedEcoCategory(null);
@@ -359,10 +371,15 @@ export default function App() {
       if (parsed.screen === 'ASK') {
         setCurrentCommand('');
         setFocusAskQuorixSignal((n) => n + 1);
+      } else if (parsed.screen === 'INST') {
+        // If entering INST screen explicitly, reset activeInstTab if coming from another screen
+        const sym = (selectedTicker || '').trim().toUpperCase();
+        const cmd = sym ? `INST ${sym}` : 'INST';
+        lastPrefilledCommandRef.current = cmd;
+        setCurrentCommand(cmd);
       } else if (
         parsed.screen === 'GP' ||
         parsed.screen === 'HP' ||
-        parsed.screen === 'INST' ||
         parsed.screen === 'POLY' ||
         parsed.screen === 'DES' ||
         parsed.screen === 'ANR'
@@ -493,7 +510,6 @@ export default function App() {
     } else if (
       activeScreen === 'GP' ||
       activeScreen === 'HP' ||
-      activeScreen === 'INST' ||
       activeScreen === 'POLY' ||
       activeScreen === 'DES' ||
       activeScreen === 'ANR'
@@ -503,6 +519,23 @@ export default function App() {
       const cmd = sym ? `${prefix} ${sym}` : `${prefix} `;
       lastPrefilledCommandRef.current = cmd;
       setCurrentCommand(cmd);
+    } else if (activeScreen === 'INST') {
+      if (activeInstTab === 'CONGRESS') {
+        // In CONGRESS tab, global search is synchronized with the Congress filter
+        // If the current command doesn't start with CON, sync to the congress filter or CON
+        const currentTrim = (currentCommand || '').trim();
+        if (!/^CON\b/i.test(currentTrim)) {
+          const pol = (congressSubmissionSignal?.politician || '').trim();
+          const cmd = pol ? `CON ${pol}` : 'CON';
+          lastPrefilledCommandRef.current = cmd;
+          setCurrentCommand(cmd);
+        }
+      } else {
+        const sym = (selectedTicker || '').trim().toUpperCase();
+        const cmd = sym ? `INST ${sym}` : 'INST ';
+        lastPrefilledCommandRef.current = cmd;
+        setCurrentCommand(cmd);
+      }
     } else if (activeScreen === 'CRNC') {
       const code = (selectedCurrency || '').trim().toUpperCase();
       const cmd = code ? `CRNC ${code}` : 'CRNC ';
@@ -519,7 +552,7 @@ export default function App() {
       }
       lastPrefilledCommandRef.current = null;
     }
-  }, [activeScreen, selectedTicker, selectedCurrency, selectedEcoCategory, newsHubFilterTicker]);
+  }, [activeScreen, selectedTicker, selectedCurrency, selectedEcoCategory, newsHubFilterTicker, activeInstTab]);
 
   const handleSelectTicker = (ticker: string) => {
     const sym = normalizeTickerSymbol(ticker);
@@ -555,6 +588,15 @@ export default function App() {
           setCurrentCommand(val);
           if (commandError) {
             setCommandError(null);
+          }
+
+          // Scenario B: User edits Global Search while in CONGRESS tab
+          if (activeScreen === 'INST' && activeInstTab === 'CONGRESS') {
+            const trimmed = val.trim();
+            if (/^CON\b/i.test(trimmed)) {
+              const pol = trimmed.slice(3).trim();
+              setCongressSubmissionSignal({ id: Date.now(), politician: pol });
+            }
           }
         }}
         onCommandSubmit={handleCommandSubmit}
@@ -627,6 +669,16 @@ export default function App() {
           askPrefillPrompt={askPrefillPrompt}
           onClearAskPrefillPrompt={() => setAskPrefillPrompt(null)}
           tickerCommandSubmissionSignal={tickerCommandSubmissionSignal}
+          congressSubmissionSignal={congressSubmissionSignal}
+          onActiveInstTabChange={setActiveInstTab}
+          onCongressPoliticianSearchChange={(query) => {
+            if (activeScreen === 'INST') {
+              const cmd = query.trim() ? `CON ${query.trim()}` : 'CON';
+              lastPrefilledCommandRef.current = cmd;
+              setCurrentCommand(cmd);
+              setCongressSubmissionSignal({ id: Date.now(), politician: query.trim() });
+            }
+          }}
           focusAskQuorixSignal={focusAskQuorixSignal}
           onTickTimeChange={setTickTime}
         />

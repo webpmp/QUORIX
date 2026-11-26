@@ -46,6 +46,11 @@ interface InstitutionalActivityScreenProps {
   selectedTicker: string;
   stocks: Record<string, StockData>;
   onSelectTicker?: (ticker: string) => void;
+  initialTab?: InstitutionalTab;
+  initialPoliticianSearch?: string;
+  congressSubmissionSignal?: { id: number; politician: string } | null;
+  onActiveTabChange?: (tab: InstitutionalTab) => void;
+  onPoliticianSearchChange?: (query: string) => void;
 }
 
 type InstitutionalTab = 'HOLDINGS' | 'ACCUMULATION' | 'INVESTORS' | 'CHANGES' | 'SECTOR_ROTATION' | 'CONGRESS';
@@ -116,8 +121,27 @@ export default function InstitutionalActivityScreen({
   selectedTicker,
   stocks,
   onSelectTicker,
+  initialTab,
+  initialPoliticianSearch,
+  congressSubmissionSignal,
+  onActiveTabChange,
+  onPoliticianSearchChange,
 }: InstitutionalActivityScreenProps) {
-  const [activeTab, setActiveTab] = useState<InstitutionalTab>('HOLDINGS');
+  const [activeTab, setActiveTabState] = useState<InstitutionalTab>(initialTab || 'HOLDINGS');
+
+  const handleSetActiveTab = useCallback((tab: InstitutionalTab) => {
+    setActiveTabState(tab);
+    if (onActiveTabChange) {
+      onActiveTabChange(tab);
+    }
+  }, [onActiveTabChange]);
+
+  // Handle explicit tab switch and query when congressSubmissionSignal updates
+  useEffect(() => {
+    if (congressSubmissionSignal) {
+      handleSetActiveTab('CONGRESS');
+    }
+  }, [congressSubmissionSignal, handleSetActiveTab]);
 
   // Shared metadata & configuration state
   const [requiresKey, setRequiresKey] = useState<boolean>(false);
@@ -588,7 +612,7 @@ export default function InstitutionalActivityScreen({
     setSelectedManagerPeriod(selectedPeriod || '');
     setProfileHoldingsFilter('');
     setProfileStatusFilter('ALL');
-    setActiveTab('INVESTORS');
+    handleSetActiveTab('INVESTORS');
   };
 
   const openSecurityHoldingsFromTable = (security: { ticker?: string | null; cusip?: string; issuerName?: string }) => {
@@ -602,7 +626,7 @@ export default function InstitutionalActivityScreen({
     } else if (security.ticker) {
       setActiveHoldingsQuery({ ticker: security.ticker });
     }
-    setActiveTab('HOLDINGS');
+    handleSetActiveTab('HOLDINGS');
   };
 
   const handleGlobalRefresh = async () => {
@@ -781,7 +805,7 @@ export default function InstitutionalActivityScreen({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleSetActiveTab(tab.id)}
                 className={`px-3 py-1.5 rounded text-xs font-extrabold uppercase tracking-wider border transition-colors shrink-0 inline-flex items-center gap-1.5 cursor-pointer ${
                   isActive
                     ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900]'
@@ -2088,6 +2112,13 @@ export default function InstitutionalActivityScreen({
               selectedTicker={selectedTicker}
               onSelectTicker={onSelectTicker}
               onStatusUpdate={(s) => setCongressStatus(s)}
+              initialSearchQuery={initialPoliticianSearch}
+              onSearchQueryChange={onPoliticianSearchChange}
+              searchSubmissionSignal={
+                congressSubmissionSignal
+                  ? { id: congressSubmissionSignal.id, query: congressSubmissionSignal.politician }
+                  : null
+              }
             />
           )}
         </div>

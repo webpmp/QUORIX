@@ -7,6 +7,7 @@ export interface CommandDefinition {
   desc: string;
   category: 'Tools' | 'Information' | 'Equities' | 'Macro';
   aliases?: string[];
+  hideInSidebar?: boolean;
 }
 
 export const COMMAND_DEFINITIONS: CommandDefinition[] = [
@@ -19,6 +20,7 @@ export const COMMAND_DEFINITIONS: CommandDefinition[] = [
   { code: 'DES', name: 'SECURITY ANALYTICS', desc: 'Core Info & Bio', category: 'Equities', aliases: ['ANALYTICS', 'SECURITY'] },
   { code: 'ANR', name: 'ANALYST RECS', desc: 'Consensus estimates', category: 'Equities', aliases: ['ANALYST', 'RECS', 'RECOMMENDATIONS'] },
   { code: 'INST', name: 'INSTITUTIONAL ACTIVITY', desc: '13F Holdings & Accumulation', category: 'Equities', aliases: ['13F', 'INSTITUTIONAL', 'ACTIVITY'] },
+  { code: 'CON', name: 'CONGRESSIONAL TRADING', desc: 'House member trades filter', category: 'Equities', hideInSidebar: true },
   { code: 'CRNC', name: 'CURRENCIES (FX)', desc: 'Foreign Exchange Rates', category: 'Macro', aliases: ['CURRENCIES', 'FX', 'FOREX'] },
   { code: 'ECO', name: 'ECONOMIC INDICATOR', desc: 'FRED Macro & Calendar', category: 'Macro', aliases: ['ECONOMIC', 'INDICATOR', 'MACRO', 'FRED'] },
   { code: 'POLY', name: 'POLYMARKET SCREENER', desc: 'Predictive market arbitrage', category: 'Macro', aliases: ['POLYMARKET', 'PREDICTIONS', 'PREDICTION'] },
@@ -108,10 +110,11 @@ export function extractRecognizedCommandPrefix(rawInput: string): RecognizedComm
 }
 
 export type ParsedCommandResult =
-  | { type: 'SCREEN'; screen: string; ticker?: undefined; prompt?: undefined; error?: undefined }
-  | { type: 'TICKER_SCREEN'; screen: string; ticker: string; prompt?: undefined; error?: undefined }
-  | { type: 'INVALID_COMMAND'; screen: string; error: string; ticker?: undefined; prompt?: undefined }
-  | { type: 'AI_QUERY'; prompt: string; screen?: undefined; ticker?: undefined; error?: undefined };
+  | { type: 'SCREEN'; screen: string; ticker?: undefined; prompt?: undefined; error?: undefined; politician?: undefined }
+  | { type: 'TICKER_SCREEN'; screen: string; ticker: string; prompt?: undefined; error?: undefined; politician?: undefined }
+  | { type: 'CONGRESS_SEARCH'; politician: string; screen?: undefined; ticker?: undefined; prompt?: undefined; error?: undefined }
+  | { type: 'INVALID_COMMAND'; screen: string; error: string; ticker?: undefined; prompt?: undefined; politician?: undefined }
+  | { type: 'AI_QUERY'; prompt: string; screen?: undefined; ticker?: undefined; error?: undefined; politician?: undefined };
 
 const TICKER_CMD_RE = /^(?:[A-Z]{1,5}(?:[.-][A-Z0-9]{1,4})?|[0-9]{3,5}\.[A-Z]{1,3})$/;
 
@@ -125,6 +128,17 @@ export function parseCommandLineInput(rawInput: string): ParsedCommandResult {
   const trimmed = rawInput.trim();
   if (!trimmed) {
     return { type: 'SCREEN', screen: 'GP' };
+  }
+
+  // Global command: CON [politician name]
+  // Directly opens Institutional Activity Monitor -> CONGRESS tab with politician search query.
+  // When no politician name is provided (e.g. "CON"), opens CONGRESS tab with empty filter (all politicians).
+  if (/^CON\b/i.test(trimmed)) {
+    const rawRemainder = trimmed.slice(3).trim();
+    return {
+      type: 'CONGRESS_SEARCH',
+      politician: rawRemainder,
+    };
   }
 
   const normalized = normalizeCommandLookupKey(trimmed);

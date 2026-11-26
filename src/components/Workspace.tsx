@@ -69,6 +69,9 @@ interface WorkspaceProps {
   onClearAskPrefillPrompt?: () => void;
   focusAskQuorixSignal?: number;
   tickerCommandSubmissionSignal?: { id: number; screen: string; ticker: string } | null;
+  congressSubmissionSignal?: { id: number; politician: string } | null;
+  onActiveInstTabChange?: (tab: string) => void;
+  onCongressPoliticianSearchChange?: (query: string) => void;
   onTickTimeChange?: (val: string) => void;
   initialHpEarningsDates?: Record<string, string[]>;
 }
@@ -291,9 +294,12 @@ export default function Workspace({
   askPrefillPrompt,
   onClearAskPrefillPrompt,
   tickerCommandSubmissionSignal,
+  congressSubmissionSignal,
   focusAskQuorixSignal = 0,
   onTickTimeChange,
   initialHpEarningsDates,
+  onActiveInstTabChange,
+  onCongressPoliticianSearchChange,
 }: WorkspaceProps) {
   // AI assistant conversational state (ASK)
   const [messages, setMessages] = useState<Array<{ sender: 'user' | 'terminal'; text: string; links?: any[] }>>([]);
@@ -2310,6 +2316,11 @@ export default function Workspace({
           selectedTicker={selectedTicker}
           stocks={stocks}
           onSelectTicker={onSelectTicker}
+          initialTab={congressSubmissionSignal ? 'CONGRESS' : 'HOLDINGS'}
+          initialPoliticianSearch={congressSubmissionSignal?.politician}
+          congressSubmissionSignal={congressSubmissionSignal}
+          onActiveTabChange={onActiveInstTabChange}
+          onPoliticianSearchChange={onCongressPoliticianSearchChange}
         />
       )}
 
@@ -2734,6 +2745,11 @@ export default function Workspace({
                     command: 'INST',
                     module: 'Institutional Activity Monitor',
                     description: 'Institutional holdings, 13F position changes, accumulation screening & investor profiles',
+                  },
+                  {
+                    command: 'CON',
+                    module: 'Congressional Trading',
+                    description: 'Opens Institutional Activity Monitor (CONGRESS tab) filtered by politician name (e.g. CON Nancy Pelosi)',
                   },
                   {
                     command: 'SETT',

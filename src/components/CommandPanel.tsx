@@ -88,8 +88,8 @@ export default function CommandPanel({
     };
   }, [isDragging]);
 
-  // Command structures
-  const commands = COMMAND_DEFINITIONS;
+  // Command structures - exclude subcommands marked hideInSidebar from left sidebar navigation
+  const commands = COMMAND_DEFINITIONS.filter((cmd) => !cmd.hideInSidebar);
 
   return (
     <div className="w-full lg:w-72 h-full bg-[#050505] border-[#333] border-r flex flex-col font-mono text-xs select-none overflow-hidden">
