@@ -562,16 +562,16 @@ export const StructuredAnrReport: React.FC<StructuredAnrReportProps> = ({
               {sec.metrics.map((m, mIdx) => {
                 const isRec = m.label.toUpperCase() === 'RECOMMENDATION';
                 return (
-                  <div key={mIdx} className="flex items-baseline justify-between gap-3 text-xs leading-normal">
+                  <div key={mIdx} className="flex items-baseline gap-2 text-xs leading-normal">
                     <span className="text-zinc-400 font-medium uppercase tracking-wider shrink-0">
-                      {m.label}
+                      {m.label}:
                     </span>
                     {isRec && consensusLabel ? (
                       <span className={`font-bold font-mono uppercase tracking-wider text-sm ${consensusColorClass}`}>
                         {consensusLabel}
                       </span>
                     ) : (
-                      <span className="text-zinc-100 font-semibold tabular-nums font-mono text-right truncate">
+                      <span className="text-zinc-100 font-semibold tabular-nums font-mono truncate">
                         {m.value}
                       </span>
                     )}
