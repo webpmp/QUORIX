@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
 import { XMLParser } from 'fast-xml-parser';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type {
   CongressAssetGroup,
   CongressOwnerType,
