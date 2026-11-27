@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, useImperativeHandle, forwardRef } from 'react';
 import {
   Search,
   ExternalLink,
@@ -31,6 +31,8 @@ export interface CongressionalTradingPanelRef {
     newFilingsFound: number;
     cooldownActive: boolean;
     lastIndexCheck: string | null;
+    success?: boolean;
+    lastUpdated?: string | null;
   }>;
 }
 
@@ -39,6 +41,7 @@ export interface CongressTradingPanelStatusUpdate {
   lastIndexCheck: string | null;
   isStale: boolean;
   isLoading: boolean;
+  isInitialLoading: boolean;
   isBackfilling: boolean;
   backfillProgress?: {
     processedFilings: number;
@@ -125,12 +128,98 @@ const CongressionalTradingPanel = forwardRef<CongressionalTradingPanelRef, Congr
     const [totalTrades, setTotalTrades] = useState<number>(initialTrades ? initialTrades.length : 0);
     const [totalPages, setTotalPages] = useState<number>(1);
     const [loading, setLoading] = useState<boolean>(false);
+    const [initialLoading, setInitialLoading] = useState<boolean>(!initialTrades || initialTrades.length === 0);
     const [error, setError] = useState<string | null>(null);
     const [isStale, setIsStale] = useState<boolean>(false);
     const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
     // Ingestion status state
     const [status, setStatus] = useState<CongressStatusResponse | null>(null);
+
+    // Highlight animation tracking for scanned totals
+    const isFirstRenderRef = useRef(true);
+    const prevTotalsRef = useRef({
+      filteredTrades: totalTrades,
+      totalTransactions: status?.totalTransactions,
+      totalParsedFilings: status?.totalParsedFilings,
+      totalScannedFilings: status?.totalScannedFilings,
+    });
+    const [highlightedTotals, setHighlightedTotals] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+      if (isFirstRenderRef.current) {
+        isFirstRenderRef.current = false;
+        prevTotalsRef.current = {
+          filteredTrades: totalTrades,
+          totalTransactions: status?.totalTransactions,
+          totalParsedFilings: status?.totalParsedFilings,
+          totalScannedFilings: status?.totalScannedFilings,
+        };
+        return;
+      }
+
+      const prev = prevTotalsRef.current;
+      const changedKeys: string[] = [];
+
+      if (totalTrades !== prev.filteredTrades) {
+        changedKeys.push('filteredTrades');
+      }
+      if (
+        status?.totalTransactions !== undefined &&
+        prev.totalTransactions !== undefined &&
+        status.totalTransactions !== prev.totalTransactions
+      ) {
+        changedKeys.push('totalTransactions');
+      }
+      if (
+        status?.totalParsedFilings !== undefined &&
+        prev.totalParsedFilings !== undefined &&
+        status.totalParsedFilings !== prev.totalParsedFilings
+      ) {
+        changedKeys.push('totalParsedFilings');
+      }
+      if (
+        status?.totalScannedFilings !== undefined &&
+        prev.totalScannedFilings !== undefined &&
+        status.totalScannedFilings !== prev.totalScannedFilings
+      ) {
+        changedKeys.push('totalScannedFilings');
+      }
+
+      prevTotalsRef.current = {
+        filteredTrades: totalTrades,
+        totalTransactions: status?.totalTransactions,
+        totalParsedFilings: status?.totalParsedFilings,
+        totalScannedFilings: status?.totalScannedFilings,
+      };
+
+      if (changedKeys.length > 0) {
+        setHighlightedTotals((h) => {
+          const next = { ...h };
+          for (const k of changedKeys) {
+            next[k] = true;
+          }
+          return next;
+        });
+
+        const timer = setTimeout(() => {
+          setHighlightedTotals((h) => {
+            const next = { ...h };
+            for (const k of changedKeys) {
+              delete next[k];
+            }
+            return next;
+          });
+        }, 1500);
+
+        return () => clearTimeout(timer);
+      }
+    }, [
+      totalTrades,
+      status?.totalTransactions,
+      status?.totalParsedFilings,
+      status?.totalScannedFilings,
+    ]);
 
     // View mode: feed vs scanned filings modal/section
     const [showScannedSection, setShowScannedSection] = useState<boolean>(false);
@@ -156,7 +245,7 @@ const CongressionalTradingPanel = forwardRef<CongressionalTradingPanelRef, Congr
     }, []);
 
     // Fetch trades
-    const fetchTrades = useCallback(async () => {
+    const fetchTrades = useCallback(async (isInitial = false) => {
       setLoading(true);
       setError(null);
       try {
@@ -188,16 +277,22 @@ const CongressionalTradingPanel = forwardRef<CongressionalTradingPanelRef, Congr
           return;
         }
 
+        // Merge/update trades
         setTrades(Array.isArray(data.trades) ? data.trades : []);
         setScannedFilings(Array.isArray(data.scannedFilings) ? data.scannedFilings : []);
         setTotalTrades(data.totalTrades || 0);
         setTotalPages(data.totalPages || 1);
         setIsStale(Boolean(data.isStale));
-        setLastUpdated(data.lastUpdated);
+        if (data.lastUpdated) {
+          setLastUpdated(data.lastUpdated);
+        }
       } catch (err: any) {
         setError(err?.message || 'Network error fetching Congressional trading data.');
       } finally {
         setLoading(false);
+        if (isInitial) {
+          setInitialLoading(false);
+        }
       }
     }, [
       partyFilter,
@@ -222,6 +317,7 @@ const CongressionalTradingPanel = forwardRef<CongressionalTradingPanelRef, Congr
           let newFound = 0;
           let isCool = false;
           let lastCheck: string | null = null;
+          let refreshSuccessful = false;
           try {
             const res = await fetch('/api/congress/status?refresh=true');
             if (res.ok) {
@@ -234,17 +330,66 @@ const CongressionalTradingPanel = forwardRef<CongressionalTradingPanelRef, Congr
                 newFound = typeof data.newFilingsFound === 'number' ? data.newFilingsFound : 0;
                 isCool = Boolean(data.cooldownActive);
                 lastCheck = data.lastIndexCheck || null;
+                refreshSuccessful = true;
               }
             }
           } catch {}
 
-          await fetchTrades();
+          let tradesSuccess = false;
+          let tradesLastUpdated: string | null = null;
+          try {
+            const qs = new URLSearchParams();
+            if (partyFilter !== 'ALL') qs.set('party', partyFilter);
+            if (typeFilter !== 'ALL') qs.set('type', typeFilter);
+            if (ownerFilter !== 'ALL') qs.set('owner', ownerFilter);
+            if (assetGroupFilter !== 'ALL') qs.set('assetGroup', assetGroupFilter);
+            if (filterThisTickerOnly && selectedTicker) {
+              qs.set('ticker', selectedTicker);
+            }
+            if (searchQuery.trim()) {
+              qs.set('politician', searchQuery.trim());
+            }
+            if (sortBy === 'notificationDate') {
+              qs.set('sortBy', 'disclosureDate');
+            } else {
+              qs.set('sortBy', sortBy);
+            }
+            qs.set('sortDir', sortDir);
+            qs.set('page', String(page));
+            qs.set('pageSize', String(pageSize));
+
+            const tRes = await fetch(`/api/congress/trades?${qs.toString()}`);
+            if (tRes.ok) {
+              const tData: CongressTradesResponse = await tRes.json();
+              if (tData.success) {
+                setTrades(Array.isArray(tData.trades) ? tData.trades : []);
+                setScannedFilings(Array.isArray(tData.scannedFilings) ? tData.scannedFilings : []);
+                setTotalTrades(tData.totalTrades || 0);
+                setTotalPages(tData.totalPages || 1);
+                setIsStale(Boolean(tData.isStale));
+                if (tData.lastUpdated) {
+                  setLastUpdated(tData.lastUpdated);
+                  tradesLastUpdated = tData.lastUpdated;
+                }
+                tradesSuccess = true;
+              }
+            }
+          } catch {}
+
+          if (!tradesSuccess) {
+            await fetchTrades(false);
+          }
+
+          const isOverallSuccess = refreshSuccessful || tradesSuccess;
+          const effectiveUpdated = tradesLastUpdated || (refreshSuccessful ? new Date().toISOString() : null);
 
           return {
             indexCheckRan: checkRan,
             newFilingsFound: newFound,
             cooldownActive: isCool,
             lastIndexCheck: lastCheck,
+            success: isOverallSuccess,
+            lastUpdated: effectiveUpdated,
           };
         },
       }),
@@ -259,15 +404,16 @@ const CongressionalTradingPanel = forwardRef<CongressionalTradingPanelRef, Congr
           lastIndexCheck: status?.lastIndexCheck || null,
           isStale,
           isLoading: loading,
+          isInitialLoading: initialLoading,
           isBackfilling: Boolean(status?.isBackfilling),
           backfillProgress: status?.backfillProgress,
         });
       }
-    }, [lastUpdated, status?.lastIndexCheck, isStale, loading, status?.isBackfilling, status?.backfillProgress, onStatusUpdate]);
+    }, [lastUpdated, status?.lastIndexCheck, isStale, loading, initialLoading, status?.isBackfilling, status?.backfillProgress, onStatusUpdate]);
 
     useEffect(() => {
       void fetchStatus();
-      void fetchTrades();
+      void fetchTrades(true);
     }, [fetchStatus, fetchTrades]);
 
     // Handle explicit search query updates from command submission signal
@@ -331,14 +477,43 @@ const CongressionalTradingPanel = forwardRef<CongressionalTradingPanelRef, Congr
 
         <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-300">
           <span className="tabular-nums">
-            <strong className="text-zinc-100">{totalTrades}</strong> {assetGroupFilter === 'EQUITIES' ? 'EQUITIES & ETFs' : 'FIXED INCOME & OTHER'} OF <strong className="text-zinc-100">{status?.totalTransactions ?? totalTrades}</strong> TOTAL |{' '}
-            <strong className="text-zinc-100">{status?.totalParsedFilings ?? 460}</strong> DIGITAL FILINGS |{' '}
+            <strong
+              className={`text-zinc-100 rounded px-0.5 transition-colors duration-300 ${
+                highlightedTotals['filteredTrades'] ? 'bg-[#ff9900]/25' : 'bg-transparent'
+              }`}
+            >
+              {totalTrades}
+            </strong>{' '}
+            {assetGroupFilter === 'EQUITIES' ? 'EQUITIES & ETFs' : 'FIXED INCOME & OTHER'} OF{' '}
+            <strong
+              className={`text-zinc-100 rounded px-0.5 transition-colors duration-300 ${
+                highlightedTotals['totalTransactions'] ? 'bg-[#ff9900]/25' : 'bg-transparent'
+              }`}
+            >
+              {status?.totalTransactions ?? totalTrades}
+            </strong>{' '}
+            TOTAL |{' '}
+            <strong
+              className={`text-zinc-100 rounded px-0.5 transition-colors duration-300 ${
+                highlightedTotals['totalParsedFilings'] ? 'bg-[#ff9900]/25' : 'bg-transparent'
+              }`}
+            >
+              {status?.totalParsedFilings ?? 460}
+            </strong>{' '}
+            DIGITAL FILINGS |{' '}
             <button
               type="button"
               onClick={() => setShowScannedSection(!showScannedSection)}
               className="text-[#ff9900] hover:underline cursor-pointer"
             >
-              {status?.totalScannedFilings ?? 67} SCANNED (VIEW)
+              <span
+                className={`rounded px-0.5 transition-colors duration-300 ${
+                  highlightedTotals['totalScannedFilings'] ? 'bg-[#ff9900]/25' : 'bg-transparent'
+                }`}
+              >
+                {status?.totalScannedFilings ?? 67}
+              </span>{' '}
+              SCANNED (VIEW)
             </button>
           </span>
         </div>

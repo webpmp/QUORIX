@@ -155,7 +155,31 @@ export default function InstitutionalActivityScreen({
   // Congress tab status & refresh integration
   const congressPanelRef = useRef<CongressionalTradingPanelRef | null>(null);
   const [congressStatus, setCongressStatus] = useState<CongressTradingPanelStatusUpdate | null>(null);
-  const [congressFeedbackMessage, setCongressFeedbackMessage] = useState<string | null>(null);
+  const [isCongressManualRefreshing, setIsCongressManualRefreshing] = useState<boolean>(false);
+  const [lastSuccessfulCongressUpdated, setLastSuccessfulCongressUpdated] = useState<string | null>(null);
+
+  const handleCongressStatusUpdate = useCallback((s: CongressTradingPanelStatusUpdate) => {
+    if (s.lastUpdated) {
+      setLastSuccessfulCongressUpdated((prev) => prev || s.lastUpdated);
+    }
+    setCongressStatus((prev) => {
+      if (
+        prev &&
+        prev.lastUpdated === s.lastUpdated &&
+        prev.lastIndexCheck === s.lastIndexCheck &&
+        prev.isStale === s.isStale &&
+        prev.isLoading === s.isLoading &&
+        prev.isInitialLoading === s.isInitialLoading &&
+        prev.isBackfilling === s.isBackfilling &&
+        prev.backfillProgress?.processedFilings === s.backfillProgress?.processedFilings &&
+        prev.backfillProgress?.totalFilings === s.backfillProgress?.totalFilings &&
+        prev.backfillProgress?.percentComplete === s.backfillProgress?.percentComplete
+      ) {
+        return prev;
+      }
+      return s;
+    });
+  }, []);
 
   // Section A: Institutional Holdings state
   const [activeHoldingsQuery, setActiveHoldingsQuery] = useState<{
@@ -632,28 +656,19 @@ export default function InstitutionalActivityScreen({
   const handleGlobalRefresh = async () => {
     if (activeTab === 'CONGRESS') {
       if (congressPanelRef.current) {
-        const result = await congressPanelRef.current.refresh();
-        if (result.indexCheckRan) {
-          if (result.newFilingsFound === 0) {
-            setCongressFeedbackMessage('UP TO DATE');
-          } else {
-            setCongressFeedbackMessage(`ADDED ${result.newFilingsFound} NEW`);
-          }
-        } else if (result.cooldownActive || result.lastIndexCheck) {
-          const checkTime = result.lastIndexCheck ? new Date(result.lastIndexCheck).getTime() : 0;
-          if (checkTime > 0) {
-            const diffSec = Math.max(1, Math.round((Date.now() - checkTime) / 1000));
-            if (diffSec < 60) {
-              setCongressFeedbackMessage(`CHECKED ${diffSec}s AGO`);
-            } else {
-              const diffMin = Math.round(diffSec / 60);
-              setCongressFeedbackMessage(`CHECKED ${diffMin}m AGO`);
+        setIsCongressManualRefreshing(true);
+        try {
+          const result = await congressPanelRef.current.refresh();
+          if (result && typeof result === 'object') {
+            if (result.success) {
+              setLastSuccessfulCongressUpdated(result.lastUpdated || new Date().toISOString());
             }
-          } else {
-            setCongressFeedbackMessage('CHECKED JUST NOW');
           }
+        } catch (err) {
+          console.error('Congress manual refresh error:', err);
+        } finally {
+          setIsCongressManualRefreshing(false);
         }
-        setTimeout(() => setCongressFeedbackMessage(null), 3000);
       }
     } else if (activeTab === 'HOLDINGS') void fetchHoldings(true);
     else if (activeTab === 'ACCUMULATION') void fetchAccumulation(true);
@@ -685,7 +700,7 @@ export default function InstitutionalActivityScreen({
   }, [investorProfile, profileHoldingsFilter, profileStatusFilter]);
 
   const isCongressLoading =
-    Boolean(congressStatus?.isLoading) || Boolean(congressStatus?.isBackfilling);
+    Boolean(isCongressManualRefreshing) || Boolean(congressStatus?.isLoading);
 
   const isAnyLoading =
     activeTab === 'CONGRESS'
@@ -699,18 +714,18 @@ export default function InstitutionalActivityScreen({
 
   // Determine Congress cache age and stale marker (> 24 hours)
   const isCongressStale = useMemo(() => {
-    if (!congressStatus?.lastUpdated) return false;
-    const cacheTime = new Date(congressStatus.lastUpdated).getTime();
+    if (!lastSuccessfulCongressUpdated) return false;
+    const cacheTime = new Date(lastSuccessfulCongressUpdated).getTime();
     if (Number.isNaN(cacheTime)) return false;
     return Date.now() - cacheTime > 24 * 60 * 60 * 1000;
-  }, [congressStatus?.lastUpdated]);
+  }, [lastSuccessfulCongressUpdated]);
 
   const congressTimestampDisplay = useMemo(() => {
-    if (!congressStatus?.lastUpdated) return null;
-    const d = new Date(congressStatus.lastUpdated);
+    if (congressStatus?.isInitialLoading || !lastSuccessfulCongressUpdated) return null;
+    const d = new Date(lastSuccessfulCongressUpdated);
     if (Number.isNaN(d.getTime())) return null;
     return d.toLocaleTimeString();
-  }, [congressStatus?.lastUpdated]);
+  }, [congressStatus?.isInitialLoading, lastSuccessfulCongressUpdated]);
 
   const activeReportingPeriodDisplay =
     activeTab === 'HOLDINGS'
@@ -756,17 +771,6 @@ export default function InstitutionalActivityScreen({
                     STALE
                   </span>
                 )}
-                {congressFeedbackMessage && !isCongressLoading && (
-                  <span
-                    className={`px-2 py-0.5 rounded border text-xs font-bold uppercase ${
-                      congressFeedbackMessage.startsWith('CHECKED')
-                        ? 'border-amber-500/40 bg-amber-950/30 text-amber-400'
-                        : 'border-[#00ff00]/40 bg-[#00ff00]/10 text-[#00ff00]'
-                    }`}
-                  >
-                    {congressFeedbackMessage}
-                  </span>
-                )}
               </>
             ) : (
               lastRefreshedAt && (
@@ -777,10 +781,14 @@ export default function InstitutionalActivityScreen({
               type="button"
               onClick={handleGlobalRefresh}
               disabled={isAnyLoading}
-              className="ml-1 px-2 py-1 rounded bg-black border border-[#333] hover:border-[#ff9900] hover:text-[#ff9900] text-zinc-300 text-xs font-bold uppercase transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
+              className={`ml-1 px-2 py-1 rounded border text-xs font-bold uppercase transition-all cursor-pointer inline-flex items-center gap-1 ${
+                isAnyLoading
+                  ? 'bg-[#ff9900]/15 border-[#ff9900] text-[#ff9900] cursor-not-allowed opacity-90'
+                  : 'bg-black border-[#333] hover:border-[#ff9900] hover:text-[#ff9900] text-zinc-300'
+              }`}
             >
               <RefreshCw size={10} className={isAnyLoading ? 'animate-spin' : ''} />
-              <span>REFRESH</span>
+              <span>{isAnyLoading ? 'REFRESHING' : 'REFRESH'}</span>
             </button>
           </div>
         </div>
@@ -2111,7 +2119,7 @@ export default function InstitutionalActivityScreen({
               ref={congressPanelRef}
               selectedTicker={selectedTicker}
               onSelectTicker={onSelectTicker}
-              onStatusUpdate={(s) => setCongressStatus(s)}
+              onStatusUpdate={handleCongressStatusUpdate}
               initialSearchQuery={initialPoliticianSearch}
               onSearchQueryChange={onPoliticianSearchChange}
               searchSubmissionSignal={
