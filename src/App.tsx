@@ -615,7 +615,10 @@ export default function App() {
           stocks={stocks}
           trackedTickers={trackedTickers}
           selectedTicker={selectedTicker}
-          onSelectTicker={handleSelectTicker}
+          onSelectTicker={(ticker) => {
+            handleSelectTicker(ticker);
+            setActiveScreen('GP');
+          }}
           onReorderTicker={handleReorderTicker}
           onRemoveTicker={handleRemoveTicker}
           onResetTrackedTickers={handleResetTrackedTickers}
