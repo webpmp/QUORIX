@@ -2647,7 +2647,7 @@ export default function Workspace({
             <span className="text-white text-md font-bold uppercase tracking-wider">
               Reference &amp; User Manual
             </span>
-            <span className="text-xs text-zinc-300 font-mono">HLP CENTRAL REPOSITORIES</span>
+            <span className="text-xs text-zinc-300 font-mono">v1.0</span>
           </div>
 
           <div className="text-xs">
