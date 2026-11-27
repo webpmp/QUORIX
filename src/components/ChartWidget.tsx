@@ -1921,9 +1921,6 @@ export default function ChartWidget({
                 <span className="text-white text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate">
                   {typeof stock.volume === 'number' && stock.volume > 0 ? stock.volume.toLocaleString() : '--'}
                 </span>
-                <span className="text-xs text-zinc-300 font-bold block truncate">
-                  BAR VOLUME: {typeof displayData.volume === 'number' ? displayData.volume.toLocaleString() : '--'}
-                </span>
               </div>
             )}
             {showRsiStudy && (
