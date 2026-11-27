@@ -168,6 +168,24 @@ export default function Header({
     });
   };
 
+  const formatLocalTimeWithZone = () => {
+    let tzAbbr = 'LOC';
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(time);
+      const found = parts.find((p) => p.type === 'timeZoneName')?.value;
+      if (found) tzAbbr = found;
+    } catch {
+      // fallback to LOC if formatting fails
+    }
+    const timeStr = time.toLocaleTimeString('en-GB', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    return `${tzAbbr} ${timeStr}`;
+  };
+
   return (
     <header className="relative z-40 bg-[#1a1a1a] border-b border-[#333] select-none text-[#d4d4d4] font-mono text-xs">
       {/* City clks */}
@@ -178,7 +196,7 @@ export default function Header({
             CONNECTED
           </span>
           <span className="tabular-nums text-white font-black">
-            {tickTime || '--'}
+            {formatLocalTimeWithZone()}
           </span>
           <span className="hidden sm:inline">GMT {formatZoneTime('UTC')}</span>
           <span className="hidden md:inline"><span className="text-[#ff9900]">NY</span> {formatZoneTime('America/New_York')}</span>
