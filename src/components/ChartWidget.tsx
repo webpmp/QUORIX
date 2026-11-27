@@ -1925,7 +1925,7 @@ export default function ChartWidget({
             )}
             {showRsiStudy && (
               <div className="min-w-0">
-                <span className="text-zinc-300 font-bold block truncate">RSI (14)</span>
+                <span className="text-zinc-300 font-bold block truncate">RSI</span>
                 <span
                   className={`text-xs sm:text-sm md:text-base font-black block tracking-tight leading-tight mt-0.5 truncate ${
                     typeof currentRsi === 'number' && !isNaN(currentRsi)
