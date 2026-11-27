@@ -76,7 +76,7 @@ export default function App() {
   const [selectedTicker, setSelectedTicker] = useState<string>('AAPL');
   const [selectedCurrency, setSelectedCurrency] = useState<string | null>(null);
   const [selectedEcoCategory, setSelectedEcoCategory] = useState<string | null>(null);
-  const [newsHubFilterTicker, setNewsHubFilterTicker] = useState<string | null>(null);
+  const [newsHubFilterTickers, setNewsHubFilterTickers] = useState<string[]>([]);
   const [activeScreen, setActiveScreen] = useState<string>('GP');
 
   const [fredEconomicsStatus, setFredEconomicsStatus] = useState<FredFeedStatus>({
@@ -364,9 +364,6 @@ export default function App() {
       if (parsed.screen === 'ECO') {
         setSelectedEcoCategory(null);
       }
-      if (parsed.screen === 'NEWS') {
-        setNewsHubFilterTicker(null);
-      }
       setActiveScreen(parsed.screen);
       if (parsed.screen === 'ASK') {
         setCurrentCommand('');
@@ -389,8 +386,10 @@ export default function App() {
         lastPrefilledCommandRef.current = cmd;
         setCurrentCommand(cmd);
       } else if (parsed.screen === 'NEWS') {
-        lastPrefilledCommandRef.current = 'NEWS ';
-        setCurrentCommand('NEWS ');
+        const tickersStr = newsHubFilterTickers.join(' ').trim();
+        const cmd = tickersStr ? `NEWS ${tickersStr}` : 'NEWS ';
+        lastPrefilledCommandRef.current = cmd;
+        setCurrentCommand(cmd);
       }
       return;
     }
@@ -413,24 +412,28 @@ export default function App() {
         return;
       }
 
-      // Special handling for News Hub filter: "NEWS <TICKER>"
+      // Special handling for News Hub filter: "NEWS <TICKER> [TICKER...]"
       if (targetScreen === 'NEWS') {
-        setNewsHubFilterTicker(ticker);
+        const tickersToFilter = (parsed.tickers && parsed.tickers.length > 0)
+          ? parsed.tickers.map((t) => t.toUpperCase())
+          : [ticker];
+        setNewsHubFilterTickers(tickersToFilter);
         setActiveScreen('NEWS');
         setTickerCommandSubmissionSignal({ id: Date.now(), screen: 'NEWS', ticker });
-        if (trackedTickers.includes(ticker) || TAPE_SYMBOLS.includes(ticker) || stocks[ticker]) {
-          setSelectedTicker(ticker);
-          ensureTickerSlot(ticker, false);
-          fetchLiveQuote(ticker, false, true);
-        } else {
-          void searchAndAddTrackedEquity(ticker).then((res) => {
-            if (executionToken !== activeValidationTokenRef.current) return;
-            if (res?.accepted && res.stock) {
-              const resolvedSym = res.stock.symbol || ticker;
-              setSelectedTicker(resolvedSym);
-            }
-          });
-        }
+
+        tickersToFilter.forEach((sym) => {
+          if (trackedTickers.includes(sym) || TAPE_SYMBOLS.includes(sym) || stocks[sym]) {
+            ensureTickerSlot(sym, false);
+            fetchLiveQuote(sym, false, true);
+          } else {
+            void searchAndAddTrackedEquity(sym).then((res) => {
+              if (executionToken !== activeValidationTokenRef.current) return;
+              if (res?.accepted && res.stock) {
+                // Ensure ticker is populated
+              }
+            });
+          }
+        });
         return;
       }
 
@@ -503,8 +506,8 @@ export default function App() {
   // Keep search input prepopulated when on NEWS HUB, GRAPH PRICE, HISTORICAL PRICING, INSTITUTIONAL ACTIVITY, POLYMARKET SCREENER, SECURITY ANALYTICS, ANALYST RECS, or CURRENCIES with active ticker/currency
   useEffect(() => {
     if (activeScreen === 'NEWS') {
-      const sym = (newsHubFilterTicker || '').trim().toUpperCase();
-      const cmd = sym ? `NEWS ${sym}` : 'NEWS ';
+      const tickersStr = newsHubFilterTickers.join(' ').trim();
+      const cmd = tickersStr ? `NEWS ${tickersStr}` : 'NEWS ';
       lastPrefilledCommandRef.current = cmd;
       setCurrentCommand(cmd);
     } else if (
@@ -552,7 +555,7 @@ export default function App() {
       }
       lastPrefilledCommandRef.current = null;
     }
-  }, [activeScreen, selectedTicker, selectedCurrency, selectedEcoCategory, newsHubFilterTicker, activeInstTab]);
+  }, [activeScreen, selectedTicker, selectedCurrency, selectedEcoCategory, newsHubFilterTickers, activeInstTab]);
 
   const handleSelectTicker = (ticker: string) => {
     const sym = normalizeTickerSymbol(ticker);
@@ -636,9 +639,19 @@ export default function App() {
           fredEconomicsStatus={fredEconomicsStatus}
           fredCurrenciesStatus={fredCurrenciesStatus}
           selectedEcoCategory={selectedEcoCategory}
-          newsHubFilterTicker={newsHubFilterTicker}
+          newsHubFilterTickers={newsHubFilterTickers}
+          onRemoveNewsHubFilterTicker={(tickerToRemove) => {
+            const nextTickers = newsHubFilterTickers.filter(
+              (t) => t.toUpperCase() !== tickerToRemove.toUpperCase()
+            );
+            setNewsHubFilterTickers(nextTickers);
+            const cmd = nextTickers.length > 0 ? `NEWS ${nextTickers.join(' ')}` : 'NEWS ';
+            lastPrefilledCommandRef.current = cmd;
+            setCurrentCommand(cmd);
+          }}
           onClearNewsHubFilter={() => {
-            setNewsHubFilterTicker(null);
+            setNewsHubFilterTickers([]);
+            lastPrefilledCommandRef.current = 'NEWS ';
             setCurrentCommand('NEWS ');
           }}
           onRefreshEconomics={() => fetchFredEconomics(true)}

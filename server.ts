@@ -4119,6 +4119,9 @@ app.get("/api/news/ticker", async (req, res) => {
   const newsApiKey = getActiveApiKey("NEWS_API_KEY");
   const newsdataKey = getActiveApiKey("NEWSDATA_API_KEY");
   const requestedTicker = ((req.query.ticker as string) || "").toUpperCase().trim();
+  const requestedTickers = requestedTicker
+    ? Array.from(new Set(requestedTicker.split(/[\s,]+/).filter(Boolean)))
+    : [];
   const forceRefresh = req.query.force === "true";
   const rotateMode = req.query.mode === "rotate";
   const parsedSlot = parseInt(String(req.query.slot ?? ""), 10);
@@ -4145,12 +4148,12 @@ app.get("/api/news/ticker", async (req, res) => {
   const fetchPromises: Promise<any>[] = [];
   let chosenRotationSource: RotationSourceId | null = null;
 
-  // 0. Yahoo Finance News (ONLY articles strictly related to the requested stock/asset ticker)
-  if (requestedTicker) {
-    const yfTicker = mapToYahooSymbol(requestedTicker);
+  // 0. Yahoo Finance News (ONLY articles strictly related to the requested stock/asset ticker(s))
+  for (const singleTicker of requestedTickers) {
+    const yfTicker = mapToYahooSymbol(singleTicker);
     const yfUpper = yfTicker.toUpperCase();
     const baseTicker = yfUpper.split("-")[0].split("=")[0].replace(/^\^/, "");
-    const tickerMatchSet = new Set([requestedTicker, yfUpper, baseTicker]);
+    const tickerMatchSet = new Set([singleTicker, yfUpper, baseTicker]);
 
     const newsSearchAlias: Record<string, string> = {
       BTC: "Bitcoin",
@@ -4173,7 +4176,7 @@ app.get("/api/news/ticker", async (req, res) => {
       "^TNX": "Treasury yield",
     };
 
-    const aliasQuery = newsSearchAlias[requestedTicker] || newsSearchAlias[yfUpper];
+    const aliasQuery = newsSearchAlias[singleTicker] || newsSearchAlias[yfUpper];
     const primaryQuery = aliasQuery || yfTicker;
     const escapedBase = baseTicker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const escapedAlias = aliasQuery ? aliasQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "";
@@ -4181,7 +4184,7 @@ app.get("/api/news/ticker", async (req, res) => {
       ? new RegExp(`(\\b${escapedBase}\\b|\\b${escapedAlias}\\b)`, "i")
       : new RegExp(`\\b${escapedBase}\\b`, "i");
 
-    activeSources.push(`Yahoo Finance (${requestedTicker})`);
+    activeSources.push(`Yahoo Finance (${singleTicker})`);
     fetchPromises.push(
       Promise.all([
         fetchYahooSearch(primaryQuery, 2, 15).then(async (resData) => {
@@ -4222,16 +4225,16 @@ app.get("/api/news/ticker", async (req, res) => {
                 rssIntros.byTitle.get(normTitle) ||
                 "";
               return {
-                id: `yf-${art.uuid || index}-${requestedTicker}`,
+                id: `yf-${art.uuid || index}-${singleTicker}`,
                 title: art.title,
                 source: publisher === "Yahoo Finance" ? "Yahoo Finance" : `${publisher} / Yahoo Finance`,
                 time: formatNewsTime(publishedAt),
-                symbol: requestedTicker,
+                symbol: singleTicker,
                 relatedTickers: Array.isArray(art.relatedTickers)
                   ? art.relatedTickers.filter((t: any) => typeof t === "string" && /^[A-Z0-9.-]{1,8}$/i.test(t))
-                  : [requestedTicker],
+                  : [singleTicker],
                 sentiment: analyzeNewsSentiment(`${art.title} ${intro}`),
-                classification: `YAHOO FINANCE - ${requestedTicker}`,
+                classification: `YAHOO FINANCE - ${singleTicker}`,
                 content: intro,
                 url: art.link,
                 publishedAt,
@@ -4249,14 +4252,14 @@ app.get("/api/news/ticker", async (req, res) => {
             })
             .slice(0, 10)
             .map((rssArt, index) => ({
-              id: `yfrss-${rssArt.guid || index}-${requestedTicker}`,
+              id: `yfrss-${rssArt.guid || index}-${singleTicker}`,
               title: rssArt.title,
               source: "Yahoo Finance",
               time: formatNewsTime(rssArt.publishedAt),
-              symbol: requestedTicker,
-              relatedTickers: [requestedTicker],
+              symbol: singleTicker,
+              relatedTickers: [singleTicker],
               sentiment: analyzeNewsSentiment(`${rssArt.title} ${rssArt.intro}`),
-              classification: `YAHOO FINANCE - ${requestedTicker}`,
+              classification: `YAHOO FINANCE - ${singleTicker}`,
               content: rssArt.intro,
               url: rssArt.link,
               publishedAt: rssArt.publishedAt,

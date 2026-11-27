@@ -110,11 +110,11 @@ export function extractRecognizedCommandPrefix(rawInput: string): RecognizedComm
 }
 
 export type ParsedCommandResult =
-  | { type: 'SCREEN'; screen: string; ticker?: undefined; prompt?: undefined; error?: undefined; politician?: undefined }
-  | { type: 'TICKER_SCREEN'; screen: string; ticker: string; prompt?: undefined; error?: undefined; politician?: undefined }
-  | { type: 'CONGRESS_SEARCH'; politician: string; screen?: undefined; ticker?: undefined; prompt?: undefined; error?: undefined }
-  | { type: 'INVALID_COMMAND'; screen: string; error: string; ticker?: undefined; prompt?: undefined; politician?: undefined }
-  | { type: 'AI_QUERY'; prompt: string; screen?: undefined; ticker?: undefined; error?: undefined; politician?: undefined };
+  | { type: 'SCREEN'; screen: string; ticker?: undefined; prompt?: undefined; error?: undefined; politician?: undefined; tickers?: undefined }
+  | { type: 'TICKER_SCREEN'; screen: string; ticker: string; prompt?: undefined; error?: undefined; politician?: undefined; tickers?: string[] }
+  | { type: 'CONGRESS_SEARCH'; politician: string; screen?: undefined; ticker?: undefined; prompt?: undefined; error?: undefined; tickers?: undefined }
+  | { type: 'INVALID_COMMAND'; screen: string; error: string; ticker?: undefined; prompt?: undefined; politician?: undefined; tickers?: undefined }
+  | { type: 'AI_QUERY'; prompt: string; screen?: undefined; ticker?: undefined; error?: undefined; politician?: undefined; tickers?: undefined };
 
 const TICKER_CMD_RE = /^(?:[A-Z]{1,5}(?:[.-][A-Z0-9]{1,4})?|[0-9]{3,5}\.[A-Z]{1,3})$/;
 
@@ -203,6 +203,35 @@ export function parseCommandLineInput(rawInput: string): ParsedCommandResult {
             type: 'INVALID_COMMAND',
             screen: 'ECO',
             error: `Unrecognized release category: "${remainder}". Valid categories: CPI, PPI, PCE, FOMC, GDP, NFP, CLAIMS, JOLTS, RETAIL, DURABLE, INDPRO, HOUSING, SOFR, RATES, VIX.`,
+          };
+        }
+      }
+    }
+  }
+
+  // 1.6 Dedicated handler for NEWS commands with single or multiple ticker symbols:
+  // e.g. "NEWS BTC", "NEWS BTC NVDA", "NEWS BTC NVDA AMD", "NEWS HUB BTC NVDA"
+  const NEWS_ALIASES = ['NEWS HUB', 'NEWS'];
+  for (const newsAlias of NEWS_ALIASES) {
+    if (normalized === newsAlias) {
+      return {
+        type: 'SCREEN',
+        screen: 'NEWS',
+      };
+    }
+    if (normalized.startsWith(newsAlias + ' ')) {
+      const remainder = normalized.slice(newsAlias.length + 1).trim();
+      if (remainder) {
+        const tokens = remainder.split(/\s+/).filter(Boolean);
+        const validTickers = tokens.filter((t) => TICKER_CMD_RE.test(t));
+        // If all tokens are valid tickers, parse as multi/single ticker NEWS command
+        if (validTickers.length > 0 && validTickers.length === tokens.length) {
+          const uniqueTickers = Array.from(new Set(validTickers));
+          return {
+            type: 'TICKER_SCREEN',
+            screen: 'NEWS',
+            ticker: uniqueTickers[0],
+            ...(uniqueTickers.length > 1 ? { tickers: uniqueTickers } : {}),
           };
         }
       }

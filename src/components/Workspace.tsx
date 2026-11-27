@@ -37,7 +37,7 @@ import {
   syncNewsPaywallStatuses,
 } from '../utils/newsPaywall';
 import { normalizeEcoCategory, ECO_RELEASE_CATEGORIES } from '../utils/ecoReleaseFilter';
-import { Send, AlertCircle, RefreshCw, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import { Send, AlertCircle, RefreshCw, Search, ChevronDown, ChevronRight, ExternalLink, X } from 'lucide-react';
 import CompanyLogo, { isCompanyEquitySymbol, splitReportTitleAndBody } from './CompanyLogo';
 import { StructuredDesReport, StructuredAnrReport } from '../utils/reportFormatting';
 
@@ -57,6 +57,8 @@ interface WorkspaceProps {
   fredCurrenciesStatus?: FredFeedStatus;
   selectedEcoCategory?: string | null;
   newsHubFilterTicker?: string | null;
+  newsHubFilterTickers?: string[];
+  onRemoveNewsHubFilterTicker?: (ticker: string) => void;
   onClearNewsHubFilter?: () => void;
   onRefreshEconomics?: () => void;
   onRefreshCurrencies?: () => void;
@@ -283,6 +285,8 @@ export default function Workspace({
   fredCurrenciesStatus,
   selectedEcoCategory = null,
   newsHubFilterTicker = null,
+  newsHubFilterTickers = [],
+  onRemoveNewsHubFilterTicker,
   onClearNewsHubFilter,
   onRefreshEconomics,
   onRefreshCurrencies,
@@ -705,13 +709,27 @@ export default function Workspace({
     history: [],
   };
 
+  // Normalize active filter tickers for NEWS HUB (supports newsHubFilterTickers array or legacy newsHubFilterTicker)
+  const activeNewsHubFilterTickers = useMemo(() => {
+    if (newsHubFilterTickers && newsHubFilterTickers.length > 0) {
+      return Array.from(new Set(newsHubFilterTickers.map((t) => t.toUpperCase())));
+    }
+    if (newsHubFilterTicker) {
+      return [newsHubFilterTicker.toUpperCase()];
+    }
+    return [];
+  }, [newsHubFilterTickers, newsHubFilterTicker]);
+
   // Fetch or simulate server-side description on ticker search, and fetch initial/ticker news
   useEffect(() => {
     const isNewTicker = lastNewsTickerRef.current !== selectedTicker;
+    const joinedFilterTickers = activeNewsHubFilterTickers.join(',');
 
     if (lastRefreshed === 0) {
-      if (activeScreen === 'NEWS' && !newsHubFilterTicker) {
+      if (activeScreen === 'NEWS' && activeNewsHubFilterTickers.length === 0) {
         fetchAggregatedNews('', false);
+      } else if (activeScreen === 'NEWS') {
+        fetchAggregatedNews(joinedFilterTickers);
       } else {
         fetchAggregatedNews(selectedTicker);
       }
@@ -719,7 +737,7 @@ export default function Workspace({
       setGpNewsArticles([]);
       fetchAggregatedNews(selectedTicker);
     } else if (activeScreen === 'NEWS') {
-      const targetNewsTicker = newsHubFilterTicker || '';
+      const targetNewsTicker = joinedFilterTickers;
       if (lastNewsTickerRef.current !== targetNewsTicker) {
         fetchAggregatedNews(targetNewsTicker);
       }
@@ -738,10 +756,10 @@ export default function Workspace({
       const oneHourInMs = 60 * 60 * 1000;
 
       if (lastRefreshed > 0 && isMarketActive && Date.now() - lastRefreshed >= oneHourInMs) {
-        fetchAggregatedNews(newsHubFilterTicker || '');
+        fetchAggregatedNews(joinedFilterTickers);
       }
     }
-  }, [selectedTicker, activeScreen, lastRefreshed, newsHubFilterTicker]);
+  }, [selectedTicker, activeScreen, lastRefreshed, activeNewsHubFilterTickers]);
 
   // Load expanded hourly Historical Price archive on demand when HP screen is active (per-symbol cached)
   useEffect(() => {
@@ -872,20 +890,20 @@ export default function Workspace({
         const oneHourInMs = 60 * 60 * 1000;
         
         if (isMarketActive && Date.now() - lastRefreshed >= oneHourInMs) {
-          fetchAggregatedNews(newsHubFilterTicker || '');
+          fetchAggregatedNews(activeNewsHubFilterTickers.join(','));
         }
       }
     }, 60000);
     return () => clearInterval(interval);
-  }, [activeScreen, lastRefreshed, selectedTicker, newsHubFilterTicker]);
+  }, [activeScreen, lastRefreshed, selectedTicker, activeNewsHubFilterTickers]);
 
   useEffect(() => {
     const handleForceNewsRefresh = () => {
-      fetchAggregatedNews(activeScreen === 'NEWS' ? (newsHubFilterTicker || '') : selectedTicker, true);
+      fetchAggregatedNews(activeScreen === 'NEWS' ? activeNewsHubFilterTickers.join(',') : selectedTicker, true);
     };
     window.addEventListener('quorix-news-refresh', handleForceNewsRefresh);
     return () => window.removeEventListener('quorix-news-refresh', handleForceNewsRefresh);
-  }, [selectedTicker, activeScreen, newsHubFilterTicker]);
+  }, [selectedTicker, activeScreen, activeNewsHubFilterTickers]);
 
   useEffect(() => {
     return subscribePaywallUpdates(() => {
@@ -1292,23 +1310,33 @@ export default function Workspace({
     return scoredItems.slice(0, 4).map((entry) => entry.item);
   }, [gpNewsArticles, selectedTicker, currentStock?.name]);
 
-  // Filtered news articles for NEWS HUB when filtered by ticker (e.g. NEWS GOOG, NEWS AAPL)
+  // Filtered news articles for NEWS HUB when filtered by ticker (e.g. NEWS GOOG, NEWS BTC NVDA)
   const filteredNewsHubArticles = useMemo(() => {
-    if (!newsHubFilterTicker) return null;
-    const companyName = stocks[newsHubFilterTicker]?.name;
+    if (activeNewsHubFilterTickers.length === 0) return null;
 
-    const scored: Array<{ item: any; tier: 1 | 2 }> = [];
+    const scored: Array<{ item: any; bestTier: 1 | 2 }> = [];
     for (const item of newsArticles) {
-      const tier = scoreArticleForTicker(item, newsHubFilterTicker, companyName);
-      if (tier === 1 || tier === 2) {
-        scored.push({ item, tier });
+      let bestTier: 1 | 2 | null = null;
+      for (const ticker of activeNewsHubFilterTickers) {
+        const companyName = stocks[ticker]?.name;
+        const tier = scoreArticleForTicker(item, ticker, companyName);
+        if (tier === 1) {
+          bestTier = 1;
+          break; // Highest possible tier
+        } else if (tier === 2) {
+          bestTier = 2;
+        }
+      }
+
+      if (bestTier !== null) {
+        scored.push({ item, bestTier });
       }
     }
 
     // Sort by tier ascending (Tier 1 first), then newest first (recency descending)
     scored.sort((a, b) => {
-      if (a.tier !== b.tier) {
-        return a.tier - b.tier;
+      if (a.bestTier !== b.bestTier) {
+        return a.bestTier - b.bestTier;
       }
       const timeA = new Date(a.item.publishedAt || 0).getTime();
       const timeB = new Date(b.item.publishedAt || 0).getTime();
@@ -1316,7 +1344,7 @@ export default function Workspace({
     });
 
     return scored.map((s) => s.item);
-  }, [newsArticles, newsHubFilterTicker, stocks]);
+  }, [newsArticles, activeNewsHubFilterTickers, stocks]);
 
   return (
     <div className={`flex-1 bg-[#010101] p-4 font-mono text-zinc-300 relative select-text ${
@@ -1670,7 +1698,7 @@ export default function Workspace({
                 LAST REFRESHED: {lastRefreshed > 0 ? new Date(lastRefreshed).toLocaleTimeString() : 'NEVER'}
               </span>
               <button 
-                onClick={() => fetchAggregatedNews(newsHubFilterTicker || '', true)} 
+                onClick={() => fetchAggregatedNews(activeNewsHubFilterTickers.join(','), true)} 
                 disabled={newsLoading}
                 className="text-zinc-300 hover:text-[#00ff00] disabled:text-zinc-700 transition-colors cursor-pointer"
                 title="Refresh news"
@@ -1681,20 +1709,24 @@ export default function Workspace({
           </div>
 
           <div className="space-y-4">
-            {newsHubFilterTicker && (
-              <div className="flex justify-end items-center gap-2">
-                <span className="px-2 py-0.5 rounded bg-[#ff9900]/15 border border-[#ff9900] text-[#ff9900] text-xs font-bold uppercase tracking-wider">
-                  FILTERED: {newsHubFilterTicker} · {displayedNewsArticles.length} {displayedNewsArticles.length === 1 ? 'ITEM' : 'ITEMS'}
-                </span>
-                {onClearNewsHubFilter && (
-                  <button
-                    type="button"
-                    onClick={onClearNewsHubFilter}
-                    className="px-2 py-0.5 rounded bg-black border border-[#333] hover:border-[#ff9900] hover:text-[#ff9900] text-zinc-300 text-xs font-bold uppercase transition-colors cursor-pointer"
+            {activeNewsHubFilterTickers.length > 0 && (
+              <div className="flex flex-wrap justify-end items-center gap-2">
+                {activeNewsHubFilterTickers.map((sym) => (
+                  <span
+                    key={sym}
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#ff9900]/15 border border-[#ff9900] text-[#ff9900] text-xs font-bold font-mono tracking-wider"
                   >
-                    SHOW ALL
-                  </button>
-                )}
+                    <span>{sym}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${sym} filter`}
+                      onClick={() => (onRemoveNewsHubFilterTicker ? onRemoveNewsHubFilterTicker(sym) : onClearNewsHubFilter?.())}
+                      className="hover:text-white transition-colors cursor-pointer p-0.5 inline-flex items-center justify-center text-[#ff9900]"
+                    >
+                      <X size={11} strokeWidth={2.5} />
+                    </button>
+                  </span>
+                ))}
               </div>
             )}
 
@@ -1726,8 +1758,8 @@ export default function Workspace({
               </div>
             ) : (
               <div className="text-center py-12 text-zinc-300 text-xs bg-black border border-[#333] rounded font-mono">
-                {newsHubFilterTicker
-                  ? `NO RECENT HEADLINES SPECIFICALLY ABOUT ${newsHubFilterTicker}.`
+                {activeNewsHubFilterTickers.length > 0
+                  ? `NO RECENT HEADLINES SPECIFICALLY ABOUT ${activeNewsHubFilterTickers.join(', ')}.`
                   : 'NO RECENT WORLD OR BUSINESS NEWS POPULATED.'}
               </div>
             )}
