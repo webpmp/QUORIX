@@ -270,7 +270,7 @@ export default function Header({
                 onChange={(e) => {
                   onCommandChange(e.target.value.toUpperCase());
                 }}
-                placeholder="Enter command code (e.g., AAPL GP, CRNC, WEAT, or describe stock/query...)"
+                placeholder="Enter command code (e.g., GP AAPL, CRNC, WEAT, or describe stock/query...)"
                 className={`w-full bg-transparent font-mono text-sm uppercase placeholder:normal-case outline-none placeholder-zinc-700 caret-[#00ff00] relative z-10 selection:bg-[#3498db]/40 selection:text-white ${
                   extractRecognizedCommandPrefix(currentCommand) ? 'text-transparent' : 'text-[#00ff00]'
                 }`}

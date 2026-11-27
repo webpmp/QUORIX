@@ -2702,7 +2702,7 @@ export default function Workspace({
                   {
                     command: 'NEWS',
                     module: 'News Hub',
-                    description: 'Live multi-source financial news feed',
+                    description: 'Live multi-source financial news feed. Filter headlines by ticker by entering a symbol after NEWS (e.g. NEWS NVDA)',
                   },
                   {
                     command: 'GP',
@@ -2757,7 +2757,7 @@ export default function Workspace({
                   {
                     command: 'CON',
                     module: 'Congressional Trading',
-                    description: 'Opens Institutional Activity Monitor (CONGRESS tab) filtered by politician name (e.g. CON Nancy Pelosi)',
+                    description: 'Opens Institutional Activity Monitor (CONGRESS tab) filtered by politician name (e.g. CON PELOSI)',
                   },
                   {
                     command: 'SETT',
@@ -2791,29 +2791,29 @@ export default function Workspace({
           </div>
 
           <p className="text-zinc-300 leading-relaxed">
-            <span className="text-zinc-200 font-bold">Chained Commands:</span> Prefix a ticker symbol with a screen command, e.g.{' '}
+            <span className="text-zinc-200 font-bold">Chained Commands:</span> Enter a screen command followed by a ticker symbol, e.g.{' '}
             <button
               type="button"
-              onClick={() => onExecuteCommand('NVDA GP')}
+              onClick={() => onExecuteCommand('GP NVDA')}
               className="text-[#3498db] hover:text-[#ff9900] font-bold cursor-pointer transition-colors"
             >
-              NVDA GP
+              GP NVDA
             </button>
             ,{' '}
             <button
               type="button"
-              onClick={() => onExecuteCommand('TSLA DES')}
+              onClick={() => onExecuteCommand('DES TSLA')}
               className="text-[#3498db] hover:text-[#ff9900] font-bold cursor-pointer transition-colors"
             >
-              TSLA DES
+              DES TSLA
             </button>
             ,{' '}
             <button
               type="button"
-              onClick={() => onExecuteCommand('BTC HP')}
+              onClick={() => onExecuteCommand('HP BTC')}
               className="text-[#3498db] hover:text-[#ff9900] font-bold cursor-pointer transition-colors"
             >
-              BTC HP
+              HP BTC
             </button>
             , or type a ticker symbol (
             <button
