@@ -1140,7 +1140,7 @@ export default function ChartWidget({
   const volBarWidth = Math.max(3, Math.min(12, Math.floor(barStep * 0.5)));
   const priceVolBarWidth = volBarWidth;
 
-  const minLabelGapPx = (spansMultipleDays || interval === '1W') && interval !== '1M' ? 98 : 76;
+  const minLabelGapPx = (spansMultipleDays || interval === '1W') && interval !== '1M' ? 120 : 96;
   const maxLabels = Math.max(3, Math.floor(adjWidth / minLabelGapPx));
   const labelStep = Math.max(1, Math.ceil(history.length / maxLabels));
   const priceVolMaxLabels = maxLabels;
@@ -2527,7 +2527,7 @@ export default function ChartWidget({
                       y={pricePaddingTop + priceAdjHeight + 13}
                       textAnchor="middle"
                       fill="#e4e4e7"
-                      fontSize="9"
+                      fontSize="12"
                       fontFamily="monospace"
                       fontWeight="bold"
                     >
