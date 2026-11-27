@@ -276,12 +276,9 @@ export default function CommandPanel({
                         }`}
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="font-bold flex items-center gap-1.5 min-w-0">
+                        <div className="font-bold flex items-center min-w-0">
                           <span className={isSelected ? 'text-[#3498db]' : 'text-zinc-200'}>
                             {stock.symbol}
-                          </span>
-                          <span className="text-xs text-zinc-300 truncate">
-                            {stock.name}
                           </span>
                         </div>
                         <div className="text-xs text-zinc-300 mt-0.5">
