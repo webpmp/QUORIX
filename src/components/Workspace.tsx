@@ -1054,52 +1054,28 @@ export default function Workspace({
       };
 
       if (data.success && Array.isArray(data.data)) {
-        // Map missing fields and ensure ISO publishedAt timestamp exists
-        const processed = data.data.map((item: any, idx: number) => {
-          let publishedAt = item.publishedAt;
-          if (!publishedAt) {
-            // Calculate relative offset to keep correct order if timestamp is missing
-            publishedAt = new Date(Date.now() - idx * 15 * 60 * 1000).toISOString();
-          }
-          return { ...item, publishedAt };
-        });
+        const nowMs = Date.now();
+        const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+        const cutoffMs = nowMs - TWENTY_FOUR_HOURS_MS;
 
-        const combined = [...processed];
-
-        // Sort descending by publishedAt (most recent first)
-        combined.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
-
-        // Filter strictly for current date (today) in user's local timezone or New York (ET) timezone
-        const filtered = combined.filter(item => {
-          const pubStr = item.publishedAt;
-          if (!pubStr) return false;
+        // Filter strictly for articles published within the rolling 24-hour window
+        // Exclude articles with missing, invalid, or unparseable publication timestamps
+        const filtered = data.data.filter((item: any) => {
+          const pubStr = item?.publishedAt;
+          if (!pubStr || typeof pubStr !== 'string' || !pubStr.trim()) return false;
           try {
-            const itemDate = new Date(pubStr);
-            if (isNaN(itemDate.getTime())) return false;
-
-            const today = new Date();
-            
-            // Same calendar day in local timezone
-            const isLocalToday = itemDate.getDate() === today.getDate() &&
-                                 itemDate.getMonth() === today.getMonth() &&
-                                 itemDate.getFullYear() === today.getFullYear();
-            
-            // Same calendar day in America/New_York (ET) timezone
-            const itemETStr = itemDate.toLocaleString("en-US", { timeZone: "America/New_York" });
-            const itemET = new Date(itemETStr);
-            const todayETStr = today.toLocaleString("en-US", { timeZone: "America/New_York" });
-            const todayET = new Date(todayETStr);
-            
-            const isNewYorkToday = itemET.getDate() === todayET.getDate() &&
-                                   itemET.getMonth() === todayET.getMonth() &&
-                                   itemET.getFullYear() === todayET.getFullYear();
-
-            // Strictly must be today in either user's local timezone or New York time
-            return isLocalToday || isNewYorkToday;
+            const itemTimeMs = new Date(pubStr).getTime();
+            if (Number.isNaN(itemTimeMs)) return false;
+            return itemTimeMs >= cutoffMs;
           } catch {
             return false;
           }
         });
+
+        const combined = [...filtered];
+
+        // Sort descending by publishedAt (most recent first)
+        combined.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
         // Deduplicate headlines by topic (word overlap)
         const uniqueArticles: any[] = [];

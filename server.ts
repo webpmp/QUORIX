@@ -4148,124 +4148,201 @@ app.get("/api/news/ticker", async (req, res) => {
   const fetchPromises: Promise<any>[] = [];
   let chosenRotationSource: RotationSourceId | null = null;
 
-  // 0. Yahoo Finance News (ONLY articles strictly related to the requested stock/asset ticker(s))
-  for (const singleTicker of requestedTickers) {
-    const yfTicker = mapToYahooSymbol(singleTicker);
-    const yfUpper = yfTicker.toUpperCase();
-    const baseTicker = yfUpper.split("-")[0].split("=")[0].replace(/^\^/, "");
-    const tickerMatchSet = new Set([singleTicker, yfUpper, baseTicker]);
+  // 0. Yahoo Finance News
+  // For ticker-specific queries: fetch Yahoo search + ticker RSS intros for each requested ticker
+  if (requestedTickers.length > 0) {
+    for (const singleTicker of requestedTickers) {
+      const yfTicker = mapToYahooSymbol(singleTicker);
+      const yfUpper = yfTicker.toUpperCase();
+      const baseTicker = yfUpper.split("-")[0].split("=")[0].replace(/^\^/, "");
+      const tickerMatchSet = new Set([singleTicker, yfUpper, baseTicker]);
 
-    const newsSearchAlias: Record<string, string> = {
-      BTC: "Bitcoin",
-      "BTC-USD": "Bitcoin",
-      ETH: "Ethereum",
-      "ETH-USD": "Ethereum",
-      SOL: "Solana",
-      "SOL-USD": "Solana",
-      SPX: "S&P 500",
-      "^GSPC": "S&P 500",
-      DJI: "Dow Jones",
-      "^DJI": "Dow Jones",
-      IXIC: "Nasdaq",
-      "^IXIC": "Nasdaq",
-      GC: "Gold price",
-      "GC=F": "Gold price",
-      CL: "Crude oil",
-      "CL=F": "Crude oil",
-      TNX: "Treasury yield",
-      "^TNX": "Treasury yield",
-    };
+      const newsSearchAlias: Record<string, string> = {
+        BTC: "Bitcoin",
+        "BTC-USD": "Bitcoin",
+        ETH: "Ethereum",
+        "ETH-USD": "Ethereum",
+        SOL: "Solana",
+        "SOL-USD": "Solana",
+        SPX: "S&P 500",
+        "^GSPC": "S&P 500",
+        DJI: "Dow Jones",
+        "^DJI": "Dow Jones",
+        IXIC: "Nasdaq",
+        "^IXIC": "Nasdaq",
+        GC: "Gold price",
+        "GC=F": "Gold price",
+        CL: "Crude oil",
+        "CL=F": "Crude oil",
+        TNX: "Treasury yield",
+        "^TNX": "Treasury yield",
+      };
 
-    const aliasQuery = newsSearchAlias[singleTicker] || newsSearchAlias[yfUpper];
-    const primaryQuery = aliasQuery || yfTicker;
-    const escapedBase = baseTicker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const escapedAlias = aliasQuery ? aliasQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "";
-    const titleTickerRegex = escapedAlias
-      ? new RegExp(`(\\b${escapedBase}\\b|\\b${escapedAlias}\\b)`, "i")
-      : new RegExp(`\\b${escapedBase}\\b`, "i");
+      const aliasQuery = newsSearchAlias[singleTicker] || newsSearchAlias[yfUpper];
+      const primaryQuery = aliasQuery || yfTicker;
+      const escapedBase = baseTicker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escapedAlias = aliasQuery ? aliasQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "";
+      const titleTickerRegex = escapedAlias
+        ? new RegExp(`(\\b${escapedBase}\\b|\\b${escapedAlias}\\b)`, "i")
+        : new RegExp(`\\b${escapedBase}\\b`, "i");
 
-    activeSources.push(`Yahoo Finance (${singleTicker})`);
-    fetchPromises.push(
-      Promise.all([
-        fetchYahooSearch(primaryQuery, 2, 15).then(async (resData) => {
-          if (Array.isArray(resData?.news) && resData.news.length > 0) return resData;
-          if (primaryQuery !== yfTicker) return fetchYahooSearch(yfTicker, 2, 15);
-          return resData;
-        }),
-        fetchYahooTickerRssIntros(yfTicker),
-      ])
-        .then(([searchData, rssIntros]) => {
-          const rawNews = Array.isArray(searchData?.news) ? searchData.news : [];
-          const seenKeys = new Set<string>();
-          const fromSearch = rawNews
-            .filter((art: any) => {
-              if (!art?.title || !art?.link) return false;
-              if (isBlacklistedNews(art.title, "")) return false;
-              const rel = Array.isArray(art.relatedTickers)
-                ? art.relatedTickers.map((t: any) => String(t).toUpperCase())
-                : [];
-              if (rel.length > 0) {
-                if (rel.some((t: string) => tickerMatchSet.has(t))) return true;
-              }
-              return titleTickerRegex.test(art.title);
-            })
-            .map((art: any, index: number) => {
-              const publishedAt =
-                typeof art.providerPublishTime === "number"
-                  ? new Date(art.providerPublishTime * 1000).toISOString()
-                  : new Date().toISOString();
-              const publisher = typeof art.publisher === "string" && art.publisher.trim()
-                ? art.publisher.trim()
-                : "Yahoo Finance";
-              const normTitle = decodeNewsText(art.title).toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
-              if (art.uuid) seenKeys.add(art.uuid);
-              if (normTitle) seenKeys.add(normTitle);
-              const intro =
-                (art.uuid ? rssIntros.byGuid.get(art.uuid) : undefined) ||
-                rssIntros.byTitle.get(normTitle) ||
-                "";
-              return {
-                id: `yf-${art.uuid || index}-${singleTicker}`,
-                title: art.title,
-                source: publisher === "Yahoo Finance" ? "Yahoo Finance" : `${publisher} / Yahoo Finance`,
-                time: formatNewsTime(publishedAt),
+      activeSources.push(`Yahoo Finance (${singleTicker})`);
+      fetchPromises.push(
+        Promise.all([
+          fetchYahooSearch(primaryQuery, 2, 50).then(async (resData) => {
+            if (Array.isArray(resData?.news) && resData.news.length > 0) return resData;
+            if (primaryQuery !== yfTicker) return fetchYahooSearch(yfTicker, 2, 50);
+            return resData;
+          }),
+          fetchYahooTickerRssIntros(yfTicker),
+        ])
+          .then(([searchData, rssIntros]) => {
+            const rawNews = Array.isArray(searchData?.news) ? searchData.news : [];
+            const seenKeys = new Set<string>();
+            const fromSearch = rawNews
+              .filter((art: any) => {
+                if (!art?.title || !art?.link) return false;
+                if (isBlacklistedNews(art.title, "")) return false;
+                const rel = Array.isArray(art.relatedTickers)
+                  ? art.relatedTickers.map((t: any) => String(t).toUpperCase())
+                  : [];
+                if (rel.length > 0) {
+                  if (rel.some((t: string) => tickerMatchSet.has(t))) return true;
+                }
+                return titleTickerRegex.test(art.title);
+              })
+              .map((art: any, index: number) => {
+                const publishedAt =
+                  typeof art.providerPublishTime === "number"
+                    ? new Date(art.providerPublishTime * 1000).toISOString()
+                    : new Date().toISOString();
+                const publisher = typeof art.publisher === "string" && art.publisher.trim()
+                  ? art.publisher.trim()
+                  : "Yahoo Finance";
+                const normTitle = decodeNewsText(art.title).toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+                if (art.uuid) seenKeys.add(art.uuid);
+                if (normTitle) seenKeys.add(normTitle);
+                const intro =
+                  (art.uuid ? rssIntros.byGuid.get(art.uuid) : undefined) ||
+                  rssIntros.byTitle.get(normTitle) ||
+                  "";
+                return {
+                  id: `yf-${art.uuid || index}-${singleTicker}`,
+                  title: art.title,
+                  source: publisher === "Yahoo Finance" ? "Yahoo Finance" : `${publisher} / Yahoo Finance`,
+                  time: formatNewsTime(publishedAt),
+                  symbol: singleTicker,
+                  relatedTickers: Array.isArray(art.relatedTickers)
+                    ? art.relatedTickers.filter((t: any) => typeof t === "string" && /^[A-Z0-9.-]{1,8}$/i.test(t))
+                    : [singleTicker],
+                  sentiment: analyzeNewsSentiment(`${art.title} ${intro}`),
+                  classification: `YAHOO FINANCE - ${singleTicker}`,
+                  content: intro,
+                  url: art.link,
+                  publishedAt,
+                };
+              });
+
+            // Also include fresh Yahoo Finance RSS articles for the ticker not returned by Search
+            const fromRss = rssIntros.items
+              .filter((rssArt) => {
+                if (isBlacklistedNews(rssArt.title, rssArt.intro)) return false;
+                const normTitle = rssArt.title.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+                if (rssArt.guid && seenKeys.has(rssArt.guid)) return false;
+                if (normTitle && seenKeys.has(normTitle)) return false;
+                return titleTickerRegex.test(`${rssArt.title} ${rssArt.intro}`);
+              })
+              .slice(0, 20)
+              .map((rssArt, index) => ({
+                id: `yfrss-${rssArt.guid || index}-${singleTicker}`,
+                title: rssArt.title,
+                source: "Yahoo Finance",
+                time: formatNewsTime(rssArt.publishedAt),
                 symbol: singleTicker,
-                relatedTickers: Array.isArray(art.relatedTickers)
-                  ? art.relatedTickers.filter((t: any) => typeof t === "string" && /^[A-Z0-9.-]{1,8}$/i.test(t))
-                  : [singleTicker],
-                sentiment: analyzeNewsSentiment(`${art.title} ${intro}`),
+                relatedTickers: [singleTicker],
+                sentiment: analyzeNewsSentiment(`${rssArt.title} ${rssArt.intro}`),
                 classification: `YAHOO FINANCE - ${singleTicker}`,
-                content: intro,
-                url: art.link,
-                publishedAt,
-              };
+                content: rssArt.intro,
+                url: rssArt.link,
+                publishedAt: rssArt.publishedAt,
+              }));
+
+            return [...fromSearch, ...fromRss];
+          })
+          .catch(() => [])
+      );
+    }
+  } else if (!rotateMode) {
+    // For general unfiltered NEWS HUB: execute broad Yahoo Finance search queries (markets, stock market, SPY)
+    activeSources.push("Yahoo Finance (Markets)");
+    const generalYahooQueries = ["markets", "stock market", "SPY"];
+    fetchPromises.push(
+      Promise.all(
+        generalYahooQueries.map((query) =>
+          fetchYahooSearch(query, 2, 50).catch(() => ({ quotes: [], news: [] }))
+        )
+      )
+        .then((queryResults) => {
+          const rawItems: any[] = [];
+          for (const resData of queryResults) {
+            if (Array.isArray(resData?.news)) {
+              rawItems.push(...resData.news);
+            }
+          }
+
+          const seenUrls = new Set<string>();
+          const seenUuids = new Set<string>();
+          const seenNormTitles = new Set<string>();
+          const normalizedArticles: any[] = [];
+
+          for (let index = 0; index < rawItems.length; index++) {
+            const art = rawItems[index];
+            if (!art?.title || !art?.link) continue;
+            if (isBlacklistedNews(art.title, "")) continue;
+
+            const normUrl = normalizeNewsUrl(art.link);
+            const uuid = typeof art.uuid === "string" ? art.uuid.trim() : "";
+            const normTitle = decodeNewsText(art.title).toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+
+            if (normUrl && seenUrls.has(normUrl)) continue;
+            if (uuid && seenUuids.has(uuid)) continue;
+            if (normTitle && seenNormTitles.has(normTitle)) continue;
+
+            if (normUrl) seenUrls.add(normUrl);
+            if (uuid) seenUuids.add(uuid);
+            if (normTitle) seenNormTitles.add(normTitle);
+
+            const publishedAt =
+              typeof art.providerPublishTime === "number" && art.providerPublishTime > 0
+                ? new Date(art.providerPublishTime * 1000).toISOString()
+                : "";
+            if (!publishedAt) continue;
+
+            const publisher = typeof art.publisher === "string" && art.publisher.trim()
+              ? art.publisher.trim()
+              : "Yahoo Finance";
+
+            const relatedTickers: string[] = Array.isArray(art.relatedTickers)
+              ? art.relatedTickers.filter((t: any) => typeof t === "string" && /^[A-Z0-9.-]{1,8}$/i.test(t))
+              : [];
+
+            normalizedArticles.push({
+              id: `yfg-${uuid || index}`,
+              title: art.title,
+              source: publisher === "Yahoo Finance" ? "Yahoo Finance" : `${publisher} / Yahoo Finance`,
+              time: formatNewsTime(publishedAt),
+              symbol: relatedTickers[0] || "MARKET",
+              relatedTickers,
+              sentiment: analyzeNewsSentiment(art.title),
+              classification: "YAHOO FINANCE - MARKETS",
+              content: "",
+              url: art.link,
+              publishedAt,
             });
+          }
 
-          // Also include fresh Yahoo Finance RSS articles for the ticker not returned by Search
-          const fromRss = rssIntros.items
-            .filter((rssArt) => {
-              if (isBlacklistedNews(rssArt.title, rssArt.intro)) return false;
-              const normTitle = rssArt.title.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
-              if (rssArt.guid && seenKeys.has(rssArt.guid)) return false;
-              if (normTitle && seenKeys.has(normTitle)) return false;
-              return titleTickerRegex.test(`${rssArt.title} ${rssArt.intro}`);
-            })
-            .slice(0, 10)
-            .map((rssArt, index) => ({
-              id: `yfrss-${rssArt.guid || index}-${singleTicker}`,
-              title: rssArt.title,
-              source: "Yahoo Finance",
-              time: formatNewsTime(rssArt.publishedAt),
-              symbol: singleTicker,
-              relatedTickers: [singleTicker],
-              sentiment: analyzeNewsSentiment(`${rssArt.title} ${rssArt.intro}`),
-              classification: `YAHOO FINANCE - ${singleTicker}`,
-              content: rssArt.intro,
-              url: rssArt.link,
-              publishedAt: rssArt.publishedAt,
-            }));
-
-          return [...fromSearch, ...fromRss];
+          // Deduplicate overlapping results across the three Yahoo queries
+          return deduplicateNewsItems(normalizedArticles);
         })
         .catch(() => [])
     );
@@ -4304,7 +4381,7 @@ app.get("/api/news/ticker", async (req, res) => {
         }));
         const filtered = deduplicateNewsItems(
           mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content))
-        ).slice(0, 15);
+        ).slice(0, 30);
         newsProviderCache.nyt = { timestamp: Date.now(), items: filtered };
         return filtered;
       }
@@ -4354,7 +4431,7 @@ app.get("/api/news/ticker", async (req, res) => {
         }));
         const filtered = deduplicateNewsItems(
           mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content))
-        ).slice(0, 15);
+        ).slice(0, 30);
         newsProviderCache.newsapi = { timestamp: Date.now(), items: filtered };
         return filtered;
       }
@@ -4401,7 +4478,7 @@ app.get("/api/news/ticker", async (req, res) => {
         }));
         const filtered = deduplicateNewsItems(
           mapped.filter((item: any) => isStockOrMarketRelated(item.title, item.content))
-        ).slice(0, 15);
+        ).slice(0, 30);
         newsProviderCache.newsdata = { timestamp: Date.now(), items: filtered };
         return filtered;
       }
@@ -4456,9 +4533,9 @@ app.get("/api/news/ticker", async (req, res) => {
           url: link,
           publishedAt,
         });
-        if (parsedItems.length >= 15) break;
+        if (parsedItems.length >= 30) break;
       }
-      const dedupedYahoo = deduplicateNewsItems(parsedItems).slice(0, 15);
+      const dedupedYahoo = deduplicateNewsItems(parsedItems).slice(0, 30);
       if (dedupedYahoo.length > 0) {
         newsProviderCache.yahoo = { timestamp: Date.now(), items: dedupedYahoo };
         return dedupedYahoo;
@@ -4497,6 +4574,11 @@ app.get("/api/news/ticker", async (req, res) => {
         newsItems.push(...picked.items);
       }
     } else {
+      if (!requestedTicker) {
+        // Unfiltered NEWS HUB: always include Yahoo Market RSS alongside any configured secondary sources
+        activeSources.push("Yahoo Finance (RSS)");
+        fetchPromises.push(providerFetchers.yahoo.fn());
+      }
       for (const srcId of availableApiSources) {
         activeSources.push(providerFetchers[srcId].label);
         fetchPromises.push(providerFetchers[srcId].fn());
@@ -4539,7 +4621,7 @@ app.get("/api/news/ticker", async (req, res) => {
 
     const minFreshCount = rotateMode ? 6 : 1;
     const finalNewsPool = recentNews.length >= minFreshCount ? recentNews : sortedNews;
-    const finalNewsSlice = finalNewsPool.slice(0, 40);
+    const finalNewsSlice = finalNewsPool.slice(0, 60);
     let enrichedNewsSlice = finalNewsSlice;
     try {
       enrichedNewsSlice = await newsPaywallService.enrichNewsItemsWithPaywall(finalNewsSlice);
