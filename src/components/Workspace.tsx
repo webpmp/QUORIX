@@ -2825,6 +2825,29 @@ export default function Workspace({
             </button>
             ) to switch the active security.
           </p>
+
+          <div className="pt-4 mt-6 border-t border-[#3a3a3a]">
+            <h3 className="text-[#ff9900] text-xs font-bold uppercase tracking-wider mb-2 select-none">LEGAL</h3>
+            <div className="flex items-center gap-4 text-xs font-mono">
+              <a
+                href="https://github.com/webpmp/QUORIX/blob/main/docs/TERMS_OF_USE.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#3498db] hover:text-[#ff9900] font-bold transition-colors"
+              >
+                TERMS OF USE
+              </a>
+              <span className="text-[#3a3a3a]">|</span>
+              <a
+                href="https://github.com/webpmp/QUORIX/blob/main/docs/PRIVACY_POLICY.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#3498db] hover:text-[#ff9900] font-bold transition-colors"
+              >
+                PRIVACY POLICY
+              </a>
+            </div>
+          </div>
           </div>
         </div>
       )}
